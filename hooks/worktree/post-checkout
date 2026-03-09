@@ -1,0 +1,78 @@
+#!/bin/bash
+# Hook post-checkout pour gérer les bases de données séparées par worktree
+#
+# Ce hook s'exécute automatiquement après chaque checkout de branche dans un worktree.
+# Il crée une base de données PostgreSQL unique pour chaque worktree, permettant
+# d'isoler complètement les environnements de test.
+#
+# Installation: Copier ce fichier dans .githooks/post-checkout du worktree
+# Activation: chmod +x .githooks/post-checkout
+
+set -e
+
+# Arguments du hook
+prev_head=$1
+new_head=$2
+branch_checkout=$3
+
+# Ne s'exécute que lors d'un checkout de branche
+if [ "$branch_checkout" != "1" ]; then
+  exit 0
+fi
+
+# Détecte si on est dans un worktree
+git_common_dir=$(git rev-parse --git-common-dir 2>/dev/null)
+git_dir=$(git rev-parse --git-dir 2>/dev/null)
+
+# Si git-dir == git-common-dir, on est dans le repo principal, pas un worktree
+if [ "$git_dir" = "$git_common_dir" ]; then
+  exit 0
+fi
+
+# Génère un nom de DB unique basé sur le nom du répertoire du worktree
+worktree_path=$(git rev-parse --show-toplevel)
+worktree_name=$(basename "$worktree_path")
+
+# Transforme le nom en format compatible DB (remplace - par _)
+# Exemple: demarches-simplifiees.fr-poc-haml → poc_haml
+db_suffix=$(echo "$worktree_name" | sed 's/demarches-simplifiees\.fr-//' | sed 's/-/_/g')
+db_name="tps_test_${db_suffix}"
+
+echo "==> Worktree détecté: $worktree_name"
+echo "==> Configuration de la base de données: $db_name"
+
+# Crée ou met à jour .env.test.local avec le nom de DB unique
+env_test_local="$worktree_path/.env.test.local"
+
+cat > "$env_test_local" <<EOF
+# Worktree-specific database configuration
+# This file overrides .env.test for this worktree only
+DB_DATABASE_TEST="${db_name}"
+DB_HOST_TEST="localhost"
+DB_USERNAME_TEST="tps_test"
+DB_PASSWORD_TEST="tps_test"
+EOF
+
+echo "==> Configuration écrite dans .env.test.local"
+
+# Vérifie si la DB existe déjà
+if psql -U tps_test -h localhost -lqt | cut -d \| -f 1 | grep -qw "$db_name"; then
+  echo "==> Base de données $db_name existe déjà"
+else
+  echo "==> Création de la base de données $db_name"
+  createdb -U tps_test -h localhost "$db_name" || {
+    echo "⚠️  Erreur lors de la création de la DB. Vérifiez vos credentials PostgreSQL."
+    exit 0
+  }
+
+  echo "==> Chargement du schema dans $db_name"
+  cd "$worktree_path"
+  RAILS_ENV=test bundle exec rails db:schema:load || {
+    echo "⚠️  Erreur lors du chargement du schema."
+    exit 0
+  }
+fi
+
+echo "✓ Configuration worktree terminée!"
+echo "  → Base de données: $db_name"
+echo "  → Config: $env_test_local"
