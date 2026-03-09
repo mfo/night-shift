@@ -2,6 +2,8 @@
 
 **Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
 
+**Version :** Améliorée après Phase 1.1 (4 learnings critiques intégrés)
+
 ---
 
 ## Objectif
@@ -10,18 +12,24 @@ Convertir un batch de fichiers HAML en ERB en préservant le markup HTML, les cl
 
 ---
 
-## Workflow (45min)
+## Workflow (50min, batch max 5 fichiers)
 
-### Étape 1 : Lire le fichier HAML (5min)
+### Étape 1 : Analyse complète (10min)
+
+**⚠️ CRITIQUE :** Lire le HAML ET le fichier Ruby
 
 1. Lire le fichier HAML : `app/components/nom/nom.html.haml`
-2. Comprendre la structure (divs, itérations, helpers)
-3. Rechercher les tests :
+2. **Lire le fichier Ruby : `app/components/nom/nom.rb`**
+3. Identifier les méthodes utilisées dans le template :
+   - Si retourne `Array` → utiliser `.join(' ')` en ERB
+   - Si retourne `String` → utiliser directement
+   - Si retourne `Hash` → utiliser `tag.attributes(**method)`
+4. Rechercher les tests :
    ```bash
    grep -r "nom_du_composant" spec/
    ```
 
-### Étape 2 : Conversion (25min)
+### Étape 2 : Conversion (20min)
 
 **Règles de conversion :**
 
@@ -30,37 +38,82 @@ Convertir un batch de fichiers HAML en ERB en préservant le markup HTML, les cl
   = content              →    <%= content %>
                          →  </div>
 
-- if condition           →  <% if condition %>
+- if condition           →  <% if condition -%>
   = content              →    <%= content %>
-                         →  <% end %>
+                         →  <% end -%>
 
 %div{ class: my_class }  →  <div class="<%= my_class %>">
+                            (⚠️ Si my_class est un Array → .join(' '))
 
 %div{ **options }        →  <div <%= tag.attributes(**options) %>>
 ```
 
-### Étape 3 : Vérification (10min)
+**⚠️ Règles critiques (Phase 1.1) :**
 
-1. Vérifier le diff :
+1. **Arrays de classes** : Si la méthode retourne un array, ajouter `.join(' ')`
+2. **Pas de balises auto-fermantes** : `<input>` pas `<input />`
+3. **Contrôler l'espacement** : Utiliser `<%-` et `-%>` pour supprimer newlines
+4. **Guillemets** : Utiliser simples quotes `'` si tests sensibles
+
+### Étape 3 : Validation locale (15min)
+
+**⚠️ OBLIGATOIRE - Ne JAMAIS skip cette étape**
+
+1. **Linter herb** :
+   ```bash
+   bun lint:herb app/components/nom/nom.html.erb
+   ```
+
+2. **Tests locaux** :
+   ```bash
+   bundle exec rspec spec/path/to/test_spec.rb
+   ```
+
+3. **Vérifier patterns à risque** :
+   ```bash
+   # Pas de balises auto-fermantes
+   grep '/>' app/components/nom/nom.html.erb  # Doit être vide
+
+   # Vérifier arrays
+   grep 'class=' app/components/nom/nom.html.erb
+   ```
+
+4. **Diff visuel** :
    ```bash
    git diff app/components/nom/
    ```
 
-2. Vérifier que le markup reste cohérent
-
 ### Étape 4 : Commit (5min)
+
+**Seulement si linter + tests passent ✅**
 
 1. Supprimer fichiers HAML
 2. Commit :
    ```bash
-   git commit -m "refactor(haml): migrate [BATCH] to ERB"
+   git commit --no-gpg-sign -m "refactor(haml): migrate [BATCH] to ERB"
    ```
 
 ---
 
 ## Checklist
 
-- [ ] Fichiers HAML lus
+- [ ] Fichier HAML lu
+- [ ] **Fichier Ruby lu (vérifier types de retour)**
 - [ ] Conversion complète
+- [ ] Arrays avec `.join(' ')` si nécessaire
+- [ ] Pas de balises auto-fermantes
+- [ ] Espacement contrôlé (`<%-`, `-%>`)
+- [ ] **Linter herb passé**
+- [ ] **Tests passés**
 - [ ] Diff vérifié
 - [ ] Commit créé
+
+---
+
+## Learnings Phase 1.1
+
+**4 erreurs découvertes sur 12 fichiers, 3 amends, 23min CI perdues.**
+
+Ce prompt intègre ces learnings pour éviter les mêmes erreurs.
+
+Voir `essentials.md` pour les patterns détaillés.
