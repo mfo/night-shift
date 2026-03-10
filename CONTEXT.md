@@ -148,6 +148,45 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 ---
 
+### POC 4 : Specs Architecture (avec Review PM)
+
+- [x] Spec traitée : Refactoring Simpliscore tunnel_id (bug architectural)
+- [x] Setup créé : `pocs/4-spec/setup.md` (modèle 3 phases)
+- [x] Prompt créé : `create-spec.md` (suit le setup.md)
+- [x] Kaizen documenté : Phase spec uniquement (implémentation à venir)
+- [x] 3 patterns découverts (Preuve mathématique, Query Object DRY, Trade-offs)
+
+**Résultats POC 4 :**
+- Temps total : 5h30 (analyse 30min + conception 1h + rédaction 1h30 + review PM 45min + itérations 1h30)
+- Score : **7/10 seul, 9/10 avec review PM** ✅
+- Review PM findings : 15 problèmes détectés (4 critiques, 11 importants)
+- Itérations user : 8 rounds sans friction
+
+**Workflow 3 phases validé :**
+1. **Analyse & Rédaction spec v1** (2-3h) : Analyse problème, conception architecture, template 15 sections
+2. **Review Agent PM** (45min-1h) : Obligatoire si > 500 lignes, focus 10 points critiques
+3. **User Review + Décisions** (1-2h) : Validation architecture, itérations rapides (max 8)
+
+**Patterns découverts :**
+1. **Preuve Mathématique de Bug :** Au lieu de "ça marche pas", prouver condition impossible → conviction immédiate
+2. **Query Object pour DRY :** Logique répétée 3+ fois → extraire dans Query Object (testable, extensible)
+3. **Documentation Trade-offs :** Template Choix/Alternative/Rationale/Impact → évite débats futurs
+
+**Hypothèses validées :**
+- Review agent PM efficace pour specs > 500 lignes (15 problèmes détectés)
+- Itérations rapides user + agent fonctionnent (8 rounds sans friction)
+- Query Object proactif apprécié (user a approuvé immédiatement)
+- Documentation trade-offs évite débats futurs
+
+**Hypothèses invalidées :**
+- Fire-and-forget pour specs architecture (décisions métier nécessaires)
+- Estimation temps précise (réalité = 2x estimation initiale)
+
+**Règle critique :**
+Bug architectural détecté → STOP et spec globale, pas patch incrémental
+
+---
+
 ### Priorité 3 : Continuer POCs
 
 **POCs disponibles :**
@@ -163,14 +202,13 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
    - [ ] Mesurer overhead handoff
    - [ ] Tester parallélisation investigation/implémentation
 
-3. **POC 4 : Features simples**
-   - [ ] Choisir 1 feature simple (CRUD, etc.)
-   - [ ] Créer prompt implémentation feature
-   - [ ] Tester sur 1-2 features
-   - [ ] Documenter patterns architecture
+3. **POC 4 : Specs Architecture** (suite)
+   - [ ] Implémenter spec Simpliscore tunnel_id (8-20h estimé)
+   - [ ] Mesurer temps implémentation vs. estimation
+   - [ ] Valider que spec production-ready accélère implémentation
 
 **Stratégie :**
-- Même approche : prompt basique → test → kaizen → améliorer
+- Même approche : setup.md (modèle) + prompt (guide agent) → test → kaizen → améliorer
 - Objectif : score ≥ 7/10 (apprentissage transférable)
 
 ---
@@ -203,6 +241,7 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 | 1   | 1.1   | HAML→ERB (12 fichiers) | 3/10 | 4 | 3 | 48min |
 | 1   | 2.8a  | HAML→ERB (5 fichiers) | **8/10** ✅ | 1 | 1 | 35min |
 | 3   | -     | Bug Sentry (investigation + fix) | **4.7/5** ✅ | 0 | 0 | 65min |
+| 4   | spec  | Spec architecture (Simpliscore) | **7/10 seul, 9/10 PM** ✅ | - | - | 5h30 |
 
 ### Objectifs prochaines phases
 
@@ -263,6 +302,11 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 - `.claude/prompts/fix-sentry-bug.md` : Prompt implémentation
 - `kaizen/poc-3-bugs/` : Learnings investigation + implémentation
 
+**POC 4 - Specs Architecture :**
+- `pocs/4-spec/setup.md` : Setup (modèle 3 phases, 15 sections)
+- `.claude/prompts/create-spec.md` : Prompt création spec
+- `kaizen/simpliscore-tunnel-id-spec.md` : Learnings phase spec
+
 ### Infrastructure
 - `hooks/worktree/` : Isolation DB par worktree
 
@@ -306,9 +350,11 @@ Quelle est la meilleure façon de procéder ?
 **Accomplissements :**
 - POC 1 Phase 2.8a : Score 8/10 atteint ✅ (prompt v3 validé)
 - POC 3 : Investigation/Implementation split validé, score 4.7/5 ✅
+- POC 4 : Workflow specs architecture créé, score 7/10→9/10 avec review PM ✅
 
 **Prochains objectifs :**
 - POC 1 : Continuer migration HAML→ERB (batch 15, stabiliser 8/10)
 - POC 3 : Tester split sur bug simple (valider approche monolithic vs split)
+- POC 4 : Implémenter spec Simpliscore tunnel_id (8-20h estimé)
 
-**Status :** 2 POCs validés, méthode qui fonctionne
+**Status :** 3 POCs validés, méthode qui fonctionne
