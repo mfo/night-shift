@@ -1,6 +1,6 @@
 # CONTEXT - Roadmap & État du Projet
 
-**Dernière MAJ :** 2026-03-09
+**Dernière MAJ :** 2026-03-10
 **Objectif :** Roadmap pour reprendre les travaux et décider de la suite
 
 ---
@@ -28,12 +28,13 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
   - Documentation complète
   - Script d'installation
 
-### Phase 1.1 - Premier POC HAML→ERB
+### POC 1 : HAML→ERB Migration
+
+#### Phase 1.1 - Premier test (12 fichiers)
 - [x] Migration 12 composants DSFR
 - [x] 4 erreurs critiques découvertes
 - [x] Kaizen documenté
-- [x] essentials.md enrichi (4 patterns critiques)
-- [x] Prompt amélioré (validation locale obligatoire)
+- [x] Prompt amélioré v2
 
 **Résultats Phase 1.1 :**
 - Temps : 48min (25min migration + 23min corrections CI)
@@ -46,6 +47,24 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 3. Espacement → ERB préserve, utiliser `<%-` et `-%>`
 4. Guillemets → HAML `'`, ERB `"`
 5. **Validation locale OBLIGATOIRE** (linter + tests avant commit)
+
+#### Phase 2.8a - Test prompt amélioré (5 fichiers)
+- [x] Migration 5 composants simples
+- [x] 1 erreur découverte (Pattern 5: String interpolation helpers)
+- [x] Kaizen documenté
+- [x] Prompt v3 (batch 15 fichiers, autonomie renforcée)
+
+**Résultats Phase 2.8a :**
+- Temps : 35min (25min migration + 5min validation + 5min correction)
+- Score : **8/10** ✅ (objectif atteint)
+- Amélioration : -75% erreurs, -67% amends, -27% temps
+
+**Learning Phase 2.8a :**
+- Pattern 5 : String interpolation helpers (`"#{link_to...}"` échappe HTML)
+- Autonomie : Permission `rm app/**/*.haml` pré-approuvée
+- Sélection auto batch (max 15 fichiers, critères simplicité)
+
+**Progression :** 17/758 fichiers HAML (2.2%)
 
 ---
 
@@ -90,9 +109,46 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 ---
 
-### Priorité 3 : Explorer autres POCs
+### POC 3 : Bugs Sentry (Investigation/Implémentation Split)
 
-**Objectif :** Tester la méthode sur d'autres types de tâches
+- [x] Bug traité : Sentry #7113029548 (Faraday::TooManyRequestsError Mistral API 429)
+- [x] Prompts créés : `investigate-sentry-bug.md` + `fix-sentry-bug.md`
+- [x] Kaizen investigation + implémentation documentés
+- [x] 3 patterns découverts (Rate limiting API, Enqueue massif, Suppression > Désactivation)
+
+**Résultats POC 3 :**
+- Temps total : 65min (investigation 45min + implémentation 20min)
+- Score global : **4.7/5** ✅
+  - Score investigation : 4.4/5
+  - Score implémentation : 4.8/5
+- Gain de temps : **~50%** vs approche monolithique (2-3h)
+
+**Approche validée : Investigation/Implémentation Split**
+- Agent 1 : Investigation (analyse, 5 Whys, 3 solutions proposées)
+- Agent 2 : Implémentation (fix, tests, validation)
+- Handoff : Rapport investigation = interface claire (0 question, 0 re-investigation)
+
+**Patterns découverts :**
+1. **Rate Limiting API Externes :** Jobs Sidekiq + API externe sans throttling → 429
+2. **Jobs Cron Enqueue Massif :** `find_each { perform_later }` → tempête de jobs
+3. **Suppression > Désactivation :** Feature non-critique → supprimer (Git history préserve)
+
+**Hypothèses validées :**
+- Split investigation/implémentation = plus efficace pour bugs complexes (gain 50%)
+- Rapport investigation suffit comme handoff (0 question nécessaire)
+- Patterns réutilisables existent (rate limiting récurrent)
+
+**Hypothèses invalidées :**
+- Investigation sans questions business (3 questions nécessaires)
+- "Toujours désactiver avec ENV" (contexte business prime)
+
+**À valider (prochaines itérations) :**
+- Split utile pour bugs simples ? (overhead handoff vs gain)
+- Parallélisation investigation/implémentation = gain ?
+
+---
+
+### Priorité 3 : Continuer POCs
 
 **POCs disponibles :**
 
@@ -102,11 +158,10 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
    - [ ] Tester sur 3-5 tests
    - [ ] Documenter patterns (N+1, fixtures, etc.)
 
-2. **POC 3 : Bugs Sentry**
-   - [ ] Choisir 1 bug récurrent
-   - [ ] Créer prompt investigation + fix
-   - [ ] Tester sur 2-3 bugs similaires
-   - [ ] Documenter patterns de debugging
+2. **POC 3 : Bugs Sentry** (suite)
+   - [ ] Tester sur bug simple (NoMethodError) pour valider split vs monolithic
+   - [ ] Mesurer overhead handoff
+   - [ ] Tester parallélisation investigation/implémentation
 
 3. **POC 4 : Features simples**
    - [ ] Choisir 1 feature simple (CRUD, etc.)
@@ -115,9 +170,8 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
    - [ ] Documenter patterns architecture
 
 **Stratégie :**
-- Commencer par celui qui semble le plus "agent-friendly"
 - Même approche : prompt basique → test → kaizen → améliorer
-- Objectif : score ≥ 7/10 dès POC 2 (apprentissage transférable)
+- Objectif : score ≥ 7/10 (apprentissage transférable)
 
 ---
 
@@ -144,16 +198,18 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 ### Métriques actuelles
 
-| Phase | Tâche | Score | Erreurs | Amends | Temps |
-|-------|-------|-------|---------|--------|-------|
-| 1.1   | HAML→ERB (12 fichiers) | 3/10 | 4 | 3 | 48min |
+| POC | Phase | Tâche | Score | Erreurs | Amends | Temps |
+|-----|-------|-------|-------|---------|--------|-------|
+| 1   | 1.1   | HAML→ERB (12 fichiers) | 3/10 | 4 | 3 | 48min |
+| 1   | 2.8a  | HAML→ERB (5 fichiers) | **8/10** ✅ | 1 | 1 | 35min |
+| 3   | -     | Bug Sentry (investigation + fix) | **4.7/5** ✅ | 0 | 0 | 65min |
 
-### Objectifs Phase 1.2+
+### Objectifs prochaines phases
 
-| Phase | Tâche | Score visé | Erreurs | Amends | Temps |
-|-------|-------|------------|---------|--------|-------|
-| 1.2   | HAML→ERB (5 fichiers) | 8/10 | 0 | 0 | ≤50min |
-| 1.3+  | HAML→ERB (5 fichiers) | 8/10 | 0 | 0 | ≤50min |
+| POC | Phase | Tâche | Score visé | Erreurs | Amends | Temps |
+|-----|-------|-------|------------|---------|--------|-------|
+| 1   | 2.8b+ | HAML→ERB (15 fichiers) | 8/10 | 0 | 0 | ≤50min |
+| 3   | suite | Bug simple (NoMethodError) | 4/5 | 0 | 0 | ≤30min |
 
 ### Définition des scores
 
@@ -195,13 +251,17 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 - `README.md` : Vision du projet
 
 ### Pour les POCs
-- `pocs/overview.md` : Vue d'ensemble 4 POCs
-- `pocs/1-haml/setup.md` : Setup HAML→ERB
-- `.claude/prompts/haml-migration.md` : Prompt v2 (amélioré)
-- `essentials.md` : Patterns critiques HAML→ERB
 
-### Learnings
-- `kaizen/poc-haml-migration/2026-03-09-phase-1.1-dsfr-components.md`
+**POC 1 - HAML→ERB :**
+- `pocs/1-haml/setup.md` : Setup
+- `.claude/prompts/haml-migration.md` : Prompt v3 (batch 15, 5 patterns)
+- `kaizen/poc-haml-migration/` : Learnings Phase 1.1 + 2.8a
+
+**POC 3 - Bugs Sentry :**
+- `pocs/3-bugs/setup.md` : Setup
+- `.claude/prompts/investigate-sentry-bug.md` : Prompt investigation
+- `.claude/prompts/fix-sentry-bug.md` : Prompt implémentation
+- `kaizen/poc-3-bugs/` : Learnings investigation + implémentation
 
 ### Infrastructure
 - `hooks/worktree/` : Isolation DB par worktree
@@ -242,6 +302,13 @@ Quelle est la meilleure façon de procéder ?
 
 ---
 
-**Dernière session :** 2026-03-09
-**Prochain objectif :** Phase 1.2 (tester prompt amélioré, viser 8/10)
-**Status :** Prêt pour la prochaine itération
+**Dernière session :** 2026-03-10
+**Accomplissements :**
+- POC 1 Phase 2.8a : Score 8/10 atteint ✅ (prompt v3 validé)
+- POC 3 : Investigation/Implementation split validé, score 4.7/5 ✅
+
+**Prochains objectifs :**
+- POC 1 : Continuer migration HAML→ERB (batch 15, stabiliser 8/10)
+- POC 3 : Tester split sur bug simple (valider approche monolithic vs split)
+
+**Status :** 2 POCs validés, méthode qui fonctionne
