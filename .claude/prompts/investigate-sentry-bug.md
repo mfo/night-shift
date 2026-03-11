@@ -133,7 +133,7 @@ grep -r "pattern_problématique" app/
 
 ### Étape 5 : Rapport Investigation (30min)
 
-**Créer :** `kaizen/poc-3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
+**Créer :** `kaizen/3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
 
 **Format structuré :**
 
@@ -388,7 +388,7 @@ end
 
 ## Livrable Final
 
-**Fichier kaizen :** `kaizen/poc-3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
+**Fichier kaizen :** `kaizen/3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
 
 **Contenu minimum :**
 1. Symptôme et stack trace

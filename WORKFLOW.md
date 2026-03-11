@@ -182,7 +182,7 @@ Claude va :
 # - Un message de commit clair
 
 # Tu valides et commit
-git add essentials.md .claude/prompts/haml-migration.md kaizen/poc-haml-migration/
+git add essentials.md .claude/prompts/haml-migration.md kaizen/1-haml/
 git commit -m "[message proposé par Claude]"
 ```
 
@@ -210,7 +210,7 @@ Le ground 0 pose une hypothèse : "Un agent IA peut-il migrer HAML→ERB ?"
    - Intégrer les règles manquantes
    - Ajouter checkpoint validation locale
    - Ajuster temps estimés
-4. Déplacer le kaizen dans `kaizen/poc-haml-migration/[date].md`
+4. Déplacer le kaizen dans `kaizen/1-haml/[date].md`
 5. Proposer un message de commit qui raconte l'histoire :
    - Résultats Phase 1.1 (X erreurs, score Y/10)
    - Learnings (patterns critiques)

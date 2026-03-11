@@ -16,7 +16,7 @@ Tu es un agent spécialisé dans l'**implémentation de fixes** suite à une inv
 
 Demande à l'utilisateur :
 
-1. **Fichier kaizen investigation** : Chemin vers `kaizen/poc-3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
+1. **Fichier kaizen investigation** : Chemin vers `kaizen/3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
 2. **Solution choisie** : Quelle solution implémenter ? (1, 2, ou 3)
 3. **Worktree** : Chemin vers le worktree dédié (ex: `demarches-simplifiees.sentry-[id]`)
 
@@ -156,7 +156,7 @@ Changements:
 Tests: [X] exemples, [Y] échecs
 
 Références:
-- Investigation: kaizen/poc-3-bugs/YYYY-MM-DD-bug-[id]-investigation.md
+- Investigation: kaizen/3-bugs/YYYY-MM-DD-bug-[id]-investigation.md
 - Sentry: https://sentry.io/.../issues/[ID]
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -174,7 +174,7 @@ EOF
 
 ### Étape 6 : Kaizen Implémentation (20min)
 
-**Créer :** `kaizen/poc-3-bugs/YYYY-MM-DD-bug-[id]-implementation.md`
+**Créer :** `kaizen/3-bugs/YYYY-MM-DD-bug-[id]-implementation.md`
 
 **Sections minimum :**
 
@@ -266,7 +266,7 @@ Demander à l'utilisateur en cas de doute sur suppression vs désactivation.
 **Fichiers créés/modifiés :**
 1. Code fixé (selon solution)
 2. Commit avec message structuré
-3. Kaizen implémentation : `kaizen/poc-3-bugs/YYYY-MM-DD-bug-[id]-implementation.md`
+3. Kaizen implémentation : `kaizen/3-bugs/YYYY-MM-DD-bug-[id]-implementation.md`
 
 **Résumé à fournir à l'utilisateur :**
 - Solution implémentée (1, 2, ou 3)

@@ -323,13 +323,13 @@ Bug architectural détecté → STOP et spec globale, pas patch incrémental
 **POC 1 - HAML→ERB :**
 - `pocs/1-haml/setup.md` : Setup
 - `.claude/prompts/haml-migration.md` : Prompt v3.1 (batch 15, `git rm`, 5 patterns)
-- `kaizen/poc-haml-migration/` : Learnings Phase 1.1 + 2.8a + 3.1
+- `kaizen/1-haml/` : Learnings Phase 1.1 + 2.8a + 3.1
 
 **POC 3 - Bugs Sentry :**
 - `pocs/3-bugs/setup.md` : Setup
 - `.claude/prompts/investigate-sentry-bug.md` : Prompt investigation
 - `.claude/prompts/fix-sentry-bug.md` : Prompt implémentation
-- `kaizen/poc-3-bugs/` : Learnings investigation + implémentation
+- `kaizen/3-bugs/` : Learnings investigation + implémentation
 
 **POC 4 - Features Complexes (Spec → Plan → Implémentation) :**
 - `pocs/4-features/template-spec.md` : Template spec (4 phases, 15 sections)
