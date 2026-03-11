@@ -66,6 +66,25 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 **Progression :** 17/758 fichiers HAML (2.2%)
 
+#### Phase 3.1 - Batch ultra-simples (15 fichiers)
+- [x] Migration 15 composants ultra-simples (1-2 lignes)
+- [x] Prompt v3.1 (`git rm` au lieu de `rm`)
+- [x] Validation à 3 niveaux (linter + grep + tests)
+- [x] Kaizen session complète documenté
+
+**Résultats Phase 3.1 :**
+- Temps : 20min migration (prévu 50min) + 40min session complète
+- Score migration : **8/10**, Score session : **9/10** ✅
+- Amélioration : -60% temps vs prévu, 0 erreur, PR validée
+- Progression : **109/758 fichiers migrés (14.4%)** → 649 restants
+
+**Learnings Phase 3.1 :**
+- Stratégie "ultra-simples d'abord" (tri par taille 1-2 lignes) = zéro risque
+- `git rm` fonctionne sans permission (vs `rm` refusé)
+- Workflow collaboratif user↔agent très efficace (validation incrémentale)
+- Kaizen score prédit succès (8-9/10 = green light production)
+- Infrastructure : `.claude/` dans .gitignore → prompt v3.1 non versionné (à traiter)
+
 ---
 
 ## 🎯 Roadmap - Prochaines étapes
@@ -148,35 +167,42 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 ---
 
-### POC 4 : Specs Architecture (avec Review PM)
+### POC 4 : Features Complexes (Spec → Plan → Implémentation)
 
-- [x] Spec traitée : Refactoring Simpliscore tunnel_id (bug architectural)
-- [x] Setup créé : `pocs/4-spec/setup.md` (modèle 3 phases)
-- [x] Prompt créé : `create-spec.md` (suit le setup.md)
-- [x] Kaizen documenté : Phase spec uniquement (implémentation à venir)
-- [x] 3 patterns découverts (Preuve mathématique, Query Object DRY, Trade-offs)
+- [x] Feature traitée : Refactoring Simpliscore tunnel_id (bug architectural)
+- [x] Templates créés : `template-spec.md` (4 phases) + `template-plan.md` (commits atomiques)
+- [x] Prompts créés : `create-feature-spec.md` + `create-feature-plan.md`
+- [x] Kaizen documenté : Phase spec + Phase plan (implémentation à venir)
+- [x] 7 patterns découverts (Preuve mathématique, Query Object, Trade-offs, Migration DB, Breaking change, Tests séparés, Plan atomique)
 
 **Résultats POC 4 :**
-- Temps total : 5h30 (analyse 30min + conception 1h + rédaction 1h30 + review PM 45min + itérations 1h30)
-- Score : **7/10 seul, 9/10 avec review PM** ✅
+- Temps spec (Phases 1-3) : 5h30 (score 7/10 seul, 9/10 avec review PM) ✅
+- Temps plan (Phase 4) : 1h30 (score 8/10) ✅
 - Review PM findings : 15 problèmes détectés (4 critiques, 11 importants)
-- Itérations user : 8 rounds sans friction
+- Plan : 17 commits atomiques, 7 phases, ~25 fichiers
 
-**Workflow 3 phases validé :**
+**Workflow 4 phases validé :**
 1. **Analyse & Rédaction spec v1** (2-3h) : Analyse problème, conception architecture, template 15 sections
 2. **Review Agent PM** (45min-1h) : Obligatoire si > 500 lignes, focus 10 points critiques
 3. **User Review + Décisions** (1-2h) : Validation architecture, itérations rapides (max 8)
+4. **Création Plan Implémentation** (1-2h) : Découpage commits atomiques (DB→Infra→Features→Tests→Cleanup)
 
-**Patterns découverts :**
+**Patterns découverts (spec) :**
 1. **Preuve Mathématique de Bug :** Au lieu de "ça marche pas", prouver condition impossible → conviction immédiate
 2. **Query Object pour DRY :** Logique répétée 3+ fois → extraire dans Query Object (testable, extensible)
 3. **Documentation Trade-offs :** Template Choix/Alternative/Rationale/Impact → évite débats futurs
 
+**Patterns découverts (plan) :**
+4. **Migration DB Safe :** 3 commits (Add nullable → Backfill data → Add constraints) = rollback safe
+5. **Breaking Change Bloc :** N commits groupés (Change → Fix call-sites) = merge en bloc
+6. **Tests Séparés :** 2 commits distincts (System specs puis Unit specs) = review facile
+7. **Plan Atomique :** 1 commit = 1 concept testable, max 20 commits, phases logiques
+
 **Hypothèses validées :**
 - Review agent PM efficace pour specs > 500 lignes (15 problèmes détectés)
-- Itérations rapides user + agent fonctionnent (8 rounds sans friction)
-- Query Object proactif apprécié (user a approuvé immédiatement)
-- Documentation trade-offs évite débats futurs
+- Plan atomique facilite implémentation séquentielle (vs spec monolithique)
+- Commits petits = review rapide, rollback facile, merge progressif
+- Phases logiques aident agent codeur (ordre naturel = moins de questions)
 
 **Hypothèses invalidées :**
 - Fire-and-forget pour specs architecture (décisions métier nécessaires)
@@ -240,15 +266,18 @@ Bug architectural détecté → STOP et spec globale, pas patch incrémental
 |-----|-------|-------|-------|---------|--------|-------|
 | 1   | 1.1   | HAML→ERB (12 fichiers) | 3/10 | 4 | 3 | 48min |
 | 1   | 2.8a  | HAML→ERB (5 fichiers) | **8/10** ✅ | 1 | 1 | 35min |
+| 1   | 3.1   | HAML→ERB (15 ultra-simples) | **8/10 mig, 9/10 session** ✅ | 0 | 1 | 20min |
 | 3   | -     | Bug Sentry (investigation + fix) | **4.7/5** ✅ | 0 | 0 | 65min |
-| 4   | spec  | Spec architecture (Simpliscore) | **7/10 seul, 9/10 PM** ✅ | - | - | 5h30 |
+| 4   | 1-3   | Spec architecture (Simpliscore) | **7/10 seul, 9/10 PM** ✅ | - | - | 5h30 |
+| 4   | 4     | Plan implémentation (17 commits) | **8/10** ✅ | - | - | 1h30 |
 
 ### Objectifs prochaines phases
 
 | POC | Phase | Tâche | Score visé | Erreurs | Amends | Temps |
 |-----|-------|-------|------------|---------|--------|-------|
-| 1   | 2.8b+ | HAML→ERB (15 fichiers) | 8/10 | 0 | 0 | ≤50min |
+| 1   | 3.2+  | HAML→ERB (15 moyens 3-10 lignes) | 8/10 | 0 | 0 | ≤30min |
 | 3   | suite | Bug simple (NoMethodError) | 4/5 | 0 | 0 | ≤30min |
+| 4   | 5     | Implémentation Simpliscore (17 commits) | 8/10 | 0 | 0 | 8-15h |
 
 ### Définition des scores
 
@@ -293,8 +322,8 @@ Bug architectural détecté → STOP et spec globale, pas patch incrémental
 
 **POC 1 - HAML→ERB :**
 - `pocs/1-haml/setup.md` : Setup
-- `.claude/prompts/haml-migration.md` : Prompt v3 (batch 15, 5 patterns)
-- `kaizen/poc-haml-migration/` : Learnings Phase 1.1 + 2.8a
+- `.claude/prompts/haml-migration.md` : Prompt v3.1 (batch 15, `git rm`, 5 patterns)
+- `kaizen/poc-haml-migration/` : Learnings Phase 1.1 + 2.8a + 3.1
 
 **POC 3 - Bugs Sentry :**
 - `pocs/3-bugs/setup.md` : Setup
@@ -302,9 +331,12 @@ Bug architectural détecté → STOP et spec globale, pas patch incrémental
 - `.claude/prompts/fix-sentry-bug.md` : Prompt implémentation
 - `kaizen/poc-3-bugs/` : Learnings investigation + implémentation
 
-**POC 4 - Specs Architecture :**
-- `pocs/4-spec/setup.md` : Setup (modèle 3 phases, 15 sections)
-- `.claude/prompts/create-spec.md` : Prompt création spec
+**POC 4 - Features Complexes (Spec → Plan → Implémentation) :**
+- `pocs/4-features/template-spec.md` : Template spec (4 phases, 15 sections)
+- `pocs/4-features/template-plan.md` : Template plan (commits atomiques, 7 patterns)
+- `pocs/4-features/simpliscore-tunnel-id-results.md` : Exemple concret (spec + plan)
+- `.claude/prompts/create-feature-spec.md` : Prompt création spec
+- `.claude/prompts/create-feature-plan.md` : Prompt création plan
 - `kaizen/simpliscore-tunnel-id-spec.md` : Learnings phase spec
 
 ### Infrastructure
@@ -346,15 +378,17 @@ Quelle est la meilleure façon de procéder ?
 
 ---
 
-**Dernière session :** 2026-03-10
+**Dernière session :** 2026-03-11
 **Accomplissements :**
-- POC 1 Phase 2.8a : Score 8/10 atteint ✅ (prompt v3 validé)
+- POC 1 Phase 3.1 : Score 9/10 session complète ✅ (109 fichiers migrés, 649 restants)
 - POC 3 : Investigation/Implementation split validé, score 4.7/5 ✅
-- POC 4 : Workflow specs architecture créé, score 7/10→9/10 avec review PM ✅
+- POC 4 enrichi : Workflow complet (spec → plan → implémentation) validé ✅
+  - Phase 1-3 spec : score 7/10→9/10 avec review PM
+  - Phase 4 plan : score 8/10 (17 commits atomiques, 7 patterns)
 
 **Prochains objectifs :**
-- POC 1 : Continuer migration HAML→ERB (batch 15, stabiliser 8/10)
+- POC 1 : Continuer Phase 3.2+ (649 fichiers restants, fichiers moyens 3-10 lignes)
+- POC 4 : Implémenter spec Simpliscore (Phase 5, 17 commits, 8-15h estimé)
 - POC 3 : Tester split sur bug simple (valider approche monolithic vs split)
-- POC 4 : Implémenter spec Simpliscore tunnel_id (8-20h estimé)
 
-**Status :** 3 POCs validés, méthode qui fonctionne
+**Status :** 3 POCs validés avec workflow complet, 109/758 fichiers HAML migrés (14.4%)
