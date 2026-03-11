@@ -192,17 +192,123 @@ night-shift/
 │   ├── 1-haml/            # POC migration HAML→ERB
 │   ├── 2-tests/           # POC optimisation tests
 │   ├── 3-bugs/            # POC correction bugs
-│   └── 4-features/        # POC petites features
+│   └── 4-features/        # POC workflow features (⭐ référence)
 │
 ├── kaizen/                # Documentation des apprentissages
 │   ├── templates/         # Templates pour documenter
+│   ├── session-1-6.md     # Learnings Simpliscore tunnel_id
 │   └── poc-*/             # Learnings par POC (à venir)
 │
 └── .claude/
     └── prompts/           # Prompts pour lancer les agents
+        ├── feature-spec.md      # Phase 0
+        ├── feature-plan.md      # Phase 1
+        ├── feature-implementation.md        # Phase 2
+        └── feature-review.md           # Phase 3
 ```
 
 **Note :** `essentials.md` et les prompts évoluent au fur et à mesure qu'on apprend.
+
+---
+
+## 🎓 POCs et Apprentissages
+
+### POC 4 : Workflow Features (⭐ Référence)
+
+**Statut :** Production-ready - Workflow complet validé sur 6 sessions
+
+**Découverte majeure :** Un workflow en 4 phases pour développer des features avec un agent IA.
+
+#### Le Workflow Découvert
+
+**Phase 0 : Create-Spec** (4-8h) - Score autonomie : 7/10
+- Analyse problème + architecture existante
+- Conception architecture (décisions avec user)
+- Rédaction spec v1 (15 sections obligatoires)
+- Review agent PM (obligatoire si > 500 lignes)
+- Itérations user → Spec production-ready
+
+**Phase 1 : Create-Plan** (1-2h) - Score autonomie : 8/10
+- Découpage en commits atomiques (< 20)
+- 7 phases standards : DB → Infra → Features → UI → Tests → Cleanup → UX
+- Patterns validés : Migration DB Safe, Breaking Change Bloc, Tests Verts
+- Validation user
+
+**Phase 2 : Implementation** (8-20h) - Score autonomie : 7/10
+- Exécution plan commit par commit
+- **Tests verts à chaque commit** (RÈGLE ABSOLUE)
+- Application systématique de 10 patterns validés
+- Checkpoint mi-phase + fin phase
+
+**Phase 3 : Review & Cleanup** (1-3h) - Score autonomie : 7/10
+- Review structurée : dead code, tests cassés, logique mal placée
+- Fixes par gravité : 🔴 Bloquants, 🟠 Importants, 🟡 Nice-to-have
+- Git absorb pour historique clean
+- Validation finale → PR mergeable
+
+#### Patterns Critiques Découverts (score 8-10/10)
+
+1. **Tests Verts à Chaque Commit** (10/10)
+   - Interleave code + specs (PAS code first, tests later)
+   - Impact : Historique git bisectable, reviewable
+
+2. **Migration DB Safe** (10/10)
+   - 3 commits : Add nullable → Backfill → Add constraints
+   - Impact : Déploiement safe en production
+
+3. **Query Object pour DRY** (10/10)
+   - Si logique répétée 3+ fois → extraction
+   - Impact : -45% lignes, testable isolément
+
+4. **State Checks Explicites** (9/10)
+   - `.state&.in?([...])` au lieu de boolean combinations
+   - Impact : Code fragile → robuste
+
+5. **Breaking Change Bloc** (9/10)
+   - Change signature + Fix tous call-sites en bloc
+   - Impact : Tests cassés isolés, merge safe
+
+6. **Self-Documenting Variables** (9/10)
+   - Si nesting > 2 → variables auto-documentées
+   - Impact : -40% lignes, -75% nesting
+
+7. **Checkpoint Validation Uniqueness** (9/10)
+   - Rails validation DOIT matcher index DB
+   - Impact : Tests passent (SQLite) → prod ne crashe pas (PostgreSQL)
+
+#### Documentation Complète
+
+Voir `pocs/4-features/` pour :
+- `setup.md` - Vue d'ensemble 4 phases + méthodologie complète
+- `feature-implementation-patterns.md` - Catalogue 10 patterns
+- `feature-spec-checklist.md` - Phase 0
+- `feature-plan-checklist.md` - Phase 1
+- `feature-implementation-checklist.md` - Phase 2
+- `feature-review-checklist.md` - Phase 3
+- `template-spec.md`, `COMMIT_PLAN-template.md`, `template-review.md`
+
+#### Learnings Kaizen
+
+6 sessions documentées (`kaizen/session-1-6.md`) :
+- Session 1 : Implémentation initiale (7/10) - Erreur : tests cassés commits 4-15
+- Session 2 : 4 bugs découverts (boolean combinations, memoization)
+- Session 3 : Schema change detection (70% autonomie)
+- Session 4 : Git history reconstruction (30→7 commits)
+- Session 5 : Review & cleanup (Component → Query Object)
+- Session 6 : Self-documenting variables (-45% lignes)
+
+**Temps total sur feature Simpliscore tunnel_id :** ~20h sur 6 sessions
+**Résultat :** Feature production-ready, workflow reproductible documenté
+
+---
+
+### Autres POCs
+
+**POC 1 : HAML→ERB** - Migration automatisée de templates
+**POC 2 : Tests** - Optimisation tests lents
+**POC 3 : Bugs** - Correction bugs Sentry récurrents
+
+Documentation en cours d'enrichissement.
 
 ---
 

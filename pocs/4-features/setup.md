@@ -1,668 +1,886 @@
-# POC 5 : Feature Simple (GitHub Issue) - Setup
+# POC 4 : Features Complexes - Setup & Méthodologie
 
-**Date :** 2026-03-09
-**Objectif :** Valider que Claude peut implémenter une feature simple end-to-end en mode fire-and-forget
+**Date création :** 2026-03-09
+**Dernière mise à jour :** 2026-03-11
+**Objectif :** Workflow complet 4 phases pour features complexes (spec → plan → implémentation → review)
+**Version :** 2.0 (enrichi avec learnings sessions 1-6)
 
 ---
 
-## Setup
+## 📚 Documentation Complète
 
-### Worktree Créé
+**Ce POC dispose d'une documentation complète enrichie par les learnings des sessions 1-6 :**
 
-```bash
-cd ../demarche.numerique.gouv.fr
-git worktree add -b poc-simple-feature ../demarche.numerique.gouv.fr-poc-feature main
+### Documents Principaux
+
+1. **[feature-implementation-patterns.md](feature-implementation-patterns.md)** - Catalogue patterns agent-friendly ⭐
+   - 10 patterns validés empiriquement (score 8-10/10)
+   - Exemples concrets avec code
+   - Rationale et impact mesurés
+
+2. **Checklists par phase** ⭐
+   - [feature-spec-checklist.md](feature-spec-checklist.md) - Phase 0
+   - [feature-plan-checklist.md](feature-plan-checklist.md) - Phase 1
+   - [feature-implementation-checklist.md](feature-implementation-checklist.md) - Phase 2
+   - [feature-review-checklist.md](feature-review-checklist.md) - Phase 3
+
+### Templates
+
+3. **[feature-spec-template.md](feature-spec-template.md)** - Template spec technique (15 sections)
+4. **[feature-plan-template.md](feature-plan-template.md)** - Template plan atomique
+5. **[feature-review-template.md](feature-review-template.md)** - Template review post-implémentation
+
+### Kaizen Iteration 1
+
+6. **[iteration-1/](iteration-1/)** - 8 sessions Simpliscore
+   - session-1-simpliscore-implementation.md
+   - session-2-simpliscore-implementation.md
+   - kaizen-schema-change-detection.md
+   - kaizen-git-history-reconstruction.md
+   - session-5-review-cleanup.md
+   - kaizen-self-documenting-variables.md
+   - kaizen-spec-creation.md
+   - kaizen-plan-creation.md
+   - simpliscore-tunnel-id-results.md
+
+---
+
+## 📐 Méthodologie : Workflow Complet 4 Phases
+
+### 🎯 Vue d'Ensemble
+
+**Contexte :** Implémentation de features complexes (refactorings architecturaux, migrations DB, workflows multi-composants)
+
+**Objectif :** Workflow agent-friendly en 4 phases pour passer d'un problème/besoin à une feature production-ready
+
+**Score autonomie visé :** 7-9/10 selon phase
+
+---
+
+### Workflow Complet
+
 ```
-
-**Localisation :** `/Users/mfo/dev/demarche.numerique.gouv.fr-poc-feature`
-**Branche :** `poc-simple-feature`
-
-### Choix de la Feature
-
-**Critères pour feature "agent-friendly" :**
-- ✅ Spec fonctionnelle claire et détaillée
-- ✅ Impact limité (< 3 fichiers modifiés)
-- ✅ Acceptance criteria explicites
-- ✅ Pas de migration DB complexe
-- ✅ Pas de décision d'architecture majeure
-- ❌ Pas d'API publique/GraphQL breaking change
-- ❌ Pas de nouvelle entité métier complexe
-
-**Exemples de features "agent-friendly" :**
-
-**Type 1 : Ajout de filtre dans liste**
-```markdown
-Feature: Ajouter filtre "En retard" sur liste dossiers instructeur
-
-Acceptance Criteria:
-- [ ] Nouveau bouton "Dossiers en retard" dans toolbar
-- [ ] Click → affiche dossiers avec date_limite < aujourd'hui
-- [ ] Count visible (badge avec nombre)
-- [ ] URL reflète le filtre (?filter=late)
-- [ ] Tests system passent
-```
-
-**Type 2 : Export CSV**
-```markdown
-Feature: Export CSV des dossiers filtrés
-
-Acceptance Criteria:
-- [ ] Bouton "Exporter CSV" visible quand dossiers affichés
-- [ ] Click → télécharge CSV avec colonnes : numéro, état, date dépôt
-- [ ] Respecte les filtres actifs
-- [ ] Tests controller passent
-```
-
-**Type 3 : Amélioration UX**
-```markdown
-Feature: Afficher tooltip sur statut dossier
-
-Acceptance Criteria:
-- [ ] Hover sur badge statut → tooltip explicatif
-- [ ] Texte tooltip selon statut (en_construction, en_instruction, etc.)
-- [ ] ARIA accessible (aria-label)
-- [ ] Tests accessibilité passent
-```
-
-### Feature Exemple pour POC
-
-**Feature Choisie : Filtre "En retard" sur dossiers instructeur**
-
-```markdown
-# Feature : Filtre "Dossiers en retard"
-
-## Contexte
-Les instructeurs veulent voir rapidement les dossiers en retard (date limite dépassée)
-
-## User Story
-En tant qu'instructeur,
-Je veux filtrer les dossiers en retard,
-Afin de les traiter en priorité.
-
-## Spec Fonctionnelle
-
-### UI
-- Ajouter bouton "En retard" dans la barre de filtres
-- Localisation : à côté des filtres "En construction", "En instruction"
-- Badge avec count (nombre de dossiers en retard)
-- Style : fr-badge fr-badge--error (DSFR)
-
-### Logique
-- Dossiers "en retard" = `date_limite < Date.today AND état IN ['en_instruction']`
-- Exclus : dossiers archivés, acceptés, refusés
-- Inclus : dossiers en_instruction uniquement
-
-### Comportement
-- Click sur "En retard" → URL change (?filter=late)
-- Reload page avec filtre → filtre reste actif
-- Count se met à jour dynamiquement
-
-### Technique
-- Scope dans model Dossier : `scope :late`
-- Controller action : filtrer si params[:filter] == 'late'
-- View : bouton conditionnel si instructeur
-- Tests : system spec + model spec
-
-## Acceptance Criteria
-
-**Must Have :**
-- [ ] Scope `Dossier.late` retourne dossiers avec date_limite < today
-- [ ] Bouton "En retard (X)" visible pour instructeurs
-- [ ] Click → affiche uniquement dossiers en retard
-- [ ] URL reflète filtre (?filter=late)
-- [ ] Count badge correct
-- [ ] RGAA 4 : aria-label sur bouton
-- [ ] Tests system passent
-- [ ] Tests model passent
-
-**Nice to Have (hors POC) :**
-- [ ] Animation transition
-- [ ] Persistence filtre en session
-
-## Contraintes
-
-**Sécurité :**
-- Accessible instructeurs uniquement (policy Pundit)
-- Pas de bypass authorization
-
-**Accessibilité (RGAA 4) :**
-- aria-label="Filtrer les dossiers en retard"
-- Contraste couleurs suffisant
-- Focus visible au clavier
-
-**Performance :**
-- Scope SQL optimisé (index sur date_limite)
-- Pas de N+1 (includes si nécessaire)
-
-**Tests :**
-- Coverage ≥ 80%
-- Tests system pour UI
-- Tests model pour scope
-
-## Fichiers Impactés (Estimation)
-
-1. `app/models/dossier.rb` : scope late
-2. `app/controllers/instructeur/dossiers_controller.rb` : filtre params
-3. `app/views/instructeur/dossiers/index.html.erb` : bouton filtre
-4. `spec/models/dossier_spec.rb` : tests scope
-5. `spec/system/instructeur/dossier_spec.rb` : tests UI
-
-**Total :** ~5 fichiers (< seuil de 3 → borderline, acceptable pour POC)
+Phase 0: Create-Spec (4-8h)
+  ├─ Analyse problème + architecture existante
+  ├─ Conception architecture (décisions avec user)
+  ├─ Rédaction spec v1 (15 sections)
+  ├─ Review agent PM (obligatoire si > 500 lignes)
+  └─ Itérations user → Spec production-ready
+      ↓
+Phase 1: Create-Plan (1-2h)
+  ├─ Lecture spec complète
+  ├─ Découpage commits atomiques (< 20)
+  ├─ Organisation en phases logiques (7 phases)
+  ├─ Isolation breaking changes
+  └─ Validation user → COMMIT_PLAN.md
+      ↓
+Phase 2: Implementation (8-20h)
+  ├─ Exécution commit par commit
+  ├─ Tests verts à chaque commit ⚠️ CRITIQUE
+  ├─ Breaking changes en bloc
+  └─ Tous tests passent → Feature implémentée
+      ↓
+Phase 3: Review & Cleanup (1-3h)
+  ├─ Review structurée (`review-<feature>.md`)
+  ├─ Fixes bloquants (dead code, tests cassés)
+  ├─ Fixes importants (logique mal placée, N+1)
+  └─ Git absorb + autosquash → PR mergeable
 ```
 
 ---
 
-## Prompt Minimal pour Claude
+## Phase 0 : Create-Spec (4-8h)
 
-```markdown
-# Tâche : Implémenter Feature Simple (GitHub Issue)
+### Objectif
+Créer une spécification technique production-ready documentant toutes les décisions d'architecture.
 
-## Contexte
-Tu es dans le worktree : /Users/mfo/dev/demarche.numerique.gouv.fr-poc-feature
+### Quand utiliser ?
+- ✅ Bug architectural (nécessite refactoring global)
+- ✅ Feature complexe avec décisions d'architecture
+- ✅ Refactoring > 5 fichiers impactés
+- ❌ Fix simple (< 3 fichiers, pas de décision métier)
 
-Lis d'abord : .claude/context/essentials.md
+### Workflow détaillé
 
-## Objectif
-Implémenter une feature simple end-to-end avec approche TDD
+#### 1. Analyse Problème (30min)
+**Actions :**
+- Lire code existant (fichiers impactés)
+- Comprendre architecture actuelle
+- Identifier root cause (si bug) ou besoin (si feature)
+- Grep patterns critiques (call-sites, duplications)
 
-## Feature à Implémenter
-
-[Copier la spec fonctionnelle complète ci-dessus]
-
-## Instructions
-
-### Étape 1 : Compréhension & Plan (30min)
-
-1. Lis la spec fonctionnelle complète
-
-2. Analyse l'impact :
-   - Quels fichiers modifier ? (lister)
-   - Quels patterns utiliser ? (scope, controller filter, view button)
-   - Quelles contraintes ? (RGAA, sécurité, perf)
-
-3. Identifie les tests existants à lire :
-   ```bash
-   # Tests similaires pour s'inspirer
-   grep -r "filter" spec/system/instructeur/
-   grep -r "scope.*where" spec/models/dossier_spec.rb
-   ```
-
-4. Plan d'implémentation (ordre TDD) :
-   - Tests model (scope) → Implémentation scope
-   - Tests controller (filter) → Implémentation controller
-   - Tests system (UI) → Implémentation view
-
-### Étape 2 : Tests Model d'abord (30min)
-
-1. Écris test pour scope `Dossier.late` :
-   ```ruby
-   # spec/models/dossier_spec.rb
-
-   describe '.late' do
-     context 'avec dossiers en retard' do
-       let!(:dossier_late) { create(:dossier, date_limite: 2.days.ago, state: :en_instruction) }
-       let!(:dossier_on_time) { create(:dossier, date_limite: 2.days.from_now, state: :en_instruction) }
-       let!(:dossier_archived) { create(:dossier, date_limite: 2.days.ago, state: :accepte) }
-
-       it 'retourne uniquement les dossiers en retard et en instruction' do
-         expect(Dossier.late).to include(dossier_late)
-         expect(Dossier.late).not_to include(dossier_on_time)
-         expect(Dossier.late).not_to include(dossier_archived)
-       end
-     end
-   end
-   ```
-
-2. Lance test et vérifie qu'il ÉCHOUE :
-   ```bash
-   bundle exec rspec spec/models/dossier_spec.rb -e "late"
-   # Attendu : 1 failure (undefined method `late')
-   ```
-
-3. Implémente le scope pour faire passer le test :
-   ```ruby
-   # app/models/dossier.rb
-
-   scope :late, -> {
-     where('date_limite < ?', Date.today)
-       .where(state: :en_instruction)
-   }
-   ```
-
-4. Lance test et vérifie qu'il PASSE :
-   ```bash
-   bundle exec rspec spec/models/dossier_spec.rb -e "late"
-   # Attendu : 1 example, 0 failures ✅
-   ```
-
-### Étape 3 : Tests Controller (30min)
-
-1. Écris test pour filtre controller :
-   ```ruby
-   # spec/controllers/instructeur/dossiers_controller_spec.rb
-
-   describe '#index' do
-     context 'avec filter=late' do
-       it 'affiche uniquement dossiers en retard' do
-         dossier_late = create(:dossier, date_limite: 2.days.ago, state: :en_instruction)
-         dossier_on_time = create(:dossier, date_limite: 2.days.from_now)
-
-         get :index, params: { filter: 'late' }
-
-         expect(assigns(:dossiers)).to include(dossier_late)
-         expect(assigns(:dossiers)).not_to include(dossier_on_time)
-       end
-     end
-   end
-   ```
-
-2. Implémente dans controller :
-   ```ruby
-   # app/controllers/instructeur/dossiers_controller.rb
-
-   def index
-     @dossiers = policy_scope(Dossier)
-
-     if params[:filter] == 'late'
-       @dossiers = @dossiers.late
-     end
-
-     @dossiers = @dossiers.page(params[:page])
-   end
-   ```
-
-3. Vérifie test passe
-
-### Étape 4 : Tests System (UI) (45min)
-
-1. Écris test system pour UI :
-   ```ruby
-   # spec/system/instructeur/dossier_filter_spec.rb
-
-   describe 'Filtre dossiers en retard' do
-     let(:instructeur) { create(:instructeur) }
-
-     before do
-       login_as(instructeur, scope: :instructeur)
-       create(:dossier, date_limite: 2.days.ago, state: :en_instruction, numero: '111')
-       create(:dossier, date_limite: 2.days.from_now, state: :en_instruction, numero: '222')
-     end
-
-     scenario 'Instructeur filtre dossiers en retard' do
-       visit instructeur_dossiers_path
-
-       # Bouton visible avec count
-       expect(page).to have_button('En retard (1)')
-
-       # Click sur filtre
-       click_button 'En retard (1)'
-
-       # URL change
-       expect(current_url).to include('filter=late')
-
-       # Seul dossier en retard affiché
-       expect(page).to have_content('111')
-       expect(page).not_to have_content('222')
-     end
-
-     scenario 'Bouton accessible au clavier (RGAA)' do
-       visit instructeur_dossiers_path
-
-       button = find_button('En retard (1)')
-       expect(button['aria-label']).to eq('Filtrer les dossiers en retard')
-     end
-   end
-   ```
-
-2. Implémente la vue :
-   ```erb
-   <!-- app/views/instructeur/dossiers/index.html.erb -->
-
-   <div class="filters">
-     <%= button_tag "En retard (#{Dossier.late.count})",
-           type: 'button',
-           class: 'fr-btn fr-btn--secondary',
-           data: { turbo_method: :get, turbo_action: 'replace' },
-           onclick: "window.location.href='#{instructeur_dossiers_path(filter: 'late')}'",
-           aria: { label: 'Filtrer les dossiers en retard' } %>
-   </div>
-
-   <!-- Liste dossiers -->
-   <% @dossiers.each do |dossier| %>
-     <%= render 'dossier_card', dossier: dossier %>
-   <% end %>
-   ```
-
-3. Lance tests system :
-   ```bash
-   bundle exec rspec spec/system/instructeur/dossier_filter_spec.rb
-   ```
-
-### Étape 5 : Vérifications (30min)
-
-**A. Accessibilité (RGAA 4)**
+**Commandes utiles :**
 ```bash
-# Vérifier aria-label présent
-grep -n "aria-label" app/views/instructeur/dossiers/index.html.erb
+# Trouver call-sites
+grep -r "ClassName\|method_name" app/ lib/ spec/
+
+# Trouver duplications
+grep -r "pattern_répété" app/
+
+# Identifier tests existants
+find spec -name "*nom_fichier*_spec.rb"
 ```
 
-**B. Performance (N+1)**
+**Checkpoint :**
+- [ ] Problème compris ?
+- [ ] Architecture existante claire ?
+- Si NON → Demander clarifications au user
+
+---
+
+#### 2. Conception Architecture (1-2h)
+
+**Questions à poser au user :**
+- Format des identifiants ? (UUID, hex, int)
+- Trade-off performance vs. simplicité ?
+- Breaking changes acceptables ?
+- Auto-lancement ou contrôle user ?
+- Validation stricte ou permissive ?
+
+**Patterns à détecter proactivement :**
+1. **Logique répétée 3+ fois** → Proposer Query Object
+2. **N+1 queries** → Documenter trade-off (optimiser vs. simplicité)
+3. **Breaking changes** → Lister call-sites impactés
+4. **Index DB manquants** → Proposer ajout pour perf
+5. **Conditions imbriquées > 2 niveaux** → Proposer self-documenting variables
+
+**Checkpoint :**
+- [ ] Architecture conçue ?
+- [ ] Décisions prises avec user ?
+- [ ] Patterns DRY identifiés ?
+
+---
+
+#### 3. Rédaction Spec v1 (1-2h)
+
+**Structure obligatoire (15 sections minimum) :**
+
+```markdown
+# Spec Technique : [Titre]
+
+## 1. Contexte & Problème
+[Description + root cause + objectifs]
+
+## 2. Décisions d'Architecture
+[Chaque décision : Choix + Alternative + Rationale + Impact]
+
+## 3. Architecture Proposée
+[Vue d'ensemble + composants impactés]
+
+## 4. Modèle (Database & ActiveRecord)
+[Migrations + Validations + Index]
+
+## 5. Controller
+[Routes + Actions]
+
+## 6. Jobs
+[Signature + Call-sites impactés si BREAKING]
+
+## 7. Services / Query Objects
+[Extraction DRY si logique répétée 3+]
+
+## 8. Tests
+[Tests à créer + Tests à modifier]
+
+## 9. Migration de Données (Backfill)
+[Strategy + Rollback plan]
+
+## 10. Breaking Changes
+[Liste avec call-sites + Plan migration]
+
+## 11. Performance
+[N+1 identifiées + Index + Trade-offs documentés]
+
+## 12. Sécurité
+[Validations + Authorization]
+
+## 13. UX / Product
+[Comportement attendu + Edge cases]
+
+## 14. Rollout Strategy
+[Phases de déploiement]
+
+## 15. Métriques & Monitoring
+[Métriques à tracker + Alertes]
+```
+
+**Checkpoint :**
+- [ ] 15 sections complètes ?
+- [ ] Breaking changes documentés ?
+- [ ] Trade-offs justifiés ?
+
+---
+
+#### 4. Review Agent PM (45min-1h)
+
+**⚠️ OBLIGATOIRE pour specs > 500 lignes**
+
+**Actions :**
+1. Lancer agent PM Senior pour review
+2. Analyser findings (10-20 problèmes attendus)
+3. Corriger par gravité :
+   - 🔴 Critiques (bloquants) → corriger tous
+   - 🟠 Importants → corriger tous
+   - 🟡 Nice-to-have → si temps
+
+**Focus review PM :**
+- Breaking changes documentés ?
+- Index DB manquants ?
+- Validations suffisantes ?
+- Tests couverts ?
+- Migration données claire ?
+- Trade-offs justifiés ?
+- Sécurité (format, unicité, authz) ?
+- Edge cases couverts ?
+
+**Checkpoint :**
+- [ ] Review findings analysés ?
+- [ ] Problèmes critiques corrigés ?
+- [ ] Spec v2 production-ready ?
+
+---
+
+#### 5. User Review + Décisions (1-2h)
+
+**Présenter au user :**
+- Spec v2 (post-review PM)
+- Décisions d'architecture à trancher
+- Estimation temps implémentation
+
+**Itérations attendues :** Max 8 rounds
+
+**Checkpoint final :**
+- [ ] User approuve l'architecture ?
+- [ ] Breaking changes acceptés ?
+- [ ] Trade-offs validés ?
+- [ ] Estimation temps réaliste ?
+
+---
+
+### Livrables Phase 0
+- `specs/YYYY-MM-DD-[nom]-spec.md` (spec finale)
+- `specs/YYYY-MM-DD-[nom]-review-v1.md` (review PM)
+- `specs/YYYY-MM-DD-[nom]-review-v2.md` (validation finale)
+
+**Temps total Phase 0 :** 4-8h
+**Score autonomie :** 7/10 seul, 9/10 avec review PM
+
+---
+
+## Phase 1 : Create-Plan (1-2h)
+
+### Objectif
+Transformer spec validée en plan d'implémentation exécutable avec commits atomiques.
+
+### Workflow détaillé
+
+#### 1. Lecture Spec Complète (20-30min)
+**Actions :**
+- Comprendre tous les composants impactés
+- Identifier dépendances entre changements
+- Repérer breaking changes
+
+---
+
+#### 2. Découpage Commits Atomiques (1h)
+
+**Principes critiques :**
+- **1 commit = 1 concept isolé et testable**
+- **Max 5 fichiers par commit** (idéal : 1-3)
+- **Max 20 commits total** (sinon revoir découpage)
+
+**Ordre logique (7 phases standards) :**
+
+```markdown
+Phase 1: Database (migrations, backfill, constraints)
+Phase 2: Infrastructure (models, validations, query objects)
+Phase 3: Features (routes, controllers, jobs)
+Phase 4: UI (components, views)
+Phase 5: Tests (system, unit)
+Phase 6: Cleanup (suppression code mort)
+Phase 7: UX (améliorations cosmétiques, wording)
+```
+
+**Patterns critiques :**
+
+**Pattern 1 : Migration DB Safe (3 commits)**
+```
+Commit 1: db: add column (nullable)
+Commit 2: maintenance: backfill data
+Commit 3: db: add constraints (NOT NULL, UNIQUE)
+```
+→ Rollback safe, pas de downtime
+
+**Pattern 2 : Breaking Change Bloc**
+```
+Commit N: scope: change signature (BREAKING) ⚠️
+Commit N+1: scope: fix first call-site
+Commit N+2: scope: fix second call-site
+```
+→ Merge en bloc obligatoire, documenter plage commits
+
+**Pattern 3 : Tests Séparés**
+```
+Commit N-1: tests: update system specs
+Commit N: tests: update unit specs
+```
+→ Features reviewables sans bruit tests
+
+**Pattern 4 : Tests Verts à Chaque Commit ⚠️ CRITIQUE**
+```
+✅ BON :
+Commit 4: model: add validations + update factory/specs
+Commit 5: query: create TunnelFinishedQuery + specs
+
+❌ MAUVAIS :
+Commits 4-14: code changes
+Commits 15-16: fix all tests
+```
+→ Git bisect fonctionnel, historique lisible
+
+---
+
+#### 3. Documentation Commits (20-30min)
+
+**Template commit standardisé :**
+```markdown
+### ✅ Commit X: `scope: one-line description`
+
+**Objectif :** [1 phrase explicite]
+
+**Fichiers à modifier :**
+- [ ] `path/to/file.rb` (add method X)
+- [ ] `path/to/spec.rb` (test method X)
+
+**Actions :**
+[Code exact ou instructions précises]
+
+**Tests à exécuter :**
+- [ ] `bundle exec rspec path/spec.rb`
+
+**Notes :**
+- ⚠️ BREAKING CHANGE si applicable
+- Code cassé entre commits X-Y
+```
+
+---
+
+#### 4. Présentation User (10min)
+
+**Présenter :**
+- Nombre total commits (< 20 idéal)
+- Phases identifiées (7 phases standard)
+- Breaking changes (plage commits impactés)
+- Estimation temps (commits × 30-60min)
+- Tableau récapitulatif
+
+**Checkpoint :**
+- [ ] Commits atomiques définis ?
+- [ ] Max 20 commits ?
+- [ ] Phases logiques respectées ?
+- [ ] Breaking changes isolés ?
+- [ ] Tests exécutables après chaque commit ?
+- [ ] User approuve structure ?
+
+---
+
+### Livrables Phase 1
+- `specs/YYYY-MM-DD-[nom]-implementation-plan.md` (COMMIT_PLAN.md)
+
+**Temps total Phase 1 :** 1-2h
+**Score autonomie :** 8/10
+
+---
+
+## Phase 2 : Implementation (8-20h)
+
+### Objectif
+Exécuter le plan d'implémentation commit par commit avec tests verts à chaque étape.
+
+### Principes CRITIQUES
+
+#### 1. Tests Verts à Chaque Commit ⚠️ PRIORITÉ ABSOLUE
+
+**Règle :**
+Chaque commit doit avoir tests passants, sauf exception documentée.
+
+**Approche :**
 ```ruby
-# Dans console
-Dossier.late.to_sql
-# Vérifier que SQL est optimisé
+# ✅ CORRECT : Interleave code + specs
+Commit N: Code change + spec update
+Commit N+1: Code change + spec update
 ```
 
-**C. Sécurité (Authorization)**
+**Exception autorisée :**
+Breaking change atomique où tests DOIVENT être cassés → documenter explicitement dans commit message :
+```
+⚠️ TESTS BROKEN: [raison] + plan fix commits X-Y
+```
+
+**Pourquoi critique :**
+- Git bisect fonctionnel
+- Historique lisible pour reviewers
+- Confiance à chaque étape
+- Debug facilité (problème identifié immédiatement)
+
+---
+
+#### 2. State Checks Explicites
+
+**Pattern :**
 ```ruby
-# Vérifier que policy_scope est utilisé
-grep "policy_scope" app/controllers/instructeur/dossiers_controller.rb
+# ❌ ÉVITER : Boolean combinations
+return if record&.persisted? && !record&.failed?
+
+# ✅ PRÉFÉRER : State explicite
+return if record&.state&.in?(['queued', 'running'])
 ```
 
-**D. Tests Complets**
-```bash
-# Tous les tests model
-bundle exec rspec spec/models/dossier_spec.rb
+**Rationale :**
+- Intention claire
+- Facile à maintenir (ajout nouveaux états)
+- Moins de bugs (edge cases évidents)
 
-# Tous les tests controller
-bundle exec rspec spec/controllers/instructeur/dossiers_controller_spec.rb
+---
 
-# Tous les tests system
-bundle exec rspec spec/system/instructeur/
+#### 3. Éviter Memoization dans Controller Actions
+
+**Pattern :**
+```ruby
+# ❌ INTERDIT : Memoization si état DB change mid-action
+def current_schema_hash
+  @current_schema_hash ||= calculate_hash(draft.schema)
+  # ⚠️ Si draft modifié → retourne valeur stale
+end
+
+# ✅ PRÉFÉRER : Recalcule à chaque appel
+def current_schema_hash
+  calculate_hash(draft.reload.schema)
+end
 ```
 
-### Étape 6 : Rubocop & Coverage (15min)
+**Exception :** Si vraiment besoin perf → pattern `force_reload:` explicite
 
-1. Lance Rubocop sur fichiers modifiés :
-   ```bash
-   bundle exec rubocop app/models/dossier.rb \
-                         app/controllers/instructeur/dossiers_controller.rb \
-                         app/views/instructeur/dossiers/index.html.erb
-   ```
+---
 
-2. Vérifie coverage :
-   ```bash
-   COVERAGE=true bundle exec rspec spec/models/dossier_spec.rb
-   # Vérifier ≥ 80%
-   ```
+#### 4. Self-Documenting Variables pour Réduire Nesting
 
-### Étape 7 : Commit (10min)
+**Pattern :**
+```ruby
+# ❌ AVANT : 4 niveaux nesting
+if current_suggestion&.state&.in?(['accepted', 'skipped'])
+  last_step = query.last_completed_step
+  if last_step
+    next_rule = LLM::Rule.next_rule(last_step.rule)
+    if next_rule
+      redirect_to path(rule: next_rule)
+    else
+      if params[:rule] != last_step.rule
+        redirect_to path(rule: last_step.rule)
+      end
+    end
+  end
+end
 
-```bash
-git add app/models/dossier.rb \
-        app/controllers/instructeur/dossiers_controller.rb \
-        app/views/instructeur/dossiers/index.html.erb \
-        spec/models/dossier_spec.rb \
-        spec/controllers/instructeur/dossiers_controller_spec.rb \
-        spec/system/instructeur/dossier_filter_spec.rb
+# ✅ APRÈS : 1 niveau nesting, variables auto-documentées
+current_step_finished = current_suggestion&.state&.in?(['accepted', 'skipped'])
+last_completed_step = query.last_completed_step if current_step_finished
+next_rule = LLM::Rule.next_rule(last_completed_step.rule) if last_completed_step
+visiting_different_step = last_completed_step && params[:rule] != last_completed_step.rule
 
-git commit -m "$(cat <<'EOF'
-feat: Add late dossiers filter for instructeurs
-
-Allow instructeurs to filter dossiers with overdue date_limite.
-
-Changes:
-- Add Dossier.late scope (date_limite < today)
-- Add filter param to instructeur/dossiers#index
-- Add "En retard" button in dossiers list view
-- RGAA 4 compliant (aria-label on button)
-
-Tests:
-- Model specs for late scope
-- Controller specs for filter param
-- System specs for UI interaction
-
-Closes #[ISSUE_NUMBER]
-
-🤖 Generated with Claude Code
-Co-Authored-By: Claude <noreply@anthropic.com>
-EOF
-)"
+if next_rule
+  redirect_to path(rule: next_rule)
+elsif visiting_different_step
+  redirect_to path(rule: last_completed_step.rule)
+else
+  # default case
+end
 ```
 
-### Étape 8 : Rapport (15min)
+**Impact mesuré :**
+- Réduction 33→18 lignes (-45%)
+- Réduction 4→1 nesting (-75%)
+- Lisibilité grandement améliorée
 
-Écris un résumé de la feature implémentée (format ci-dessous)
+---
 
-## Contraintes IMPORTANTES
+#### 5. Tests Isolation avec Before Actions
 
-**✅ AUTORISÉ (fais-le sans demander) :**
-- Lire la spec fonctionnelle
-- Écrire tests (TDD)
-- Implémenter code (model → controller → view)
-- Lancer tests
-- Vérifier RGAA, perf, sécurité
-- Commit les changements
+**Pattern :**
+```ruby
+# ❌ TEST QUI ÉCHOUE : Pas de context setup
+describe '#simplify' do
+  it 'renders simplify view' do
+    get :simplify, params: { tunnel_id: 'abc123', rule: 'improve_label' }
+    # ❌ Échoue : ensure_valid_tunnel redirige (aucune suggestion en DB)
+  end
+end
 
-**❌ INTERDIT :**
-- Implémenter code AVANT tests (TDD obligatoire)
-- Ignorer contraintes RGAA/sécurité/perf
-- Commit si tests échouent ou coverage < 80%
-- Ajouter features non spécifiées (scope creep)
-- Modifier > 5 fichiers (si > 5 → STOP et demande)
+# ✅ TEST CORRECT : Context établi
+describe '#simplify' do
+  let(:tunnel_id) { SecureRandom.hex(3) }
 
-**⚠️ SI PROBLÈME :**
-- Spec ambiguë → pose 1-2 questions de clarification
-- Impact > 5 fichiers → STOP et demande validation
-- Tests régressent → rollback et explique
-- Tu bloques > 2h → STOP et explique où tu bloques
+  before do
+    # Créer contexte nécessaire pour passer before_action
+    create(:llm_rule_suggestion,
+      procedure_revision: draft,
+      tunnel_id:,
+      rule: 'improve_structure',
+      state: 'accepted')
+  end
 
-## Checkpoints Jidoka
-
-**À 1h :**
-- [ ] Tests model écrits et passent ?
-- [ ] Scope implémenté correctement ?
-- Si NON → STOP et demande aide
-
-**À 2h :**
-- [ ] Tests controller + system écrits ?
-- [ ] UI implémentée ?
-- [ ] RGAA respecté ?
-- Si NON → STOP et explique
-
-**Avant commit :**
-- [ ] Tous tests passent (model + controller + system) ?
-- [ ] Coverage ≥ 80% ?
-- [ ] Rubocop clean ?
-- [ ] RGAA + sécurité + perf vérifiés ?
-
-## Format du Rapport
-
-```markdown
-## Rapport Implémentation Feature
-
-### 1. Feature Implémentée
-
-**Titre :** Filtre "Dossiers en retard" pour instructeurs
-
-**User Story :**
-En tant qu'instructeur, je veux filtrer les dossiers en retard.
-
-**Acceptance Criteria :** 8/8 ✅
-
-### 2. Changements Apportés
-
-**Fichiers modifiés : 6**
-
-**Model (app/models/dossier.rb) :**
-- Ajout scope `.late` (date_limite < today, state: en_instruction)
-- Lignes : +4
-
-**Controller (app/controllers/instructeur/dossiers_controller.rb) :**
-- Ajout filtre conditionnel si params[:filter] == 'late'
-- Lignes : +4
-
-**View (app/views/instructeur/dossiers/index.html.erb) :**
-- Ajout bouton "En retard (count)"
-- ARIA-label pour accessibilité
-- Lignes : +7
-
-**Tests (spec/) :**
-- spec/models/dossier_spec.rb : +15 lignes
-- spec/controllers/instructeur/dossiers_controller_spec.rb : +12 lignes
-- spec/system/instructeur/dossier_filter_spec.rb : +25 lignes (nouveau fichier)
-
-### 3. Tests
-
-**Coverage :**
-- Model : 100% (scope late testé)
-- Controller : 95% (filter testé)
-- System : 100% (UI testée)
-
-**Résultats :**
-```bash
-# Model
-bundle exec rspec spec/models/dossier_spec.rb
-=> 45 examples, 0 failures ✅
-
-# Controller
-bundle exec rspec spec/controllers/instructeur/dossiers_controller_spec.rb
-=> 32 examples, 0 failures ✅
-
-# System
-bundle exec rspec spec/system/instructeur/dossier_filter_spec.rb
-=> 2 examples, 0 failures ✅
-```
-
-**Régression :** AUCUNE
-- Suite complète : 1250 examples, 0 failures ✅
-
-### 4. Conformité
-
-**RGAA 4 (Accessibilité) :**
-- ✅ aria-label sur bouton
-- ✅ Contraste couleurs (DSFR)
-- ✅ Focus clavier visible
-
-**Sécurité :**
-- ✅ policy_scope utilisé (authorization Pundit)
-- ✅ Pas de SQL injection (scope paramétré)
-- ✅ Accessible instructeurs uniquement
-
-**Performance :**
-- ✅ SQL optimisé (index sur date_limite existant)
-- ✅ Pas de N+1 détecté
-- ✅ Count badge calculé efficacement
-
-**Rubocop :**
-- ✅ 0 offenses
-
-### 5. Résultat
-
-**Status :** ✅ SUCCÈS
-
-**Temps :** 3h20min
-- Compréhension : 30min
-- Tests model : 30min
-- Tests controller : 30min
-- Tests system : 45min
-- Implémentation view : 30min
-- Vérifications : 30min
-- Rubocop/commit : 15min
-
-**Acceptance Criteria :** 8/8 ✅
-
-**Problèmes rencontrés :** AUCUN
-
-**Fichiers modifiés :** 6 (limite 5 → acceptable borderline)
-
-### 6. Démo
-
-**Before :**
-Liste dossiers sans filtre en retard
-
-**After :**
-- Bouton "En retard (3)" visible
-- Click → filtre actif, URL ?filter=late
-- Seuls dossiers en retard affichés
-
-**Screenshot :** [Si applicable]
-
-### 7. Recommandations
-
-**Merge :** ✅ OUI (prêt pour production)
-
-**Tests manuels suggérés :**
-1. Vérifier count badge correct en staging
-2. Tester avec gros volume (> 100 dossiers en retard)
-
-**Follow-up :**
-- Considérer persistence filtre en session (nice to have)
-- Ajouter filtre similaire pour autres critères (très urgent, etc.)
-```
-
-## Time Budget
-**Total : 4h max**
-- Compréhension & plan : 30min
-- Tests model : 30min
-- Tests controller : 30min
-- Tests system : 45min
-- Implémentation view : 30min
-- Vérifications (RGAA, perf, sécu) : 30min
-- Rubocop & coverage : 15min
-- Commit : 10min
-- Rapport : 15min
-
-Si tu dépasses 4h → arrête et dis pourquoi.
-
-Bonne chance ! 🚀
+  it 'renders simplify view' do
+    get :simplify, params: { tunnel_id:, rule: 'improve_label' }
+    # ✅ Passe : tunnel existe (1 suggestion en DB)
+  end
+end
 ```
 
 ---
 
-## Critères de Succès POC
+#### 6. Checkpoint Validation Uniqueness
 
-**Ce POC est réussi si :**
-- [ ] Claude comprend spec fonctionnelle sans clarification
-- [ ] Approche TDD appliquée (tests avant code)
-- [ ] Feature implémentée complètement (model + controller + view)
-- [ ] Tous tests passent (model + controller + system)
+**Quand tu ajoutes/modifies `validates :field, uniqueness: { scope: [...] }` :**
+
+1. ✅ Cherche index unique correspondant en DB :
+   ```bash
+   grep -r "add_index.*unique: true" db/migrate/
+   cat db/schema.rb | grep -A3 "unique: true"
+   ```
+
+2. ✅ Vérifie cohérence :
+   - Validation Rails scope: `[:field_a, :field_b, :field_c]`
+   - Index DB: `add_index :table, [:field_a, :field_b, :field_c], unique: true`
+
+3. ⚠️ Si incohérence → créer migration pour :
+   - Supprimer ancien index unique (si exists)
+   - Ajouter nouveau index unique cohérent
+
+**Pourquoi :** Tests passent avec validation Rails seule, mais production crashe si DB rejette (PG::UniqueViolation)
+
+---
+
+### Workflow Exécution
+
+**Pour chaque commit du plan :**
+
+1. **Lire description commit** (objectif, fichiers, actions)
+2. **Exécuter actions** (code changes)
+3. **Lancer tests** (`bundle exec rspec`)
+4. **Vérifier tests verts** ✅ ou documenter raison si rouges
+5. **Commit** avec message conventionnel
+6. **Update TodoWrite** (marquer completed)
+
+**Si blocage > 30min :**
+- STOP et demander aide user
+- Documenter où tu bloques
+- Proposer alternative si possible
+
+---
+
+### Livrables Phase 2
+- Feature implémentée (17 commits typiques)
+- Tous tests verts ✅
+- Rubocop clean
+- Prêt pour review
+
+**Temps total Phase 2 :** 8-20h selon complexité
+**Score autonomie :** 7/10
+
+---
+
+## Phase 3 : Review & Cleanup (1-3h)
+
+### Objectif
+Review structurée post-implémentation pour identifier dead code, tests cassés, logique mal placée.
+
+### Workflow détaillé
+
+#### 1. Review Structurée (30-60min)
+
+**Agent crée document `review-<feature>.md` :**
+```markdown
+# Review : [Feature]
+
+## État AVANT vs APRÈS
+[Comparaison architecture]
+
+## ✅ Points Positifs (Le Bon)
+- [Liste]
+
+## ⚠️ Points à Améliorer (Le Mauvais)
+- [Liste avec gravité : Bloquant / Important / Nice-to-have]
+
+## 🔴 Points Critiques (L'Horrible)
+- [Bloquants avant merge]
+
+## Checklist Fixes
+- [ ] Bloquant 1 : Dead code cassant tests
+- [ ] Bloquant 2 : Tests système cassés
+- [ ] Important 1 : Logique métier mal placée
+- [ ] Nice-to-have 1 : Helper pour DRY
+```
+
+---
+
+#### 2. Fixes par Priorité (30-90min)
+
+**Ordre obligatoire :**
+
+**🔴 Bloquants (avant merge) :**
+- Dead code qui casse les tests
+- Tests système cassés
+- Violations linters
+- Sécurité (validations manquantes)
+
+**🟠 Importants (fortement recommandé) :**
+- Logique métier mal placée (Component → Query)
+- N+1 queries identifiées
+- Memoization inappropriée
+
+**🟡 Nice to have (après merge) :**
+- Helpers pour DRY
+- Tests edge cases
+- Documentation
+
+---
+
+#### 3. Pattern : Adaptation Tests Système
+
+**Si feature change comportement (ex: auto-enchainement) :**
+
+```ruby
+# ❌ AVANT : Test assume ancien comportement
+scenario 'workflow manuel' do
+  click_button "Lancer recherche"
+  # Attend état "recherche en cours"
+  suggestion = create(:suggestion, ...) # Créé manuellement
+end
+
+# ✅ APRÈS : Test adapté au nouveau comportement
+scenario 'workflow avec auto-enchainement' do
+  click_button "Accepter"
+  # La suggestion suivante est créée automatiquement
+  suggestion_suivante = LLMRuleSuggestion.find_by!(...)
+  expect(suggestion_suivante).to be_present
+end
+```
+
+**Pré-approuvé :**
+- Adapter tests au nouveau comportement (pas juste skip)
+- Utiliser `find_by!` pour entités auto-créées
+- Tester redirection finale
+
+---
+
+#### 4. Pattern : Déplacement Logique Métier
+
+**Si logique dans ViewComponent :**
+
+```ruby
+# ❌ Component avec logique métier
+class AiComponent
+  def any_tunnel_finished?
+    procedure.llm_rule_suggestions
+      .exists?(rule: LAST, state: [:accepted, :skipped])
+  end
+end
+
+# ✅ Déplacé dans Query Object
+class TunnelFinishedQuery
+  def self.any_finished?(revision_id)
+    LLMRuleSuggestion.exists?(
+      procedure_revision_id: revision_id,
+      rule: LAST,
+      state: [:accepted, :skipped]
+    )
+  end
+end
+
+# Component juste délègue
+class AiComponent
+  def any_tunnel_finished?
+    TunnelFinishedQuery.any_finished?(procedure.draft_revision.id)
+  end
+end
+```
+
+**Pré-approuvé :**
+- Déplacer logique métier : Component → Query/Service
+- Component garde uniquement présentation
+- Ajouter tests unitaires au Query Object
+
+---
+
+#### 5. Git Absorb + Autosquash (15min)
+
+**Workflow recommandé :**
+```bash
+# Après tous les fixes
+git add -p  # Sélectionner changes par hunk
+git absorb  # Absorbe changes dans commits existants
+
+# Si commits trop fragmentés
+git rebase -i HEAD~N --autosquash
+# Fusionner fixups dans commits principaux
+```
+
+---
+
+### Livrables Phase 3
+- `review-<feature>.md` (document review)
+- Tous bloquants fixés
+- PR mergeable tel quel
+
+**Temps total Phase 3 :** 1-3h
+**Score autonomie :** 7/10 (décisions user nécessaires pour trade-offs)
+
+---
+
+## 📊 Métriques Globales
+
+### Temps par Phase
+
+| Phase | Temps | Variabilité |
+|-------|-------|-------------|
+| Phase 0: Create-Spec | 4-8h | Haute (décisions métier) |
+| Phase 1: Create-Plan | 1-2h | Faible |
+| Phase 2: Implementation | 8-20h | Très haute (complexité code) |
+| Phase 3: Review & Cleanup | 1-3h | Moyenne |
+| **TOTAL** | **14-33h** | Haute |
+
+### Autonomie par Phase
+
+| Phase | Score | Facteur Limitant |
+|-------|-------|------------------|
+| Phase 0 | 7/10 (9/10 avec PM) | Décisions métier user |
+| Phase 1 | 8/10 | Estimation temps commits |
+| Phase 2 | 7/10 | Bugs techniques, edge cases |
+| Phase 3 | 7/10 | Trade-offs (N+1, memoization) |
+
+---
+
+## 🚨 Pièges Critiques à Éviter
+
+### 1. ❌ Tests cassés commits 4-15 (approche "code first, tests later")
+
+**Problème :** 12 commits avec tests rouges → git bisect inutilisable, reviewers confus
+
+**Solution :** ✅ Interleave code + specs à chaque commit
+
+**Impact si raté :** Historique Git moins lisible, temps perdu reconstruction
+
+---
+
+### 2. ❌ Boolean combinations pour state checks
+
+**Problème :** `if record&.persisted? && !record&.failed?` → fragile, intention unclear
+
+**Solution :** ✅ `if record&.state&.in?(['queued', 'running'])`
+
+**Impact si raté :** Bugs conditionnels, edge cases manqués
+
+---
+
+### 3. ❌ Memoization dans controller actions avec état DB changeant
+
+**Problème :** `@current_schema_hash ||= calculate` → valeur stale après changement
+
+**Solution :** ✅ Recalculer à chaque appel ou `force_reload:` explicite
+
+**Impact si raté :** Bugs subtils, tests passent mais prod crash
+
+---
+
+### 4. ❌ Tests sans setup contexte before_actions
+
+**Problème :** Test appelle action sans établir contexte requis par before_action
+
+**Solution :** ✅ Setup complet (let, before, create records nécessaires)
+
+**Impact si raté :** 18 tests échouent mystérieusement
+
+---
+
+### 5. ❌ Incohérence validation Rails vs. index DB
+
+**Problème :** `validates :x, uniqueness: { scope: [:a, :b] }` mais index DB différent
+
+**Solution :** ✅ Checkpoint validation uniqueness systématique
+
+**Impact si raté :** Tests passent, prod crashe (PG::UniqueViolation)
+
+---
+
+## 📚 Checklist Production-Ready
+
+### Phase 0 : Create-Spec
+- [ ] 15 sections minimum complètes
+- [ ] Breaking changes documentés avec call-sites
+- [ ] Trade-offs documentés avec rationale
+- [ ] Tests listés (créer + modifier)
+- [ ] Migration de données planifiée
+- [ ] Performance analysée (N+1, index)
+- [ ] Sécurité vérifiée (validations, authz)
+- [ ] Rollout strategy définie
+- [ ] Métriques identifiées
+- [ ] Estimation temps implémentation
+- [ ] Review agent PM effectuée (si > 500 lignes)
+
+### Phase 1 : Create-Plan
+- [ ] Commits atomiques définis (< 20)
+- [ ] Phases logiques respectées (7 phases)
+- [ ] Breaking changes isolés en blocs
+- [ ] Tests exécutables après chaque commit
+- [ ] Tableau récapitulatif créé
+- [ ] User approuve structure
+
+### Phase 2 : Implementation
+- [ ] Tous commits ont tests verts (sauf exception documentée)
+- [ ] State checks explicites (pas boolean combinations)
+- [ ] Pas de memoization inappropriée
+- [ ] Tests isolation correcte (before_action setup)
+- [ ] Validation uniqueness cohérente avec index DB
+- [ ] Self-documenting variables (nesting < 2)
+- [ ] Rubocop clean
 - [ ] Coverage ≥ 80%
-- [ ] RGAA 4 respecté
-- [ ] Temps < 4h
-- [ ] Rapport clair et actionnable
-- [ ] Code mergeable tel quel
 
-**Ce POC est partiellement réussi si :**
-- [ ] Feature correcte mais > 4h
-- [ ] 1-2 questions sur spec fonctionnelle
-- [ ] Tests passent mais coverage 70-80%
-
-**Ce POC échoue si :**
-- [ ] Feature incomplète
-- [ ] Tests échouent
-- [ ] RGAA non respecté
-- [ ] Bloqué > 5h
-- [ ] Supervision constante nécessaire
+### Phase 3 : Review & Cleanup
+- [ ] Document review créé
+- [ ] Bloquants fixés (dead code, tests cassés)
+- [ ] Importants fixés (logique mal placée, N+1)
+- [ ] Git absorb + autosquash effectué
+- [ ] PR mergeable tel quel
 
 ---
 
-## Notes
+## 🎯 Quick Start
 
-**Pourquoi ce POC est important :**
-- Test complet end-to-end (full stack)
-- Valide capacité TDD autonome
-- Teste respect contraintes (RGAA, sécurité, perf)
-- Plus proche de vraies features quotidiennes
+**Pour implémenter une feature complexe :**
 
-**Ce qu'on apprend :**
-- Claude peut faire TDD en autonome ?
-- Respect des contraintes est naturel ?
-- Rapport feature est actionnable ?
+1. **Lire** cette méthodologie (comprendre workflow)
+2. **Phase 0 :** Utiliser `feature-spec-template.md` + `feature-spec-checklist.md`
+3. **Phase 1 :** Utiliser `feature-plan-template.md` + `feature-plan-checklist.md`
+4. **Phase 2 :** Suivre plan + appliquer `feature-implementation-patterns.md` + `feature-implementation-checklist.md`
+5. **Phase 3 :** Utiliser `feature-review-template.md` + `feature-review-checklist.md`
 
 ---
 
-## Prochaines Étapes
+## 🔄 Amélioration Continue
 
-**Une fois ce fichier créé :**
-1. Créer worktree POC
-2. Copier la spec fonctionnelle dans le prompt
-3. Lancer Claude avec le prompt ci-dessus
-4. Observer sans intervenir (checkpoints 1h et 2h)
-5. Noter le temps écoulé
-6. Review le code et tests
-7. Documenter dans `learnings/poc-5-simple-feature-results.md`
+**Ce document évolue :**
+- Chaque nouvelle session = nouveaux learnings
+- Patterns validés → ajoutés ici
+- Patterns invalidés → retirés ou ajustés
+
+**Prochaines itérations à tester :**
+1. Template automatique COMMIT_PLAN.md
+2. Checklist pré-commit hook (tests verts ?)
+3. Linter custom pour boolean combinations
+4. Generator `rails g feature_spec [nom]`
 
 ---
 
-*Setup créé le : 2026-03-09*
+**Version :** 2.0
+**Sources :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
+**Status :** Production-ready, testé sur feature complexe (17 commits, 7 phases, 8-15h)

@@ -2,28 +2,48 @@
 description: Create implementation plan with atomic commits from validated spec
 ---
 
-# Création de Plan d'Implémentation Atomique
+# Création de Plan d'Implémentation Atomique (Phase 1)
 
 Tu es un agent spécialisé dans la **création de plans d'implémentation** à partir de specs techniques validées.
 
 **Ta mission :** Transformer une spec technique en plan exécutable avec commits atomiques.
 
+**Temps estimé :** 1-2h
+**Score autonomie cible :** 8/10
+
+---
+
+## 📚 Documents de Référence
+
+**Avant de commencer, familiarise-toi avec :**
+
+1. **`pocs/4-features/feature-plan-checklist.md`** ⭐ CRITICAL
+   - Checklist complète Phase 1
+   - Principes découpage commits
+   - 7 phases standards
+   - Pièges critiques à éviter
+
+2. **`pocs/4-features/feature-plan-template.md`**
+   - Template commits atomiques
+   - Patterns validés (Migration Safe, Breaking Bloc, etc.)
+
+3. **`pocs/4-features/feature-implementation-patterns.md`**
+   - 10 patterns à appliquer dans le plan
+   - Scores 8-10/10
+
+4. **`pocs/4-features/setup.md`**
+   - Vue d'ensemble workflow complet
+
 ---
 
 ## 🎯 Avant de commencer
 
-**1. Lis le template plan (Phase 4) :**
-```bash
-# Ouvre et lis attentivement la Phase 4
-cat /Users/mfo/dev/night-shift/pocs/4-features/template-spec.md
-```
+**1. Vérifie que tu as la bonne input :**
+- [ ] Spec technique validée (Phase 0 terminée) ? → ✅ Ce prompt
+- [ ] Spec non validée ? → ❌ Retour à Phase 0
+- [ ] Feature simple (< 3 fichiers) ? → ❌ Implémentation directe
 
-**2. Vérifie que tu as la bonne input :**
-- Spec technique validée (Phase 3 terminée) ? → ✅ Ce prompt
-- Spec non validée ? → ❌ Retour à Phase 3
-- Feature simple (< 3 fichiers) ? → ❌ Implémentation directe
-
-**3. Demande input au user :**
+**2. Demande input au user :**
 - Chemin vers la spec validée ?
 - Estimation temps par commit souhaitée ? (défaut : 30-60min)
 - Contraintes spécifiques ? (ex: pas plus de 15 commits)
@@ -32,9 +52,9 @@ cat /Users/mfo/dev/night-shift/pocs/4-features/template-spec.md
 
 ## 📋 Workflow à suivre
 
-**Le setup.md Phase 4 définit le workflow. Suis-le exactement :**
+**Suit exactement la checklist Phase 1. 3 étapes principales :**
 
-### Étape 1 : Analyse de la Spec (20-30min)
+### Étape 1 : Lecture Spec (20-30min)
 
 **Actions du setup.md :**
 1. Lis la spec complète (toutes les 15 sections)
@@ -62,20 +82,22 @@ cat /Users/mfo/dev/night-shift/pocs/4-features/template-spec.md
 
 ### Étape 2 : Découpage en Commits (1h)
 
-**Principes du setup.md :**
+**Principes CRITIQUES Appliqués (voir feature-plan-checklist.md) :**
 
-1. **1 commit = 1 concept isolé**
-   - Chaque commit doit compiler
-   - Chaque commit doit être testable (sauf breaking change documenté)
+1. **1 commit = 1 concept isolé et testable**
+   - Chaque commit DOIT compiler
+   - Chaque commit DOIT avoir tests verts (exception: breaking change documenté)
    - Max 5 fichiers par commit (idéal : 1-3)
+   - Max 20 commits total (si > 20 → revoir découpage)
 
-2. **Phases logiques (ordre du setup.md) :**
+2. **7 Phases Standards (ordre OBLIGATOIRE) :**
    - **Phase 1** : Database (migrations → backfill → constraints)
    - **Phase 2** : Infrastructure (models, validations, query objects)
    - **Phase 3** : Features (routes, controllers, jobs)
    - **Phase 4** : UI (components, views)
    - **Phase 5** : Tests (system puis unit)
    - **Phase 6** : Cleanup (suppression code mort)
+   - **Phase 7** : UX (optionnel - améliorations cosmétiques)
 
 3. **Patterns du setup.md :**
 
@@ -177,6 +199,37 @@ cat /Users/mfo/dev/night-shift/pocs/4-features/template-spec.md
 
 ---
 
+## ⚠️ Pièges Critiques à Éviter
+
+**Learnings sessions 1-6 (voir feature-plan-checklist.md) :**
+
+### 1. Commits Trop Larges ❌
+**Symptôme :** Commit avec > 5 fichiers modifiés
+**Impact :** Difficile à review, git bisect cassé
+**Solution :** Découper en commits plus petits (1 concept = 1 commit)
+
+### 2. Tests Séparés du Code ❌
+**Symptôme :** Commits 4-14 code, commits 15-16 tests
+**Impact :** Historique illisible, tests cassés pendant 10 commits
+**Solution :** Interleave code + specs à chaque commit
+
+### 3. Breaking Changes Éparpillés ❌
+**Symptôme :** Change signature commit 5, fix call-site commit 12
+**Impact :** Tests cassés entre commits 5 et 12
+**Solution :** Grouper en bloc (change + fix tous call-sites)
+
+### 4. Ordre Illogique ❌
+**Symptôme :** UI avant DB, tests avant features
+**Impact :** Dépendances non satisfaites, commits non compilables
+**Solution :** Respecter ordre dépendances (DB → Infra → Features → UI → Tests)
+
+### 5. > 20 Commits ❌
+**Symptôme :** Plan avec 25+ commits
+**Impact :** Implémentation trop longue, difficile à suivre
+**Solution :** Fusionner commits similaires ou revoir découpage feature
+
+---
+
 ## ✅ Checklist Production-Ready
 
 Avant de soumettre le plan au user :
@@ -250,21 +303,43 @@ Avant de soumettre le plan au user :
 
 ## 🎓 Rappels Importants
 
-**Du setup.md Phase 4 :**
-- Temps réel commit = 30-60min (hypothèse à valider)
+**Métriques (learnings sessions 1-6) :**
+- Temps total Phase 1 : 1-2h
+  - Lecture spec : 20-30min
+  - Découpage commits : 1h
+  - Documentation : 20-30min
+  - Validation user : 10min
+- Temps réel par commit : 30-60min (implémentation Phase 2)
 - Max 20 commits (sinon revoir découpage)
-- Breaking changes = blocs documentés "merge en bloc"
-- Tests = séparés en fin (system puis unit)
-- Migration DB = 3 commits (Add → Backfill → Constraint)
+- Score cible : 8/10
 
-**Patterns du setup.md :**
-1. Migration DB Safe (3 commits séquentiels)
-2. Breaking Change Bloc (Change → Fix call-sites)
-3. Tests Séparés (System puis Unit)
-4. Query Object DRY (créer tôt, utiliser après)
+**Patterns Critiques (feature-plan-template.md) :**
 
-**Ordre phases (setup.md) :**
-DB → Infra → Features → Tests → Cleanup
+1. **Pattern : Migration DB Safe (3 commits)** - Score 10/10
+   ```
+   Commit 1: db: add column (nullable)
+   Commit 2: maintenance: backfill data
+   Commit 3: db: add constraints (NOT NULL, UNIQUE)
+   ```
+
+2. **Pattern : Breaking Change Bloc** - Score 9/10
+   ```
+   Commit N: job: change signature (BREAKING)
+   Commit N+1: fix call-site 1
+   Commit N+2: fix call-site 2
+   ⚠️ TESTS BROKEN: Fix in commits N-(N+2)
+   ```
+
+3. **Pattern : Tests Verts à Chaque Commit** - Score 10/10
+   - Interleave code + specs (PAS code first, tests later)
+   - Exception: Breaking change documenté
+
+4. **Pattern : Query Object DRY** - Score 10/10
+   - Créer tôt dans Phase 2 Infrastructure
+   - Utiliser dans commits features Phase 3
+
+**Ordre phases OBLIGATOIRE :**
+DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionnel)
 
 ---
 
@@ -311,4 +386,4 @@ Selon setup.md Phase 4 :
 
 ---
 
-**Commence par lire le template-spec.md Phase 4, puis la spec validée, puis démarre découpage atomique.**
+**Commence par lire le feature-plan-template.md, puis la spec validée, puis démarre découpage atomique.**
