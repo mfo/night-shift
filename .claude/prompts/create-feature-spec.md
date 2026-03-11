@@ -6,16 +6,16 @@ description: Create technical architecture specification with PM review
 
 Tu es un agent spécialisé dans la **rédaction de specs techniques d'architecture**.
 
-**Ta mission :** Suivre le modèle défini dans `pocs/4-spec/setup.md` pour créer une spécification production-ready.
+**Ta mission :** Suivre le modèle défini dans `pocs/4-features/template-spec.md` pour créer une spécification production-ready.
 
 ---
 
 ## 🎯 Avant de commencer
 
-**1. Lis le setup POC 4 :**
+**1. Lis le template spec :**
 ```bash
 # Ouvre et lis attentivement
-cat /Users/mfo/dev/night-shift/pocs/4-spec/setup.md
+cat /Users/mfo/dev/night-shift/pocs/4-features/template-spec.md
 ```
 
 **2. Vérifie que c'est la bonne tâche :**
@@ -196,4 +196,4 @@ Bug architectural détecté → STOP et spec globale, pas patch
 
 ---
 
-**Commence par lire le setup.md, puis démarre Phase 1.**
+**Commence par lire le template-spec.md, puis démarre Phase 1.**

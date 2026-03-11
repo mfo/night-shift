@@ -338,6 +338,91 @@ find spec -name "*nom_fichier*_spec.rb"
 
 ---
 
+### Phase 4 : Création Plan d'Implémentation (1-2h)
+
+**Objectif :** Transformer spec validée en plan exécutable avec commits atomiques
+
+**Actions :**
+1. **Lire spec complète** (20-30min)
+   - Comprendre tous les composants impactés
+   - Identifier dépendances entre changements
+   - Repérer breaking changes
+
+2. **Découper en commits atomiques** (1h)
+   - 1 commit = 1 concept isolé et testable
+   - Max 5 fichiers par commit (idéal : 1-3)
+   - Ordre logique : DB → Infra → Features → Tests → Cleanup
+
+3. **Documenter chaque commit** (20-30min)
+   - Titre conventionnel (`scope: description`)
+   - Objectif (1 phrase)
+   - Fichiers à modifier (liste précise)
+   - Actions (code ou instructions)
+   - Tests à exécuter
+   - Notes (warnings, breaking changes)
+
+**Principes de découpage :**
+
+1. **Phases logiques (ordre de dépendances) :**
+   - **Phase 1** : Database (migrations, backfill, constraints)
+   - **Phase 2** : Infrastructure (models, validations, query objects)
+   - **Phase 3** : Features (routes, controllers, jobs)
+   - **Phase 4** : UI (components, views)
+   - **Phase 5** : Tests (system, unit)
+   - **Phase 6** : Cleanup (suppression code mort)
+
+2. **Breaking changes isolés :**
+   - Commit N : Introduit breaking change (⚠️ code cassé)
+   - Commits N+1, N+2 : Fix call-sites
+   - Documenter : "Code cassé entre N et N+X, merge en bloc"
+
+3. **Tests à la fin :**
+   - System specs en 1 commit
+   - Unit specs en 1 commit
+   - Pas mélangés avec features
+
+**Patterns critiques :**
+
+**Pattern 1 : Migration DB Safe (3 commits)**
+```
+Commit 1: db: add column (nullable)
+Commit 2: maintenance: backfill data
+Commit 3: db: add constraints (NOT NULL, UNIQUE)
+```
+→ Rollback safe, pas de downtime
+
+**Pattern 2 : Breaking Change Bloc**
+```
+Commit N: scope: change signature (BREAKING) ⚠️
+Commit N+1: scope: fix first call-site
+Commit N+2: scope: fix second call-site
+```
+→ Merge en bloc obligatoire
+
+**Pattern 3 : Tests Séparés**
+```
+Commit N-1: tests: update system specs
+Commit N: tests: update unit specs
+```
+→ Features reviewables sans bruit tests
+
+**Présenter au user :**
+- Nombre total de commits (< 20 idéal)
+- Phases identifiées (6 phases standard)
+- Breaking changes (avec plage commits impactés)
+- Estimation temps total (commits × 30-60min)
+- Tableau récapitulatif
+
+**Checkpoint :**
+- [ ] Commits atomiques définis ?
+- [ ] Max 20 commits ?
+- [ ] Phases logiques respectées ?
+- [ ] Breaking changes isolés ?
+- [ ] Tests exécutables après chaque commit ?
+- [ ] User approuve structure ?
+
+---
+
 ## Patterns Critiques
 
 ### Pattern 1 : Preuve Mathématique de Bug
@@ -418,7 +503,8 @@ Avant de soumettre spec au user :
 - Rédaction v1 : 1-1h30
 - Review PM : 45min
 - Itérations : 1-2h
-- **Total : 3-6h**
+- Plan implémentation : 1-2h
+- **Total : 4-8h (spec + plan)**
 
 **Qualité :**
 - Spec complète : 15 sections
@@ -433,9 +519,11 @@ Avant de soumettre spec au user :
 1. `specs/YYYY-MM-DD-[nom]-spec.md` (spec finale)
 2. `specs/YYYY-MM-DD-[nom]-review-v1.md` (review PM)
 3. `specs/YYYY-MM-DD-[nom]-review-v2.md` (validation finale)
-4. `kaizen/YYYY-MM-DD-[nom]-spec.md` (kaizen phase spec)
+4. `specs/YYYY-MM-DD-[nom]-implementation-plan.md` (plan atomique)
+5. `kaizen/YYYY-MM-DD-[nom]-spec.md` (kaizen phase spec)
+6. `pocs/4-spec/result-plan.md` (learnings création plan)
 
-**Next step :** Implémentation (8-20h selon complexité)
+**Next step :** Implémentation par agent codeur (8-20h selon complexité)
 
 ---
 
