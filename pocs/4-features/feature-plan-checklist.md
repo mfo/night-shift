@@ -1,7 +1,6 @@
 # Checklist : Create Feature Plan (Phase 1)
 
 **Version :** 2.0
-**Dernière mise à jour :** 2026-03-11
 **Temps estimé :** 1-2h
 **Slash command :** `/feature-plan`
 

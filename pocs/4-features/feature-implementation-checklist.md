@@ -1,7 +1,6 @@
 # Checklist : Implement Feature (Phase 2)
 
 **Version :** 2.0
-**Dernière mise à jour :** 2026-03-11
 **Temps estimé :** 8-20h (selon complexité)
 **Slash command :** `/implement` ou exécution manuelle
 

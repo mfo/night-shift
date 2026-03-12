@@ -1,4 +1,5 @@
 ---
+name: feature-implementation
 description: Execute implementation plan commit by commit with green tests at each step
 ---
 

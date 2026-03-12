@@ -229,5 +229,3 @@ Ce hook est un **building block** du projet Night Shift.
 - Script qui détecte les DBs orphelines
 
 ---
-
-**Dernière mise à jour :** 2026-03-09

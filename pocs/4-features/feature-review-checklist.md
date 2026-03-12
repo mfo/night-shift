@@ -1,7 +1,6 @@
 # Checklist : Review Feature (Phase 3)
 
 **Version :** 2.0
-**Dernière mise à jour :** 2026-03-11
 **Temps estimé :** 1-3h (selon complexité)
 **Slash command :** `/review`
 

@@ -1,7 +1,5 @@
 # POC 4 : Features Complexes - Setup & Méthodologie
 
-**Date création :** 2026-03-09
-**Dernière mise à jour :** 2026-03-11
 **Objectif :** Workflow complet 4 phases pour features complexes (spec → plan → implémentation → review)
 **Version :** 2.0 (enrichi avec learnings sessions 1-6)
 

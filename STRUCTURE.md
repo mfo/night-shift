@@ -1,6 +1,5 @@
 # Structure du Projet Night Shift
 
-**Mis à jour :** 2026-03-09
 **Version :** 2.0 (après réorganisation)
 
 ---
@@ -12,9 +11,10 @@ night-shift/
 │
 ├── README.md                       # 📘 Vision & méthodologie Toyotiste
 ├── STRUCTURE.md                    # 📐 Ce fichier (architecture)
-├── roadmap.perso.md                # 🗺️ Roadmap détaillée
-├── SPEC-archive.md                 # 📦 Archive spec initiale
-├── CRITIQUE-ET-RECOMMANDATIONS.md  # 💬 Analyse critique externe
+├── ROADMAP.md                      # 🗺️ Roadmap & état du projet
+├── WORKFLOW.md                     # 📋 Guide pratique POCs & kaizen
+├── QUICKSTART.md                   # ⚡ Démarrage rapide
+├── essentials.md                   # 📚 Base connaissances (patterns)
 │
 ├── epics/                          # 📋 Spécifications par epic
 │   ├── 1-memoire.md                # Gestion contexte (.claude/)
@@ -45,8 +45,16 @@ night-shift/
 │       ├── weekly.md               # Synthèse hebdo (30-45min)
 │       └── improvement.md          # Propositions amélioration
 │
-└── .claude/                        # ⚙️ Config Claude (local, non tracké)
-    └── (vide pour l'instant)
+└── .claude/                        # ⚙️ Config Claude Code (versionné)
+    ├── settings.local.json         # Paramètres locaux
+    └── skills/                     # Skills évolutifs (v1→v2→v3)
+        ├── haml-migration/         # POC 1
+        ├── investigate-sentry-bug/ # POC 3
+        ├── fix-sentry-bug/         # POC 3
+        ├── feature-spec/           # POC 4 - Phase 0
+        ├── feature-plan/           # POC 4 - Phase 1
+        ├── feature-implementation/ # POC 4 - Phase 2
+        └── feature-review/         # POC 4 - Phase 3
 ```
 
 ---
@@ -57,8 +65,10 @@ night-shift/
 **Fichiers stratégiques :**
 - `README.md` : Vision Toyotiste, théorie, méthodologie
 - `STRUCTURE.md` : Ce fichier (architecture projet)
-- `roadmap.perso.md` : Roadmap détaillée, décisions
-- `CRITIQUE-ET-RECOMMANDATIONS.md` : Analyse critique (input important)
+- `ROADMAP.md` : Roadmap détaillée, état du projet, décisions
+- `WORKFLOW.md` : Guide pratique POCs & kaizen
+- `QUICKSTART.md` : Démarrage rapide
+- `essentials.md` : Base connaissances (patterns découverts)
 
 ### `epics/`
 **Spécifications de référence**
@@ -105,8 +115,25 @@ pocs/X-nom/
 
 **Outputs typiques :**
 - Ajout pattern à essentials.md
-- Évolution prompt (v1 → v2)
+- Évolution skill (v1 → v2)
 - Identification tâche agent-friendly vs unfriendly
+
+### `.claude/`
+**Configuration Claude Code (versionné)**
+
+**Contenu :**
+- `settings.local.json` : Paramètres locaux du projet
+- `skills/` : Skills pour lancer les agents
+
+**Pourquoi versionné ?**
+- ✅ **Skills = cœur du projet** : Les skills sont le résultat principal de Night Shift
+- ✅ **Traçabilité évolution** : Git log montre amélioration v1 → v2 → v3
+- ✅ **Reproductibilité** : Autre dev peut rejouer POCs à l'identique
+- ✅ **Kaizen documenté** : Chaque amélioration skill = commit avec rationale
+
+**Non versionné (futur) :**
+- Config locale personnelle (`.claude/config/` si ajoutée)
+- Cache ou tokens temporaires
 
 ---
 
@@ -121,8 +148,9 @@ demarche.numerique.gouv.fr-poc-haml/
 └── .claude/
     ├── context/
     │   └── essentials.md           # Copié depuis night-shift
-    ├── prompts/
-    │   └── haml-migration.md       # Prompt évolutif (v1, v2...)
+    ├── skills/
+    │   └── haml-migration/         # Skill évolutif (v1, v2...)
+    │       └── SKILL.md
     ├── commands/                   # Slash commands (optionnel)
     │   └── haml-migrate.md         # /haml-migrate [fichier]
     └── tasks/                      # Tasks queue (futur)
@@ -157,7 +185,7 @@ Création worktree + .claude/
 ```
 Worktree POC
     ↓
-.claude/prompts/X.md (prompt v1)
+.claude/skills/X/SKILL.md (skill v1)
     ↓
 Claude exécute (fire-and-forget)
     ↓
@@ -175,7 +203,7 @@ kaizen/templates/task.md (learnings)
     ↓
 Décisions :
   - Améliorer essentials.md ?
-  - Créer prompt v2 ?
+  - Créer skill v2 ?
   - Continuer POC suivant ?
 ```
 
@@ -190,7 +218,7 @@ kaizen/templates/improvement.md
     ↓
 Tester proposition
     ↓
-Si validé → Intégrer essentials.md ou prompt v2
+Si validé → Intégrer essentials.md ou skill v2
 ```
 
 ---
@@ -203,17 +231,17 @@ Si validé → Intégrer essentials.md ou prompt v2
 - **`pocs/`** : Expérimentations (actif, évolue)
 - **`kaizen/`** : Learnings et amélioration (output)
 
-### 2. Versioning Prompts
+### 2. Versioning Skills
 
-Les prompts évoluent :
+Les skills évoluent :
 ```
-.claude/prompts/haml-migration.md
+.claude/skills/haml-migration/SKILL.md
   v1.0 (2026-03-09) - Initial POC 1
   v1.1 (2026-03-10) - Après kaizen : ajout checkpoint 15min
   v2.0 (2026-03-12) - Refonte suite 5 POCs : temps ajustés
 ```
 
-Historique dans le fichier prompt lui-même.
+Historique dans le fichier skill lui-même.
 
 ### 3. Templates Réutilisables
 
@@ -245,7 +273,7 @@ git worktree add -b poc-X ../demarche.numerique.gouv.fr-poc-X main
 
 # 3. Setup .claude/ dans worktree
 cd ../demarche.numerique.gouv.fr-poc-X
-mkdir -p .claude/{context,prompts,commands}
+mkdir -p .claude/{context,skills,commands}
 
 # 4. Copier essentials.md
 # (Existe déjà pour POC 1)
@@ -267,7 +295,7 @@ cp templates/task.md ../pocs/X-nom/kaizen-YYYY-MM-DD.md
 
 # 3. Identifier actions
 # → Améliorer essentials.md ?
-# → Créer prompt v2 ?
+# → Créer skill v2 ?
 ```
 
 ---

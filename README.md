@@ -1,7 +1,6 @@
 # Night Shift - Pipelines de développement avec IA
 
 **Statut :** Démonstrateur - Apprentissage en cours
-**Dernière mise à jour :** 2026-03-09
 
 ---
 
@@ -199,15 +198,25 @@ night-shift/
 │   ├── session-1-6.md     # Learnings Simpliscore tunnel_id
 │   └── poc-*/             # Learnings par POC (à venir)
 │
-└── .claude/
-    └── prompts/           # Prompts pour lancer les agents
-        ├── feature-spec.md      # Phase 0
-        ├── feature-plan.md      # Phase 1
-        ├── feature-implementation.md        # Phase 2
-        └── feature-review.md           # Phase 3
+└── .claude/               # Configuration Claude Code (versionné)
+    ├── settings.local.json # Paramètres locaux
+    └── skills/            # Skills pour lancer les agents (évolutifs)
+        ├── haml-migration/         # POC 1 (v3)
+        ├── investigate-sentry-bug/ # POC 3
+        ├── fix-sentry-bug/         # POC 3
+        ├── feature-spec/           # POC 4 - Phase 0
+        ├── feature-plan/           # POC 4 - Phase 1
+        ├── feature-implementation/ # POC 4 - Phase 2
+        └── feature-review/         # POC 4 - Phase 3
 ```
 
-**Note :** `essentials.md` et les prompts évoluent au fur et à mesure qu'on apprend.
+**Note :** `essentials.md` et les skills évoluent au fur et à mesure qu'on apprend.
+
+**Pourquoi `.claude/` est versionné ?**
+- ✅ Skills = cœur du projet (skills améliorés par kaizen)
+- ✅ Historique Git = évolution des skills (v1 → v2 → v3)
+- ✅ Reproductibilité = autre dev peut rejouer POCs
+- ❌ Non versionné : config locale personnelle (si ajoutée dans `.claude/config/`)
 
 ---
 
@@ -315,6 +324,7 @@ Documentation en cours d'enrichissement.
 ## 📖 Documentation
 
 - `README.md` : Vision et méthode (ce fichier)
+- `ROADMAP.md` : Roadmap & état du projet
 - `WORKFLOW.md` : Guide pratique (comment lancer un POC, comment documenter)
 - `essentials.md` : Base de connaissances (patterns découverts, évolutif)
 - `pocs/*/setup.md` : Setup détaillé par POC

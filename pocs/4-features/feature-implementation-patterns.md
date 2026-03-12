@@ -1,7 +1,6 @@
 # Patterns Agent-Friendly - POC 4 Features
 
 **Version :** 2.0
-**Dernière mise à jour :** 2026-03-11
 **Source :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
 
 ---

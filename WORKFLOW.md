@@ -1,7 +1,5 @@
 # Workflow POC - Guide Pratique
 
-**Mise à jour :** 2026-03-09
-
 Ce guide explique **concrètement** comment lancer un POC et documenter les learnings.
 
 ---
@@ -79,7 +77,7 @@ Ce slash command :
 - Ce qui a bien marché → à réutiliser
 - Ce qui a coincé → à améliorer
 - Agent-friendly score → est-ce vraiment fire-and-forget ?
-- Améliorations concrètes → essentials.md v2 ? prompt v1.1 ?
+- Améliorations concrètes → essentials.md v2 ? skill v1.1 ?
 
 ### Étape 5 : Décision (5min)
 
@@ -97,7 +95,7 @@ cat pocs/overview.md  # Lire planning Semaine 1
 ```bash
 # Itérer sur POC 1
 # 1. Lire kaizen-2026-03-09.md
-# 2. Améliorer essentials.md ou prompt
+# 2. Améliorer essentials.md ou skill
 # 3. Retry POC 1 sur un autre fichier HAML
 # 4. Comparer v1 vs v2
 ```
@@ -106,7 +104,7 @@ cat pocs/overview.md  # Lire planning Semaine 1
 ```bash
 # Analyser causes d'échec
 # 1. Lire results.md + kaizen.md
-# 2. Identifier : problème prompt ? contexte ? hypothèse ?
+# 2. Identifier : problème skill ? contexte ? hypothèse ?
 # 3. Décider : pivoter ou itérer ?
 ```
 
@@ -144,18 +142,18 @@ Voici ce qu'on doit faire maintenant :
 
 1. Lire le kaizen et identifier les learnings critiques
 2. Enrichir `essentials.md` avec les patterns découverts
-3. Améliorer `.claude/prompts/haml-migration.md` en intégrant ces learnings
+3. Améliorer `.claude/skills/haml-migration/SKILL.md` en intégrant ces learnings
 4. Préparer un commit qui raconte l'évolution
 
 Le commit doit montrer :
 - Ce qui a échoué (résultats)
 - Ce qu'on a appris (kaizen)
-- Ce qu'on améliore (prompt + essentials)
+- Ce qu'on améliore (skill + essentials)
 
 Structure git story :
 - Commit précédent : Hypothèse ("Un agent peut-il migrer HAML ?")
 - Ce commit : Résultats + Learnings + Améliorations
-- Commit suivant : Validation avec prompt amélioré
+- Commit suivant : Validation avec skill amélioré
 ```
 
 #### 3. Workflow automatique avec Claude
@@ -167,7 +165,7 @@ Claude va :
    - Patterns critiques découverts
    - Commandes utiles identifiées
    - Checklist validation manquante
-4. **Améliorer** le prompt avec :
+4. **Améliorer** le skill avec :
    - Règles de conversion manquantes
    - Checkpoints validation locale
    - Temps ajustés
@@ -178,11 +176,11 @@ Claude va :
 ```bash
 # Claude propose :
 # - Les changements à essentials.md
-# - Les changements au prompt
+# - Les changements au skill
 # - Un message de commit clair
 
 # Tu valides et commit
-git add essentials.md .claude/prompts/haml-migration.md kaizen/1-haml/
+git add essentials.md .claude/skills/haml-migration/SKILL.md kaizen/1-haml/
 git commit -m "[message proposé par Claude]"
 ```
 
@@ -206,7 +204,7 @@ Le ground 0 pose une hypothèse : "Un agent IA peut-il migrer HAML→ERB ?"
    - Ajouter patterns HAML→ERB découverts
    - Ajouter commandes utiles (linter, tests)
    - Ajouter checklist validation locale
-3. Améliorer `.claude/prompts/haml-migration.md` :
+3. Améliorer `.claude/skills/haml-migration/SKILL.md` :
    - Intégrer les règles manquantes
    - Ajouter checkpoint validation locale
    - Ajuster temps estimés
@@ -214,15 +212,15 @@ Le ground 0 pose une hypothèse : "Un agent IA peut-il migrer HAML→ERB ?"
 5. Proposer un message de commit qui raconte l'histoire :
    - Résultats Phase 1.1 (X erreurs, score Y/10)
    - Learnings (patterns critiques)
-   - Améliorations (prompt + essentials)
-   - Hypothèse suivante (re-test avec prompt amélioré)
+   - Améliorations (skill + essentials)
+   - Hypothèse suivante (re-test avec skill amélioré)
 
 # Contrainte
 Le commit doit être **auto-portant** : quelqu'un qui lit juste le git log doit comprendre l'évolution.
 
 # Livrable
 - essentials.md enrichi
-- prompt amélioré
+- skill amélioré
 - kaizen déplacé
 - message de commit proposé
 ```
@@ -250,21 +248,21 @@ Phase 1.1: 12 fichiers migrés, 4 erreurs critiques découvertes
 
 Améliorations:
 - essentials.md: patterns HAML→ERB critiques
-- prompt: validation locale + règles complètes
+- skill: validation locale + règles complètes
 
 Hypothèse invalidée: fire-and-forget impossible sans validation
-Prochaine étape: tester prompt amélioré (target: 8/10)
+Prochaine étape: tester skill amélioré (target: 8/10)
 ```
 
 **Commit 3 (validation) :**
 ```
-feat(prompt): validate improved prompt on Phase 1.2
+feat(skill): validate improved skill on Phase 1.2
 
-Test prompt v1.1 sur 5 fichiers
+Test skill v1.1 sur 5 fichiers
 Résultats: 0 erreur CI, 1 warning local catchée
 Score: 8/10 (oneshot pratique atteint)
 
-Hypothèse validée: prompt enrichi permet oneshot pratique
+Hypothèse validée: skill enrichi permet oneshot pratique
 ```
 
 ---
@@ -310,7 +308,7 @@ Lance la migration HAML→ERB d'un fichier.
 
 **Ce qu'il fait :**
 - Lit essentials.md
-- Suit le prompt haml-migration.md
+- Suit le skill haml-migration
 - Migre le fichier
 - Génère rapport
 
@@ -392,7 +390,7 @@ results.md + kaizen.md
 Identify improvements
     ↓
 essentials.md v1.1
-prompt haml-migration.md v1.1
+skill haml-migration v1.1
     ↓
 POC 1 retry (v1.1)
     ↓

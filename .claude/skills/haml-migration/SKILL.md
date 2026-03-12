@@ -1,4 +1,9 @@
-# Prompt : Migration HAML → ERB
+---
+name: haml-migration
+description: Migrate HAML templates to ERB with validation
+---
+
+# Migration HAML → ERB
 
 **Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
 

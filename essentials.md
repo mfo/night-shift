@@ -157,5 +157,3 @@ git diff app/components/
 - Le linter peut détecter certaines erreurs (balises auto-fermantes)
 
 ---
-
-**Dernière mise à jour :** 2026-03-09 (Phase 1.1)

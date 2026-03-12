@@ -1,7 +1,5 @@
 # Quick Start - Night Shift
 
-**Dernière mise à jour :** 2026-03-09
-
 ---
 
 ## 🎯 Tu veux lancer POC 1 maintenant ?
@@ -169,13 +167,13 @@ night-shift/
 
 ### Où est le prompt pour POC 1 ?
 → `pocs/1-haml/setup.md` (lignes 53-197)
-→ OU `.claude/prompts/haml-migration.md` dans le worktree POC 1
+→ OU `.claude/skills/haml-migration/SKILL.md` dans le worktree POC 1
 
 ### Comment créer un slash command ?
 → Voir `.claude/commands/haml-migrate.md` dans worktree POC 1 (exemple)
 
 ### Comment les prompts évoluent ?
-1. Version initiale (v1) dans `.claude/prompts/`
+1. Version initiale (v1) dans `.claude/skills/`
 2. Lancer POC
 3. Documenter kaizen
 4. Identifier améliorations → créer v2

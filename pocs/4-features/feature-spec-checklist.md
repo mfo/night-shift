@@ -1,7 +1,6 @@
 # Checklist : Create Feature Spec (Phase 0)
 
 **Version :** 2.0
-**Dernière mise à jour :** 2026-03-11
 **Temps estimé :** 4-8h
 **Slash command :** `/feature-spec`
 
