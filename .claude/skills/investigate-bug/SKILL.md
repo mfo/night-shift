@@ -1,5 +1,6 @@
 ---
-description: Investigate a Sentry bug using structured root cause analysis
+name: investigate-bug
+description: Investigate a bug using structured root cause analysis
 ---
 
 # Investigation de Bug
@@ -16,7 +17,7 @@ Tu es un agent spécialisé dans l'**investigation de bugs**.
 
 ## Objectif
 
-Investiguer la root cause d'un bug Sentry, analyser la stack trace, identifier les causes avec 5 Whys, et proposer 3 solutions concrètes avec leur implémentation.
+Investiguer la root cause d'un bug, analyser la stack trace, identifier les causes avec 5 Whys, et proposer 3 solutions concrètes avec leur implémentation.
 
 **Temps estimé :** 1-2h max
 
@@ -26,7 +27,7 @@ Investiguer la root cause d'un bug Sentry, analyser la stack trace, identifier l
 
 Demande à l'utilisateur :
 
-1. **URL Sentry** : Lien vers l'issue Sentry
+1. **URL issue** : Lien vers l'issue (Sentry, GitHub, Linear, etc.)
 2. **Stack trace** : Copier la stack trace complète
 3. **Contexte** : Tags, breadcrumbs, fréquence, environnement
 4. **Urgence** : P0 (critique) / P1 (high) / P2 (medium) / P3 (low)
@@ -37,7 +38,7 @@ Demande à l'utilisateur :
 
 ### Étape 1 : Analyse Stack Trace (20min)
 
-**Données Sentry nécessaires :**
+**Données nécessaires :**
 - Stack trace complète
 - Contexte d'exécution (tags, breadcrumbs)
 - Fréquence d'occurrence
@@ -86,7 +87,7 @@ grep -r "timeout\|retry\|rate" app/services/
 # D'autres endroits avec le même pattern ?
 grep -r "pattern_problématique" app/
 
-# D'autres bugs Sentry similaires ? (vérifier manuellement dans Sentry)
+# D'autres bugs similaires ? (vérifier dans le bug tracker)
 ```
 
 ---
@@ -153,16 +154,16 @@ Le skill `review-3-amigos` lance 3 teammates pour challenger :
 **Format structuré :**
 
 ```markdown
-# Kaizen - Bug Sentry Investigation : [Titre]
+# Kaizen - Bug Investigation : [Titre]
 
 **Date :** YYYY-MM-DD
-**Tâche :** Investiguer root cause du bug Sentry #[ID]
+**Tâche :** Investiguer root cause du bug #[ID]
 **Phase :** INVESTIGATION SEULE (implémentation déléguée)
 **Temps :** ~Xmin
 **Status :** ✅ INVESTIGATION COMPLÈTE
 
 **Références :**
-- Sentry Issue : [URL]
+- Issue : [URL]
 - Worktree : [chemin si applicable]
 
 ---

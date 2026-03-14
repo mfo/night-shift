@@ -1,4 +1,5 @@
 ---
+name: feature-review
 description: Review post-implementation for dead code, broken tests, and misplaced logic
 ---
 

@@ -1,5 +1,6 @@
 ---
-description: Create technical architecture specification with PM review
+name: feature-spec
+description: Create technical architecture specification with 3 Amigos review
 ---
 
 # Création de Spécification Technique d'Architecture (Phase 0)

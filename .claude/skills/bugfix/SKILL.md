@@ -1,4 +1,5 @@
 ---
+name: bugfix
 description: Implement a bug fix based on investigation report
 ---
 
@@ -18,7 +19,7 @@ Demande à l'utilisateur :
 
 1. **Fichier kaizen investigation** : Chemin vers `kaizen/3-bugs/YYYY-MM-DD-bug-[id]-investigation.md`
 2. **Solution choisie** : Quelle solution implémenter ? (1, 2, ou 3)
-3. **Worktree** : Chemin vers le worktree dédié (ex: `demarches-simplifiees.sentry-[id]`)
+3. **Worktree** : Chemin vers le worktree dédié (ex: `demarches-simplifiees.bug-[id]`)
 
 ---
 
@@ -170,9 +171,9 @@ Si NON → Analyser l'erreur et corriger AVANT de continuer
 ```bash
 git add .
 git commit --no-gpg-sign -m "$(cat <<'EOF'
-fix(sentry): [titre court du bug]
+fix(scope): [titre court du bug]
 
-Fix pour Sentry issue #[ID]
+Fix pour issue #[ID]
 
 Root cause: [1 phrase résumant la root cause]
 
@@ -186,7 +187,7 @@ Tests: [X] exemples, [Y] échecs
 
 Références:
 - Investigation: kaizen/3-bugs/YYYY-MM-DD-bug-[id]-investigation.md
-- Sentry: https://sentry.io/.../issues/[ID]
+- Issue: [URL du bug tracker]
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 

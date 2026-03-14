@@ -1,4 +1,5 @@
 ---
+name: feature-plan
 description: Create implementation plan with atomic commits from validated spec
 ---
 

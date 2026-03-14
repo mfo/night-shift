@@ -40,21 +40,30 @@ night-shift/
 │
 ├── kaizen/                         # 📈 Amélioration continue
 │   ├── README.md                   # Guide templates kaizen
+│   ├── 1-haml/                     # Kaizen POC 1
+│   ├── 3-bugs/                     # Kaizen POC 3
+│   │   ├── iteration-1/            # Bug mistral-api
+│   │   └── iteration-2/            # Bug snowball renewal
+│   ├── 4-features/                 # Kaizen POC 4
+│   │   └── iteration-1/            # Feature simpliscore
 │   └── templates/
 │       ├── task.md                 # Kaizen par tâche (10-15min)
 │       ├── weekly.md               # Synthèse hebdo (30-45min)
 │       └── improvement.md          # Propositions amélioration
 │
+├── CLAUDE.md                       # 📋 Instructions pour Claude sur ce projet
+│
 └── .claude/                        # ⚙️ Config Claude Code (versionné)
     ├── settings.local.json         # Paramètres locaux
     └── skills/                     # Skills évolutifs (v1→v2→v3)
         ├── haml-migration/         # POC 1
-        ├── investigate-sentry-bug/ # POC 3
-        ├── fix-sentry-bug/         # POC 3
-        ├── feature-spec/           # POC 4 - Phase 0
-        ├── feature-plan/           # POC 4 - Phase 1
-        ├── feature-implementation/ # POC 4 - Phase 2
-        └── feature-review/         # POC 4 - Phase 3
+        ├── investigate-bug/        # POC 3 - Investigation
+        ├── bugfix/                 # POC 3 - Implémentation fix
+        ├── feature-spec/           # POC 4 - Phase 0 (spec)
+        ├── feature-plan/           # POC 4 - Phase 1 (plan commits)
+        ├── feature-implementation/ # POC 4 - Phase 2 (code)
+        ├── feature-review/         # POC 4 - Phase 3 (review)
+        └── review-3-amigos/        # Transversal - Review team (PM+UX+Dev)
 ```
 
 ---
