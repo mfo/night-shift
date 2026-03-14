@@ -39,6 +39,22 @@ db_suffix=$(echo "$worktree_name" | sed 's/demarches-simplifiees\.fr-//' | sed '
 db_name="tps_test_${db_suffix}"
 
 echo "==> Worktree détecté: $worktree_name"
+
+# Symlink .env depuis le repo principal
+main_repo=$(git rev-parse --git-common-dir | sed 's|/\.git$||')
+env_file="$worktree_path/.env"
+
+if [ ! -e "$env_file" ]; then
+  if [ -f "$main_repo/.env" ]; then
+    ln -s "$main_repo/.env" "$env_file"
+    echo "==> .env symlinké depuis le repo principal"
+  else
+    echo "⚠️  Pas de .env trouvé dans le repo principal ($main_repo)"
+  fi
+else
+  echo "==> .env déjà présent"
+fi
+
 echo "==> Configuration de la base de données: $db_name"
 
 # Crée ou met à jour .env.test.local avec le nom de DB unique
