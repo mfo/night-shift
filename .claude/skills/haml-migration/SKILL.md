@@ -7,7 +7,7 @@ description: Migrate HAML templates to ERB with validation and visual comparison
 
 **Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
 
-**Version :** v4 - Validation visuelle via MCP Playwright + learnings Phases 1.1, 2.8a, 3.1
+**Version :** v5 - Learnings session screenshots Playwright (2026-03-14)
 
 ---
 
@@ -27,6 +27,15 @@ description: Migrate HAML templates to ERB with validation and visual comparison
 ```
 
 **Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
+
+**Authentification dev** : Un stash nommé `bypass auth` contient un hack `auto_sign_in_dev_user` dans `ApplicationController` qui crée et connecte automatiquement un utilisateur admin en dev. Pour l'appliquer :
+```bash
+# Trouver le stash
+git stash list | grep "bypass auth"
+# Appliquer (garder dans le stash pour réutilisation)
+git stash apply stash@{N}
+```
+⚠️ Ne jamais commiter ce hack. Le re-stasher ou `git checkout` après les captures.
 
 ---
 
@@ -73,32 +82,25 @@ find app -name "*.html.haml" | head -15
 
 **⚠️ OBLIGATOIRE — Capturer l'état visuel AVANT de modifier quoi que ce soit**
 
-1. **Utiliser la page `/patron`** (page de démo des composants DSFR) :
-   - Accessible à `http://localhost:3000/patron` (requiert rôle administrateur → stash "bypass auth")
-   - Contient la plupart des composants DSFR et formulaires
+1. **Naviguer sur la page `/patron`** (page de démo des composants DSFR) :
+   - Utiliser `browser_navigate` vers `http://localhost:3000/patron`
+   - Requiert rôle administrateur → s'assurer que le stash "bypass auth" est appliqué (voir Prérequis)
 
-2. **Naviguer avec MCP Playwright sur l'env de dev** :
-   - Utiliser `browser_navigate` pour aller sur la page (`http://localhost:3000/...`)
-   - Le stash "bypass auth" gère l'authentification automatiquement
-     ```bash
-     # Trouver le stash
-     git stash list | grep "bypass auth"
-     # Appliquer (garder dans le stash pour réutilisation)
-     git stash apply stash@{N}
-     ```
-     ⚠️ Ne jamais commiter ce hack. Le re-stasher ou `git checkout` après les captures.
-
-3. **Capturer les screenshots HAML par sélecteur CSS** :
-   - Utiliser `browser_run_code` pour cibler chaque composant par son sélecteur CSS
+2. **Capturer les screenshots HAML par sélecteur CSS** :
+   - Utiliser `browser_run_code` avec `page.$$` (querySelectorAll) pour cibler chaque composant
    ```javascript
    async (page) => {
      const components = [
        { selector: '.fr-callout', name: 'callout' },
        { selector: '.fr-card', name: 'card' },
-       { selector: '.fr-notice', name: 'notice' }
+       { selector: '.fr-notice', name: 'notice' },
+       { selector: '.fr-alert', name: 'alert' },
+       { selector: '.fr-download', name: 'download' },
+       { selector: '.fr-input-group', name: 'input' },
+       { selector: '.fr-select-group', name: 'select' }
      ];
      for (const comp of components) {
-       const elements = await page.$(comp.selector);
+       const elements = await page.$$(comp.selector);
        for (let i = 0; i < elements.length; i++) {
          await elements[i].screenshot({ path: `tmp/screenshots/haml/dsfr-${comp.name}-${i+1}.png` });
        }
@@ -254,12 +256,20 @@ find app -name "*.html.haml" | head -15
 **Phase 2.8a :** 1 erreur, 1 amend, score 8/10 (amélioration +75%)
 **Phase 3.1 :** 0 erreur, score 9/10
 
-**v4 intègre :**
+**v5 intègre (learnings session screenshots 2026-03-14) :**
+- Auth dev via stash `bypass auth` en prérequis
+- Page `/patron` comme cible screenshots (composants DSFR en situation)
+- `page.$$` (querySelectorAll) au lieu de `page.$` pour capturer tous les éléments
+- Sélecteurs CSS des composants DSFR courants documentés
+- Comparaison par taille de fichier (`stat -f%z`) = preuve forte
+- Redémarrage serveur Rails obligatoire après changement de templates
+
+**v4 intégrait :**
+- Validation visuelle via MCP Playwright (screenshots HAML vs ERB)
+- `git rm` au lieu de `rm` (learning Phase 3.1)
 - 5 patterns critiques (Phase 1.1 + 2.8a)
 - Sélection automatique batch (max 15 fichiers)
 - Validation tests locaux si identifiés
 - Vérification string interpolation helpers
-- `git rm` au lieu de `rm` (learning Phase 3.1)
-- **Validation visuelle via MCP Playwright (screenshots HAML vs ERB)**
 
 Voir `essentials.md` pour les patterns détaillés.
