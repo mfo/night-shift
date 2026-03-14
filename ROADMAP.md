@@ -185,7 +185,19 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 **Infrastructure :**
 - Scripts worktree automation (create/cleanup)
+- Git submodule support (checkout Night Shift dans n'importe quel projet)
+- Hook catégorisation sessions (détecte type: refactor, review, spec, bug, etc.)
 - Dashboard simple métriques (optionnel)
+
+**Skill kaizen automatisé :**
+- Créer skill `/kaizen` pour documenter learnings post-session
+- Intégrer avec hook catégorisation (propose kaizen si session intéressante)
+
+**Vision "Émergence POC spontanée" :**
+- Hook détecte patterns récurrents dans sessions Claude naturelles
+- Propose automatiquement création POC quand pattern répété ≥ 3 fois
+- Génère skill initial basé sur sessions capturées
+- Plug kaizen automatique sur nouveau skill pour amélioration continue
 
 **Documentation :**
 - Guide "Appliquer Night Shift à votre projet"
