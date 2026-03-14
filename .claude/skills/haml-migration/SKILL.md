@@ -82,7 +82,14 @@ find app -name "*.html.haml" | head -15
 
 2. **Naviguer avec MCP Playwright sur l'env de dev** :
    - Utiliser `browser_navigate` pour aller sur la page (`http://localhost:3000/...`)
-   - Si authentification requise : se connecter d'abord via les outils MCP (`browser_click`, `browser_type`)
+   - Si authentification requise, appliquer le stash `bypass auth` :
+     ```bash
+     # Trouver le stash
+     git stash list | grep "bypass auth"
+     # Appliquer (garder dans le stash pour réutilisation)
+     git stash apply stash@{N}
+     ```
+     ⚠️ Ne jamais commiter ce hack. Le re-stasher ou `git checkout` après les captures.
 
 3. **Capturer le screenshot du composant uniquement** :
    - Utiliser `browser_snapshot` pour obtenir l'arbre d'accessibilité et les `ref` des éléments
