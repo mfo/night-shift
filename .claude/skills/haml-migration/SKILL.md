@@ -80,7 +80,17 @@ find app -name "*.html.haml" | head -15
 
 ### Étape 2 : Screenshot HAML — avant migration (10min)
 
-**⚠️ OBLIGATOIRE — Capturer l'état visuel AVANT de modifier quoi que ce soit**
+**Évaluer la complexité de capture pour chaque composant :**
+
+| Niveau | Critère | Action |
+|---|---|---|
+| **Simple** | Visible sur `/patron` ou page accessible directement | Screenshot automatique |
+| **Moyen** | Nécessite navigation + auth mais pas de données spécifiques | Screenshot avec bypass auth |
+| **Complexe** | Nécessite données spécifiques, interactions (modal, dropdown), ou aucune page standard | **Skip → validation manuelle** |
+
+**Si Complexe** : ne pas perdre de temps (seuil : > 5min de setup par composant). Documenter dans la PR : "Composant X : screenshot skippé (raison), à valider manuellement par le reviewer."
+
+**Si Simple ou Moyen** : capturer l'état visuel AVANT de modifier quoi que ce soit.
 
 1. **Identifier les pages qui affichent les composants du batch** :
    - Utiliser `/patron` pour les composants DSFR courants (couvre ~10/12)
@@ -230,9 +240,10 @@ find app -name "*.html.haml" | head -15
 
    ### Résumé
    - Composants migrés : X
-   - Régressions visuelles : 0
+   - Screenshots comparés : Y (identiques au byte)
+   - Validation manuelle requise : Z
 
-   ### Comparaison
+   ### Comparaison automatique
 
    #### [nom_composant]
    | HAML (avant) | ERB (après) |
@@ -240,6 +251,14 @@ find app -name "*.html.haml" | head -15
    | ![HAML](url) | ![ERB](url) |
 
    **Verdict :** ✅ Identique
+
+   ### Validation manuelle requise
+
+   | Composant | Raison du skip |
+   |-----------|----------------|
+   | [nom] | Nécessite données spécifiques / modal / etc. |
+
+   ⚠️ Reviewer : merci de valider visuellement ces composants.
    EOF
    )"
    ```
