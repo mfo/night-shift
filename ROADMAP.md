@@ -95,9 +95,9 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 **Contexte :** Skill v3 stable (9/10) mais validation manuelle nécessaire. MCP Playwright peut automatiser screenshots avant/après pour comparer visuellement.
 
 **Actions :**
-- [ ] Expérimenter MCP Playwright pour screenshots HAML vs ERB
-- [ ] Créer workflow "migration + screenshot + comparaison visuelle"
-- [ ] Tester sur batch 5-10 fichiers
+- [x] Configurer MCP Playwright (`.mcp.json`)
+- [x] Intégrer validation visuelle dans skill haml-migration v4
+- [ ] Tester sur batch 5-10 fichiers avec screenshots HAML vs ERB
 - [ ] Documenter si validation visuelle détecte erreurs que linter rate
 
 **Critère succès :** Validation visuelle automatique détecte différences subtiles (spacing, rendering)
@@ -181,6 +181,55 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 ---
 
+### Architecture Skills : Séparation Batch / Per-Item
+
+**Objectif :** Extraire la logique de batch (sélection, itération, commit, PR) dans un skill générique réutilisable
+
+**Contexte :** Le skill `haml-migration` mélange deux responsabilités : l'orchestration du batch (sélection fichiers, commit, publication PR) et la logique per-item (analyse, conversion, validation, screenshots). Séparer les deux permettrait de réutiliser le batch avec d'autres skills per-item (ex: optimisation specs).
+
+**Architecture cible :**
+```
+skills/
+  batch/SKILL.md              → orchestration (sélection, itération, commit, PR)
+  haml-to-erb/SKILL.md        → logique per-item (analyse, convert, validate, screenshots)
+  spec-perf/SKILL.md           → logique per-item (analyse, optimise, validate)
+```
+
+**Actions :**
+- [ ] Valider qu'un deuxième cas d'usage concret existe (spec-perf ou autre)
+- [ ] Définir l'interface batch → per-item (quels inputs/outputs)
+- [ ] Extraire le skill batch depuis haml-migration
+- [ ] Adapter haml-migration en skill per-item
+- [ ] Tester la chaîne batch + per-item sur un batch HAML
+
+**Critère succès :** Le skill batch + haml-to-erb produit le même résultat que l'ancien haml-migration monolithique
+
+**Référence :** `specs/2026-03-14-batch-skill-architecture.md`
+
+---
+
+### Skill : Split PR
+
+**Objectif :** Créer un skill pour découper une grosse PR en plusieurs petites PRs reviewables
+
+**Contexte :** Les PRs volumineuses (ex: migration de 15 fichiers, feature avec migration DB + code + tests) sont difficiles à reviewer. Un skill qui analyse les commits/fichiers d'une PR et propose un découpage en PRs atomiques accélérerait les reviews et réduirait le risque de merge.
+
+**Workflow envisagé :**
+1. Analyser la PR (commits, fichiers modifiés, dépendances entre changements)
+2. Proposer un découpage en N petites PRs (groupées par cohérence logique)
+3. Créer les branches et PRs automatiquement (avec `gh`)
+4. Chaîner les PRs si dépendances (base branch = PR précédente)
+
+**Actions :**
+- [ ] Identifier les heuristiques de découpage (par domaine, par type de changement, par commit)
+- [ ] Créer le skill avec workflow step-by-step
+- [ ] Tester sur une PR réelle (ex: batch HAML migration)
+- [ ] Documenter les cas limites (fichiers partagés entre PRs, migrations DB)
+
+**Critère succès :** Une PR de 15+ fichiers découpée en 3-5 PRs cohérentes, chacune reviewable indépendamment
+
+---
+
 ## 🗂️ Backlog (Futur)
 
 **Infrastructure :**
@@ -218,7 +267,7 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 - `pocs/4-features/` - Setup + templates + patterns + checklists
 
 **Skills :**
-- `.claude/skills/haml-migration/` - POC 1 (v3)
+- `.claude/skills/haml-migration/` - POC 1 (v4 - validation visuelle MCP Playwright)
 - `.claude/skills/bugfix/` - POC 3 (investigation + fix, 3 modes)
 - `.claude/skills/feature-spec/` - POC 4 Phase 0
 - `.claude/skills/feature-plan/` - POC 4 Phase 1
