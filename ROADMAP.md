@@ -219,8 +219,7 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 **Skills :**
 - `.claude/skills/haml-migration/` - POC 1 (v3)
-- `.claude/skills/investigate-sentry-bug/` - POC 3
-- `.claude/skills/fix-sentry-bug/` - POC 3
+- `.claude/skills/bugfix/` - POC 3 (investigation + fix, 3 modes)
 - `.claude/skills/feature-spec/` - POC 4 Phase 0
 - `.claude/skills/feature-plan/` - POC 4 Phase 1
 - `.claude/skills/feature-implementation/` - POC 4 Phase 2

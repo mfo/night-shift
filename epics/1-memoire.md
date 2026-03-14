@@ -53,7 +53,7 @@ worktree/.claude/
 ├── prompts/                          # Templates versionnés
 │   ├── haml-migration.md
 │   ├── optimize-tests.md
-│   ├── investigate-bug.md
+│   ├── bugfix.md
 │   └── simple-feature.md
 │
 ├── commands/                         # Slash commands

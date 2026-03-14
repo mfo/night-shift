@@ -57,8 +57,7 @@ night-shift/
     ├── settings.local.json         # Paramètres locaux
     └── skills/                     # Skills évolutifs (v1→v2→v3)
         ├── haml-migration/         # POC 1
-        ├── investigate-bug/        # POC 3 - Investigation
-        ├── bugfix/                 # POC 3 - Implémentation fix
+        ├── bugfix/                 # POC 3 - Investigation + fix (3 modes)
         ├── feature-spec/           # POC 4 - Phase 0 (spec)
         ├── feature-plan/           # POC 4 - Phase 1 (plan commits)
         ├── feature-implementation/ # POC 4 - Phase 2 (code)

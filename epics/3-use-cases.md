@@ -74,7 +74,7 @@
    → 15min max
 ```
 
-### Prompt Template : `.claude/prompts/investigate-bug.md`
+### Skill : `.claude/skills/bugfix/SKILL.md`
 
 **Localisation :**
 - Setup POC : `night-shift/pocs/3-bugs/setup.md`

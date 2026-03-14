@@ -202,8 +202,7 @@ night-shift/
     ├── settings.local.json # Paramètres locaux
     └── skills/            # Skills pour lancer les agents (évolutifs)
         ├── haml-migration/         # POC 1 (v3)
-        ├── investigate-sentry-bug/ # POC 3
-        ├── fix-sentry-bug/         # POC 3
+        ├── bugfix/                 # POC 3 - Investigation + fix
         ├── feature-spec/           # POC 4 - Phase 0
         ├── feature-plan/           # POC 4 - Phase 1
         ├── feature-implementation/ # POC 4 - Phase 2

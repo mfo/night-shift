@@ -64,7 +64,7 @@ Chaque POC a son prompt qui évolue via kaizen :
 .claude/prompts/
 ├── haml-migration.md      # v1 → v2 → v3...
 ├── optimize-tests.md
-├── investigate-bug.md
+├── bugfix.md
 └── simple-feature.md
 ```
 
@@ -95,7 +95,7 @@ Pour faciliter l'utilisation, chaque POC peut avoir un slash command :
 # Dans worktree POC
 /haml-migrate app/views/path/to/file.html.haml
 /optimize-test spec/path/to/slow_spec.rb
-/investigate-bug sentry-issue-123
+/bugfix sentry-issue-123
 /implement-feature issue-456
 ```
 
