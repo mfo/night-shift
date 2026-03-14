@@ -81,11 +81,13 @@ find app -name "*.html.haml" | head -15
    ```
 
 2. **Naviguer avec MCP Playwright sur l'env de dev** :
-   - Utiliser l'outil `browser_navigate` pour aller sur la page (`http://localhost:3000/...`)
+   - Utiliser `browser_navigate` pour aller sur la page (`http://localhost:3000/...`)
    - Si authentification requise : se connecter d'abord via les outils MCP (`browser_click`, `browser_type`)
 
-3. **Capturer le screenshot HAML** :
-   - Utiliser `browser_screenshot` pour capturer la page
+3. **Capturer le screenshot du composant uniquement** :
+   - Utiliser `browser_snapshot` pour obtenir l'arbre d'accessibilité et les `ref` des éléments
+   - Identifier le `ref` du composant ciblé
+   - Utiliser `browser_take_screenshot` avec les paramètres `element` (description lisible) et `ref` (référence exacte) pour capturer uniquement le composant, pas la page entière
    - Sauvegarder dans `tmp/screenshots/haml/<nom_composant>.png`
 
 ### Étape 3 : Conversion (20min)
@@ -155,8 +157,9 @@ find app -name "*.html.haml" | head -15
    - Utiliser `browser_navigate` sur la même page que l'étape 2
    - Rails sert automatiquement le fichier ERB maintenant que le HAML est supprimé
 
-2. **Capturer le screenshot ERB** :
-   - Utiliser `browser_screenshot` pour capturer la page
+2. **Capturer le screenshot du composant uniquement** :
+   - Utiliser `browser_snapshot` pour obtenir le `ref` du composant (même élément que l'étape 2)
+   - Utiliser `browser_take_screenshot` avec `element` + `ref` pour capturer uniquement le composant
    - Sauvegarder dans `tmp/screenshots/erb/<nom_composant>.png`
 
 3. **Comparer visuellement** :
