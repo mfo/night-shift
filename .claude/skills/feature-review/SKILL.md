@@ -17,17 +17,17 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 
 **Avant de commencer, familiarise-toi avec :**
 
-1. **`pocs/4-features/feature-review-checklist.md`** ⭐ CRITICAL
+1. **`checklist.md`** (dans ce dossier) ⭐ CRITICAL
    - Checklist review initiale (30-60min)
    - Patterns à chercher (dead code, tests cassés, etc.)
    - Checklist fixes par gravité
    - Git absorb workflow
 
-2. **`pocs/4-features/feature-review-template.md`**
+2. **`template.md`** (dans ce dossier)
    - Template document review structuré
    - Sections: AVANT vs APRÈS, Points positifs/à améliorer/critiques
 
-3. **`pocs/4-features/feature-implementation-patterns.md`**
+3. **`.claude/skills/feature-implementation/patterns.md`**
    - Patterns pour identifier logique mal placée
 
 4. **`pocs/4-features/setup.md`**
@@ -70,15 +70,6 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 
 ## ✅ Checklist Review Initiale (30-60min)
 
-### Créer Document Review
-
-- [ ] **Document `review-<feature>.md` créé** avec sections :
-  - État AVANT vs APRÈS
-  - ✅ Points positifs (le bon)
-  - ⚠️ Points à améliorer (le mauvais)
-  - 🔴 Points critiques (l'horrible)
-  - Checklist de fixes priorisée
-
 ### Lire Tous Commits PR
 
 - [ ] Tous commits lus attentivement
@@ -91,26 +82,21 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 - [ ] Messages commits vérifiés (clairs ?)
 - [ ] Breaking changes identifiés
 
-### Identifier Points par Gravité
+### Lancer Review 3 Amigos
 
-- [ ] **🔴 Bloquants** identifiés
-  - Dead code qui casse tests
-  - Tests système cassés
-  - Violations linters (Rubocop)
-  - Sécurité (validations manquantes)
+**Lance `/review-3-amigos` avec :**
+- **Input :** le diff complet de la PR (`git diff [base-branch]...HEAD`)
+- **Checklist :** `checklist.md` de ce skill
 
-- [ ] **🟠 Importants** identifiés
-  - Logique métier mal placée (Component → Query)
-  - N+1 queries non documentées
-  - Memoization inappropriée
-  - Code dupliqué (> 3 fois)
+### Créer Document Review
 
-- [ ] **🟡 Nice-to-have** identifiés
-  - Helpers pour DRY
-  - Tests edge cases
-  - Documentation inline
+Après la review 3 Amigos, **créer `review-<feature>.md`** avec :
+- État AVANT vs APRÈS
+- Findings consolidés par gravité (🔴/🟠/🟡)
+- Checklist de fixes priorisée
 
 **Checkpoint :**
+- Review 3 Amigos terminée ?
 - Document review créé ?
 - Points catégorisés par gravité ?
 

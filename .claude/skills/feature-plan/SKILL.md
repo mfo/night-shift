@@ -17,17 +17,17 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 
 **Avant de commencer, familiarise-toi avec :**
 
-1. **`pocs/4-features/feature-plan-checklist.md`** ⭐ CRITICAL
+1. **`checklist.md`** (dans ce dossier) ⭐ CRITICAL
    - Checklist complète Phase 1
    - Principes découpage commits
    - 7 phases standards
    - Pièges critiques à éviter
 
-2. **`pocs/4-features/feature-plan-template.md`**
+2. **`template.md`** (dans ce dossier)
    - Template commits atomiques
    - Patterns validés (Migration Safe, Breaking Bloc, etc.)
 
-3. **`pocs/4-features/feature-implementation-patterns.md`**
+3. **`.claude/skills/feature-implementation/patterns.md`**
    - 10 patterns à appliquer dans le plan
    - Scores 8-10/10
 
@@ -155,6 +155,21 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 - Phases logiques respectées ?
 - Breaking changes isolés ?
 - Tests exécutables après chaque commit ?
+
+---
+
+### Étape 2.5 : Review 3 Amigos du plan
+
+**Lance `/review-3-amigos` avec :**
+- **Input :** le plan de commits rédigé à l'étape 2
+- **Checklist :** `checklist.md` de ce skill
+
+Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi) pour valider :
+- **Dev/Archi** : ordre dépendances, breaking changes groupés, tests interleaved, estimation réaliste
+- **PM** : priorisation phases, scope aligné avec spec
+- **UX** : impacts utilisateur dans l'ordre de livraison
+
+**Après la review :** intégrer les corrections dans le plan avant de le présenter au user.
 
 ---
 
