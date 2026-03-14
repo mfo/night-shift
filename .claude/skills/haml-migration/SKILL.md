@@ -73,16 +73,13 @@ find app -name "*.html.haml" | head -15
 
 **⚠️ OBLIGATOIRE — Capturer l'état visuel AVANT de modifier quoi que ce soit**
 
-1. **Identifier une page de l'app qui affiche le composant** :
-   - Chercher dans les routes/controllers quelle page utilise ce composant
-   - Exemples : formulaire dossier, page admin, page instructeur
-   ```bash
-   grep -r "nom_du_composant\|NomDuComposant" app/views/ app/controllers/
-   ```
+1. **Utiliser la page `/patron`** (page de démo des composants DSFR) :
+   - Accessible à `http://localhost:3000/patron` (requiert rôle administrateur → stash "bypass auth")
+   - Contient la plupart des composants DSFR et formulaires
 
 2. **Naviguer avec MCP Playwright sur l'env de dev** :
    - Utiliser `browser_navigate` pour aller sur la page (`http://localhost:3000/...`)
-   - Si authentification requise, appliquer le stash `bypass auth` :
+   - Le stash "bypass auth" gère l'authentification automatiquement
      ```bash
      # Trouver le stash
      git stash list | grep "bypass auth"
@@ -91,11 +88,24 @@ find app -name "*.html.haml" | head -15
      ```
      ⚠️ Ne jamais commiter ce hack. Le re-stasher ou `git checkout` après les captures.
 
-3. **Capturer le screenshot du composant uniquement** :
-   - Utiliser `browser_snapshot` pour obtenir l'arbre d'accessibilité et les `ref` des éléments
-   - Identifier le `ref` du composant ciblé
-   - Utiliser `browser_take_screenshot` avec les paramètres `element` (description lisible) et `ref` (référence exacte) pour capturer uniquement le composant, pas la page entière
-   - Sauvegarder dans `tmp/screenshots/haml/<nom_composant>.png`
+3. **Capturer les screenshots HAML par sélecteur CSS** :
+   - Utiliser `browser_run_code` pour cibler chaque composant par son sélecteur CSS
+   ```javascript
+   async (page) => {
+     const components = [
+       { selector: '.fr-callout', name: 'callout' },
+       { selector: '.fr-card', name: 'card' },
+       { selector: '.fr-notice', name: 'notice' }
+     ];
+     for (const comp of components) {
+       const elements = await page.$(comp.selector);
+       for (let i = 0; i < elements.length; i++) {
+         await elements[i].screenshot({ path: `tmp/screenshots/haml/dsfr-${comp.name}-${i+1}.png` });
+       }
+     }
+   }
+   ```
+   - Adapter les sélecteurs selon les composants migrés dans le batch
 
 ### Étape 3 : Conversion (20min)
 
@@ -160,17 +170,20 @@ find app -name "*.html.haml" | head -15
 
 ### Étape 5 : Screenshot ERB — après migration (10min)
 
-1. **Recharger la page dans MCP Playwright** :
+1. **Redémarrer le serveur Rails** (vider le cache de templates)
+
+2. **Recharger la page dans MCP Playwright** :
    - Utiliser `browser_navigate` sur la même page que l'étape 2
    - Rails sert automatiquement le fichier ERB maintenant que le HAML est supprimé
 
-2. **Capturer le screenshot du composant uniquement** :
-   - Utiliser `browser_snapshot` pour obtenir le `ref` du composant (même élément que l'étape 2)
-   - Utiliser `browser_take_screenshot` avec `element` + `ref` pour capturer uniquement le composant
-   - Sauvegarder dans `tmp/screenshots/erb/<nom_composant>.png`
+3. **Capturer les screenshots ERB** avec le même script que l'étape 2, en changeant le path :
+   - `tmp/screenshots/erb/dsfr-${comp.name}-${i+1}.png`
 
-3. **Comparer visuellement** :
-   - Vérifier que le screenshot ERB est visuellement identique au screenshot HAML
+4. **Comparer** :
+   - Comparer les tailles de fichiers (identique au byte = preuve forte)
+   ```bash
+   for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name"; done
+   ```
    - Si différence détectée → investiguer et corriger avant de continuer
 
 ### Étape 6 : Commit + publication PR (10min)
