@@ -283,9 +283,20 @@ Commit 3: db/cleanup: [hygiène] (optionnel)
   → Message : db: ... ou cleanup: ...
 ```
 
+**Stratégie de squash :**
+- Si les commits RED/GREEN intermédiaires sont évidents (test trivial + fix petit), prévoir de les regrouper dès le plan
+- Documenter dans le plan : "Commits 1-2 squashés en 1" si applicable
+
+**Checkpoint dépendances système :**
+- [ ] Les dépendances système nécessaires sont-elles installées ? (ex: `vips`, `imagemagick`, `ffmpeg`)
+- [ ] Si worktree dédié : vérifier que l'environnement est fonctionnel avant de coder
+
 **Checkpoint migrations :**
 - [ ] Toutes les migrations nécessaires sont-elles créées ?
 - [ ] Strong Migrations pattern respecté ? (add constraint + validate = 2 fichiers)
+
+**Checkpoint tests non-reproductibles :**
+- [ ] Le bug est-il reproductible localement ? Si NON (version lib différente, env prod spécifique) → écrire un **test de non-régression pragmatique** qui valide le fix même si le bug original n'est pas visible
 
 **Valider le plan avec le user AVANT de coder.**
 
@@ -387,7 +398,61 @@ Procedure.find_each.with_index do |procedure, idx|
 end
 ```
 
-### Pattern 3 : Suppression > Désactivation
+### Pattern 3 : Rescue Global dans un Job = Piège
+
+**Symptômes :** Job qui échoue silencieusement, pas de retry, erreur avalée
+
+**Anti-pattern :**
+```ruby
+def perform(blob)
+  process(blob)
+rescue Vips::Error => e  # Attrape TOUTES les erreurs vips, même celles qu'on veut retry
+  log_error(e)
+end
+```
+
+**Solution :** Exception custom qui hérite de `StandardError` (pas de la lib error) :
+```ruby
+class MyService::Error < StandardError; end
+
+# Dans le service : raise MyService::Error wrapping l'erreur originale
+# Dans le job : retry_on MyService::Error, attempts: 3
+# Le rescue Vips::Error ne catch pas MyService::Error → retry fonctionne
+```
+
+**Applicable à :** Tout job avec `rescue LibError` global qui risque d'avaler des erreurs spécifiques.
+
+### Pattern 4 : Rails STI et polymorphic_name
+
+**Symptômes :** Query sur `record_type` qui ne retourne rien
+
+**Piège :** `active_storage_attachments.record_type` stocke le **polymorphic_name** (base class STI), pas la sous-classe.
+```ruby
+# ❌ Ne trouve rien
+ActiveStorage::Attachment.where(record_type: "Champs::TitreIdentiteChamp")
+
+# ✅ Correct
+ActiveStorage::Attachment
+  .joins("JOIN champs ON champs.id = active_storage_attachments.record_id")
+  .where(record_type: "Champ")
+  .where(champs: { type: "Champs::TitreIdentiteChamp" })
+```
+
+**Applicable à :** Toute query sur `active_storage_attachments` ou tables polymorphiques avec STI.
+
+### Pattern 5 : Factories pour modèles Rails internes
+
+**Piège :** `create(:blob)` → `KeyError: Factory not registered`. Pas de factory FactoryBot pour `ActiveStorage::Blob`, `ActiveStorage::Attachment`, etc.
+
+**Solution :** Utiliser les associations réelles :
+```ruby
+# ❌ create(:blob)
+# ✅ Créer un objet parent avec pièce jointe → accéder au blob via l'association
+dossier = create(:dossier, :with_titre_identite)
+blob = dossier.champs.first.piece_justificative_file.blob
+```
+
+### Pattern 6 : Suppression > Désactivation
 
 **SUPPRIMER si :** Business confirme non-critique + probabilité réactivation < 10%
 **DÉSACTIVER si :** Feature flag A/B testing + rollback potentiel < 1 mois
