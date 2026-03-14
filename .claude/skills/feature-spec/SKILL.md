@@ -17,17 +17,17 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 **Avant de commencer, familiarise-toi avec :**
 
-1. **`pocs/4-features/feature-spec-checklist.md`** ⭐ CRITICAL
+1. **`checklist.md`** (dans ce dossier) ⭐ CRITICAL
    - Checklist complète Phase 0
    - Checkpoints pré-démarrage
    - 15 sections obligatoires
    - Pièges critiques à éviter
 
-2. **`pocs/4-features/feature-spec-template.md`**
+2. **`template.md`** (dans ce dossier)
    - Template 15 sections
    - Patterns pré-approuvés intégrés
 
-3. **`pocs/4-features/feature-implementation-patterns.md`**
+3. **`.claude/skills/feature-implementation/patterns.md`**
    - 10 patterns validés (score 8-10/10)
    - Utile pour détection proactive
 
@@ -67,7 +67,30 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ## 📋 Workflow à suivre
 
-**Suit exactement la checklist Phase 0. 3 étapes principales :**
+**Suit exactement la checklist Phase 0. 4 étapes principales :**
+
+### Étape 0 : Investigation Code (20min)
+
+**AVANT d'analyser le problème, prouver les hypothèses par le code.**
+
+**Actions :**
+1. Tracer le code impliqué — lire les fichiers, suivre les appels
+2. Vérifier les hypothèses sur le comportement (ex: "est-ce que X dépend de Y ?") en lisant le code source, pas en devinant
+3. Documenter les preuves trouvées (ex: "ligne 23 de fichier.rb confirme que...")
+
+**Pourquoi :** L'itération 2 (snowball renewal) a montré que 20 min d'investigation code a transformé un problème "effort M" (revoked_at, migration, multi-appareils) en "effort S" (dédupliquer le cron). Sans cette étape, on sur-engineer par défaut.
+
+**Principe : Solution minimale d'abord**
+- Toujours proposer la solution la plus simple qui résout le problème
+- Laisser le user complexifier si besoin
+- Ne pas ajouter de complexité "architecturalement correcte" si le fix simple suffit
+
+**Checkpoint :**
+- Hypothèses prouvées par le code ?
+- Solution minimale identifiée ?
+- Si NON → Continuer l'investigation
+
+---
 
 ### Étape 1 : Analyse Problème (30min)
 
@@ -159,40 +182,21 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ---
 
-### Étape 4 : Review Agent PM (45min-1h)
+### Étape 4 : Review 3 Amigos (45min-1h)
 
-**⚠️ OBLIGATOIRE pour specs > 500 lignes**
+**⚠️ OBLIGATOIRE — Lance `/review-3-amigos` avec :**
+- **Input :** la spec v1 rédigée à l'étape 3
+- **Checklist :** `checklist.md` de ce skill
 
-**Actions :**
-1. Lance agent PM Senior avec prompt review :
-   ```markdown
-   Tu es un PM Senior technique. Review cette spec.
+Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi), consolide les findings, et les présente au user point par point.
 
-   Focus (10 points du setup.md) :
-   1. Breaking changes documentés ?
-   2. Index DB manquants ?
-   3. Validations suffisantes ?
-   4. Tests couverts ?
-   5. Migration données claire ?
-   6. Trade-offs justifiés ?
-   7. Sécurité (format, unicité, authz) ?
-   8. Edge cases couverts ?
-   9. Rollout strategy définie ?
-   10. Métriques identifiées ?
+**Après la review :**
+1. Corriger les findings 🔴 dans la spec
+2. Créer `specs/YYYY-MM-DD-[nom]-review-v1.md` avec les findings consolidés
 
-   Pour chaque problème :
-   - Gravité : 🔴 Critique / 🟠 Important / 🟡 Nice-to-have
-   - Description
-   - Recommandation
-   ```
-
-2. Analyse findings (10-20 attendus selon setup.md)
-3. Corrige par gravité : 🔴 tous, 🟠 tous, 🟡 si temps
-4. Crée `specs/YYYY-MM-DD-[nom]-review-v1.md` avec findings
-
-**Checkpoint du setup.md :**
-- Review findings analysés ?
-- Problèmes critiques corrigés ?
+**Checkpoint :**
+- Review 3 Amigos terminée ?
+- Problèmes 🔴 corrigés dans la spec ?
 - Spec v2 production-ready ?
 
 ---
@@ -200,7 +204,8 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 ### Étape 5 : User Review + Décisions (1-2h)
 
 **Présente au user :**
-- Spec v2 (post-review PM)
+- Findings consolidés des 3 Amigos, point par point
+- Spec v2 (post-review 3 Amigos)
 - Décisions d'architecture à trancher
 - Estimation temps implémentation
 

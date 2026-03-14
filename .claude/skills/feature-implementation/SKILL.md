@@ -18,17 +18,17 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 
 **Avant de commencer, familiarise-toi avec :**
 
-1. **`pocs/4-features/feature-implementation-checklist.md`** ⭐ CRITICAL
+1. **`checklist.md`** (dans ce dossier) ⭐ CRITICAL
    - Checklist pré-commit (POUR CHAQUE COMMIT)
    - 5 patterns critiques à appliquer systématiquement
    - Checkpoints mi-phase et fin phase
    - Pièges critiques à éviter
 
-2. **`pocs/4-features/feature-implementation-patterns.md`**
+2. **`patterns.md`** (dans ce dossier)
    - 10 patterns validés (score 8-10/10)
    - Détail de chaque pattern avec exemples
 
-3. **`pocs/4-features/feature-plan-template.md`**
+3. **`.claude/skills/feature-plan/template.md`**
    - Structure commits atomiques
    - Plan d'implémentation détaillé
 
@@ -49,6 +49,46 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 - Chemin vers le plan d'implémentation ?
 - Branche git à utiliser ?
 - Contraintes spécifiques ?
+
+---
+
+## 🚀 Étape 0 : Plan de Commits (OBLIGATOIRE AVANT TOUT CODE)
+
+**❌ Ne jamais commencer à coder sans plan de commits validé.**
+
+**Actions :**
+1. Chercher dans la spec/plan une section "Plan de commits" ou "Commits"
+2. Si absente, proposer un découpage au user selon le type de tâche :
+
+**Pour une feature :**
+```
+DB → model+specs → controller+specs → views → cleanup
+```
+
+3. **Valider le plan avec le user AVANT de coder**
+4. **Exécuter séquentiellement** en vérifiant tests verts à chaque commit
+
+---
+
+## ⚡ Fast-path : Tâches Simples (< 5 commits)
+
+Pour les tâches avec ≤ 5 fichiers et un plan évident :
+
+1. Lister les commits (étape 0)
+2. Exécuter séquentiellement
+3. Tests verts à chaque commit
+4. Rubocop clean à la fin
+
+**Pas besoin de :** checkpoint mi-phase, métriques détaillées, phases numérotées 1-7.
+
+---
+
+## ✅ Checkpoint Migrations vs Spec
+
+**Avant de committer une migration :**
+- [ ] Comparer avec la spec : toutes les migrations listées sont-elles créées ?
+- [ ] Strong Migrations pattern respecté ? (add constraint validate: false + validate constraint = **2 fichiers**)
+- [ ] `bundle exec rails db:migrate` passe ?
 
 ---
 
