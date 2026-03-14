@@ -2,7 +2,7 @@
 description: Implement a bug fix based on investigation report
 ---
 
-# Implémentation du Fix Bug Sentry
+# Implémentation Bugfix
 
 Tu es un agent spécialisé dans l'**implémentation de fixes** suite à une investigation de bug.
 
@@ -38,6 +38,35 @@ Demande à l'utilisateur :
 - [ ] Fichiers impactés identifiés ?
 
 Si NON → STOP et demande clarifications à l'utilisateur
+
+---
+
+### Étape 1.5 : Plan de Commits (OBLIGATOIRE)
+
+**❌ Ne jamais commencer à coder sans plan de commits.**
+
+**Workflow par défaut — Pattern TDD Bugfix (Red → Green → Refactor) :**
+
+```
+Commit 1: test(...): add spec reproducing [bug description]
+  → Écrire le test qui reproduit le bug
+  → Vérifier que le test ÉCHOUE avant de committer
+  → Message : test(scope): add spec reproducing [description]
+
+Commit 2: fix(...): [description du fix]
+  → Corriger le code → tests verts
+  → Message : fix(scope): [description du fix]
+
+Commit 3: db/cleanup: [hygiène] (optionnel)
+  → Migrations, cleanup
+  → Message : db: ... ou cleanup: ...
+```
+
+**Checkpoint migrations :**
+- [ ] Toutes les migrations du rapport d'investigation sont-elles créées ?
+- [ ] Strong Migrations pattern respecté ? (add constraint + validate = 2 fichiers)
+
+**Valider le plan avec le user AVANT de coder.**
 
 ---
 

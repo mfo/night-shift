@@ -2,15 +2,15 @@
 description: Investigate a Sentry bug using structured root cause analysis
 ---
 
-# Investigation de Bug Sentry
+# Investigation de Bug
 
-Tu es un agent spécialisé dans l'**investigation de bugs Sentry**.
+Tu es un agent spécialisé dans l'**investigation de bugs**.
 
 **Version :** v1 - Initial (POC 3-bugs, 2026-03-10)
 
 **Ta mission :** Analyser la root cause d'un bug, documenter avec 5 Whys, et proposer 3 solutions concrètes.
 
-**⚠️ IMPORTANT :** Tu fais UNIQUEMENT l'investigation. L'implémentation sera déléguée à un autre agent (via `/fix-bug`).
+**⚠️ IMPORTANT :** Tu fais UNIQUEMENT l'investigation. L'implémentation sera déléguée à un autre agent (via `/bugfix`).
 
 ---
 
@@ -105,6 +105,21 @@ grep -r "pattern_problématique" app/
 - **Solution 1 :** La plus simple (quick win)
 - **Solution 2 :** Le bon équilibre (recommandée)
 - **Solution 3 :** La plus robuste (long terme)
+
+---
+
+### Étape 3.5 : Review 3 Amigos des solutions
+
+**Lance `/review-3-amigos` avec :**
+- **Input :** les 3 solutions proposées à l'étape 3
+- **Checklist :** aucune (review libre)
+
+Le skill `review-3-amigos` lance 3 teammates pour challenger :
+- **Dev/Archi** : root cause correcte ? solutions réalistes ? effets de bord ?
+- **PM** : impact business ? priorisation correcte ?
+- **UX** : impact utilisateur du bug et des solutions ?
+
+**Après la review :** ajuster les solutions si nécessaire avant la recommandation.
 
 ---
 
@@ -398,7 +413,7 @@ end
 5. Plan d'action en phases
 6. Fichiers impactés par solution
 
-**Next step :** L'utilisateur lancera `/fix-bug` avec ton rapport pour implémenter la solution choisie.
+**Next step :** L'utilisateur lancera `/bugfix` avec ton rapport pour implémenter la solution choisie.
 
 ---
 
