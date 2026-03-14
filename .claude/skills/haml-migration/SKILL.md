@@ -1,19 +1,38 @@
 ---
 name: haml-migration
-description: Migrate HAML templates to ERB with validation
+description: Migrate HAML templates to ERB with validation and visual comparison
 ---
 
 # Migration HAML → ERB
 
 **Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
 
-**Version :** v3 - Améliorée après Phase 2.8a (5 learnings critiques + autonomie)
+**Version :** v4 - Validation visuelle via MCP Playwright + learnings Phases 1.1, 2.8a, 3.1
+
+---
+
+## Prérequis
+
+**MCP Playwright** doit être configuré dans `.mcp.json` :
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
+```
+
+**Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
 
 ---
 
 ## Objectif
 
-Convertir un batch de fichiers HAML en ERB en préservant le markup HTML, les classes CSS DSFR, et tous les attributs data-/aria-.
+Convertir un batch de fichiers HAML en ERB en préservant le markup HTML, les classes CSS DSFR, et tous les attributs data-/aria-. Prouver l'équivalence visuelle avec des screenshots comparatifs HAML vs ERB.
 
 ---
 
@@ -50,7 +69,26 @@ find app -name "*.html.haml" | head -15
    grep -r "nom_du_composant" spec/
    ```
 
-### Étape 2 : Conversion (20min)
+### Étape 2 : Screenshot HAML — avant migration (10min)
+
+**⚠️ OBLIGATOIRE — Capturer l'état visuel AVANT de modifier quoi que ce soit**
+
+1. **Identifier une page de l'app qui affiche le composant** :
+   - Chercher dans les routes/controllers quelle page utilise ce composant
+   - Exemples : formulaire dossier, page admin, page instructeur
+   ```bash
+   grep -r "nom_du_composant\|NomDuComposant" app/views/ app/controllers/
+   ```
+
+2. **Naviguer avec MCP Playwright sur l'env de dev** :
+   - Utiliser l'outil `browser_navigate` pour aller sur la page (`http://localhost:3000/...`)
+   - Si authentification requise : se connecter d'abord via les outils MCP (`browser_click`, `browser_type`)
+
+3. **Capturer le screenshot HAML** :
+   - Utiliser `browser_screenshot` pour capturer la page
+   - Sauvegarder dans `tmp/screenshots/haml/<nom_composant>.png`
+
+### Étape 3 : Conversion (20min)
 
 **Règles de conversion :**
 
@@ -75,11 +113,11 @@ find app -name "*.html.haml" | head -15
 2. **Pas de balises auto-fermantes** : `<input>` pas `<input />`
 3. **Contrôler l'espacement** : Utiliser `<%-` et `-%>` pour supprimer newlines
 4. **Guillemets** : Utiliser simples quotes `'` si tests sensibles
-5. **⚠️ NOUVEAU - String interpolation avec helpers HTML** :
+5. **String interpolation avec helpers HTML** :
    - ❌ `<%= "#{link_to('text', url)}." %>` (échappe le HTML)
    - ✅ `<%= link_to('text', url) %>.` (sortir le texte de l'interpolation)
 
-### Étape 3 : Validation locale (15min)
+### Étape 4 : Validation locale (15min)
 
 **⚠️ OBLIGATOIRE - Ne JAMAIS skip cette étape**
 
@@ -102,7 +140,7 @@ find app -name "*.html.haml" | head -15
    # Vérifier arrays
    grep 'class=' app/components/nom/nom.html.erb
 
-   # ⚠️ NOUVEAU - Vérifier string interpolation helpers
+   # Vérifier string interpolation helpers
    grep '"#{.*link_to\|button_to\|form_' app/components/nom/nom.html.erb  # Doit être vide
    ```
 
@@ -111,20 +149,56 @@ find app -name "*.html.haml" | head -15
    git diff app/components/nom/
    ```
 
-### Étape 4 : Commit (5min)
+### Étape 5 : Screenshot ERB — après migration (10min)
 
-**Seulement si linter + tests passent ✅**
+1. **Recharger la page dans MCP Playwright** :
+   - Utiliser `browser_navigate` sur la même page que l'étape 2
+   - Rails sert automatiquement le fichier ERB maintenant que le HAML est supprimé
+
+2. **Capturer le screenshot ERB** :
+   - Utiliser `browser_screenshot` pour capturer la page
+   - Sauvegarder dans `tmp/screenshots/erb/<nom_composant>.png`
+
+3. **Comparer visuellement** :
+   - Vérifier que le screenshot ERB est visuellement identique au screenshot HAML
+   - Si différence détectée → investiguer et corriger avant de continuer
+
+### Étape 6 : Commit + publication PR (10min)
+
+**Seulement si validation locale + screenshots OK ✅**
 
 1. Supprimer fichiers HAML :
    ```bash
-   rm app/**/*.haml
+   git rm app/**/*.haml
    ```
-   (Permission pré-approuvée pour `rm app/**/*.haml`)
 
 2. Commit :
    ```bash
    git commit --no-gpg-sign -m "refactor(haml): migrate [BATCH] to ERB"
    ```
+
+3. **Publier screenshots dans la PR** :
+   ```bash
+   gh pr comment <PR_NUMBER> --body "$(cat <<'EOF'
+   ## 📸 Validation Visuelle HAML → ERB
+
+   ### Résumé
+   - Composants migrés : X
+   - Régressions visuelles : 0
+
+   ### Comparaison
+
+   #### [nom_composant]
+   | HAML (avant) | ERB (après) |
+   |--------------|-------------|
+   | ![HAML](url) | ![ERB](url) |
+
+   **Verdict :** ✅ Identique
+   EOF
+   )"
+   ```
+
+   **Note :** Pour inclure les images dans le commentaire PR, les uploader d'abord via l'interface GitHub (drag & drop) ou via `gh release create` pour obtenir les URLs.
 
 ---
 
@@ -133,17 +207,21 @@ find app -name "*.html.haml" | head -15
 - [ ] Batch sélectionné automatiquement (max 15 fichiers)
 - [ ] Fichier HAML lu
 - [ ] **Fichier Ruby lu (vérifier types de retour)**
+- [ ] **📸 Screenshot HAML capturé (MCP Playwright)**
 - [ ] Conversion complète
 - [ ] Arrays avec `.join(' ')` si nécessaire
 - [ ] Pas de balises auto-fermantes
 - [ ] Espacement contrôlé (`<%-`, `-%>`)
-- [ ] **⚠️ NOUVEAU - Pas d'interpolation de helpers HTML dans strings**
+- [ ] Pas d'interpolation de helpers HTML dans strings
 - [ ] **Linter herb passé**
 - [ ] **Tests passés (si identifiés)**
 - [ ] Patterns à risque vérifiés (grep)
 - [ ] Diff vérifié
+- [ ] **📸 Screenshot ERB capturé (MCP Playwright)**
+- [ ] **📸 Screenshots comparés — pas de régression visuelle**
 - [ ] Fichiers HAML supprimés
 - [ ] Commit créé
+- [ ] **Screenshots publiés dans la PR**
 
 ---
 
@@ -151,11 +229,14 @@ find app -name "*.html.haml" | head -15
 
 **Phase 1.1 :** 4 erreurs, 3 amends, score 3/10
 **Phase 2.8a :** 1 erreur, 1 amend, score 8/10 (amélioration +75%)
+**Phase 3.1 :** 0 erreur, score 9/10
 
-**v3 intègre :**
+**v4 intègre :**
 - 5 patterns critiques (Phase 1.1 + 2.8a)
 - Sélection automatique batch (max 15 fichiers)
 - Validation tests locaux si identifiés
 - Vérification string interpolation helpers
+- `git rm` au lieu de `rm` (learning Phase 3.1)
+- **Validation visuelle via MCP Playwright (screenshots HAML vs ERB)**
 
 Voir `essentials.md` pour les patterns détaillés.
