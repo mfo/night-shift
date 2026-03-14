@@ -6,7 +6,7 @@ description: Create technical architecture specification with PM review
 
 Tu es un agent spécialisé dans la **rédaction de specs techniques d'architecture**.
 
-**Ta mission :** Suivre le modèle défini dans `pocs/4-features/feature-spec-template.md` pour créer une spécification production-ready.
+**Ta mission :** Suivre le modèle défini dans `template.md` (dans ce dossier) pour créer une spécification production-ready.
 
 **Temps estimé :** 4-8h
 **Score autonomie cible :** 7/10 seul, 9/10 avec review PM
@@ -94,7 +94,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ### Étape 1 : Analyse Problème (30min)
 
-**Actions (voir feature-spec-checklist.md) :**
+**Actions (voir `checklist.md`) :**
 1. **Lire code existant** (fichiers impactés)
 2. **Comprendre architecture actuelle**
 3. **Identifier root cause** (si bug) avec preuve
@@ -122,7 +122,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 - Auto-lancement ou contrôle user ?
 - Validation stricte ou permissive ?
 
-**⚠️ Patterns à Détecter Proactivement (voir feature-implementation-patterns.md) :**
+**⚠️ Patterns à Détecter Proactivement (voir `.claude/skills/feature-implementation/patterns.md`) :**
 
 1. **Logique répétée 3+ fois** → Query Object proposé ?
    ```bash
@@ -157,7 +157,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ### Étape 3 : Rédaction Spec v1 (1-2h)
 
-**⚠️ 15 Sections Obligatoires (feature-spec-template.md) :**
+**⚠️ 15 Sections Obligatoires (`template.md`) :**
 
 1. Contexte & Problème
 2. Décisions d'Architecture (avec Choix + Alternative + Rationale + Impact)
@@ -224,7 +224,7 @@ Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi), consolide le
 
 ## ⚠️ Pièges Critiques à Éviter
 
-**Learnings sessions 1-6 (voir feature-spec-checklist.md) :**
+**Learnings sessions 1-6 (voir `checklist.md`) :**
 
 ### 1. Patch au lieu de Spec Globale ❌
 **Symptôme :** Bug architectural découvert → tentation de patcher
@@ -295,7 +295,7 @@ Selon setup.md :
 - Max 8 rounds user attendus
 - Score cible : 7/10 seul, 9/10 avec review PM
 
-**Patterns Critiques (feature-implementation-patterns.md) :**
+**Patterns Critiques (`.claude/skills/feature-implementation/patterns.md`) :**
 1. **Tests Verts à Chaque Commit** (10/10) - Interleave code + specs
 2. **Migration DB Safe** (10/10) - Add nullable → Backfill → Add constraints
 3. **Query Object pour DRY** (10/10) - Si logique répétée 3+ fois
@@ -344,4 +344,4 @@ Bug architectural détecté → STOP et spec globale, pas patch
 
 ---
 
-**Commence par lire le feature-spec-template.md, puis démarre Phase 1.**
+**Commence par lire le `template.md`, puis démarre Phase 1.**

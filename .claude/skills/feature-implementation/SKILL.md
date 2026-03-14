@@ -151,7 +151,7 @@ Commits 15-16: Fix all tests
 
 ## 🎯 Patterns Critiques à Appliquer SYSTÉMATIQUEMENT
 
-**Pendant implémentation (voir feature-implementation-patterns.md) :**
+**Pendant implémentation (voir `patterns.md`) :**
 
 ### Pattern 1 : State Checks Explicites (Score 9/10)
 
@@ -338,7 +338,7 @@ validates :field, uniqueness: { scope: [:field_a, :field_b] }
 
 ## ⚠️ Pièges Critiques à Éviter
 
-**Learnings sessions 1-6 (voir feature-implementation-checklist.md) :**
+**Learnings sessions 1-6 (voir `checklist.md`) :**
 
 ### 1. Tests Cassés Commits 4-15 ❌
 

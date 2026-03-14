@@ -407,9 +407,9 @@ rails dbconsole
 ## 🔗 Références
 
 **Input :** COMMIT_PLAN.md validé
-**Patterns :** `feature-implementation-patterns.md` (10 patterns détaillés)
-**Methodology :** `setup.md`
-**Prochaine phase :** `review-feature-checklist.md`
+**Patterns :** `patterns.md` (dans ce dossier, 10 patterns détaillés)
+**Methodology :** `pocs/4-features/setup.md`
+**Prochaine phase :** `../feature-review/checklist.md`
 
 ---
 

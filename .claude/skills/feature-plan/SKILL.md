@@ -82,7 +82,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 
 ### Étape 2 : Découpage en Commits (1h)
 
-**Principes CRITIQUES Appliqués (voir feature-plan-checklist.md) :**
+**Principes CRITIQUES Appliqués (voir `checklist.md`) :**
 
 1. **1 commit = 1 concept isolé et testable**
    - Chaque commit DOIT compiler
@@ -216,7 +216,7 @@ Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi) pour valider 
 
 ## ⚠️ Pièges Critiques à Éviter
 
-**Learnings sessions 1-6 (voir feature-plan-checklist.md) :**
+**Learnings sessions 1-6 (voir `checklist.md`) :**
 
 ### 1. Commits Trop Larges ❌
 **Symptôme :** Commit avec > 5 fichiers modifiés
@@ -328,7 +328,7 @@ Avant de soumettre le plan au user :
 - Max 20 commits (sinon revoir découpage)
 - Score cible : 8/10
 
-**Patterns Critiques (feature-plan-template.md) :**
+**Patterns Critiques (`template.md`) :**
 
 1. **Pattern : Migration DB Safe (3 commits)** - Score 10/10
    ```
@@ -397,8 +397,8 @@ DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionne
 Selon setup.md Phase 4 :
 
 1. **`specs/YYYY-MM-DD-[nom]-implementation-plan.md`** (plan détaillé complet)
-2. **`pocs/4-features/template-plan.md`** (learnings création plan - si nouveau pattern découvert)
+2. **`template.md`** (dans ce dossier — mettre à jour si nouveau pattern découvert)
 
 ---
 
-**Commence par lire le feature-plan-template.md, puis la spec validée, puis démarre découpage atomique.**
+**Commence par lire le `template.md`, puis la spec validée, puis démarre découpage atomique.**

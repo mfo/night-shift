@@ -429,7 +429,7 @@ end
 
 ## ⚠️ Pièges à Éviter
 
-**Learnings sessions 1-6 (voir feature-review-checklist.md) :**
+**Learnings sessions 1-6 (voir `checklist.md`) :**
 
 ### 1. Skip Bloquants ❌
 **Problème :** Merger avec dead code ou tests cassés

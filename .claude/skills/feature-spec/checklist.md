@@ -314,10 +314,10 @@ cat db/schema.rb | grep -A3 "unique: true"
 
 ## 🔗 Références
 
-**Template :** `feature-spec-template.md`
-**Methodology :** `setup.md`
-**Patterns :** `feature-implementation-patterns.md`
-**Prochaine phase :** `feature-plan-checklist.md`
+**Template :** `template.md` (dans ce dossier)
+**Methodology :** `pocs/4-features/setup.md`
+**Patterns :** `../feature-implementation/patterns.md`
+**Prochaine phase :** `../feature-plan/checklist.md`
 
 ---
 

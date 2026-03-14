@@ -324,11 +324,11 @@ grep -r "NewQueryName" app/
 
 ## 🔗 Références
 
-**Template :** `feature-plan-template.md`
+**Template :** `template.md` (dans ce dossier)
 **Input :** Spec validée Phase 0
-**Patterns :** `feature-implementation-patterns.md`
-**Methodology :** `setup.md`
-**Prochaine phase :** `feature-implementation-checklist.md`
+**Patterns :** `../feature-implementation/patterns.md`
+**Methodology :** `pocs/4-features/setup.md`
+**Prochaine phase :** `../feature-implementation/checklist.md`
 
 ---
 

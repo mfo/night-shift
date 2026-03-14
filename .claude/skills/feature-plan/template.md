@@ -863,7 +863,7 @@ bundle exec rspec spec/components/
 
 **Spec source :** `specs/YYYY-MM-DD-[nom]-spec.md`
 **Methodology :** `pocs/4-features/setup.md`
-**Patterns :** `pocs/4-features/feature-implementation-patterns.md`
+**Patterns :** `../feature-implementation/patterns.md`
 
 ---
 
