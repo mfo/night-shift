@@ -82,22 +82,42 @@ find app -name "*.html.haml" | head -15
 
 **⚠️ OBLIGATOIRE — Capturer l'état visuel AVANT de modifier quoi que ce soit**
 
-1. **Naviguer sur la page `/patron`** (page de démo des composants DSFR) :
-   - Utiliser `browser_navigate` vers `http://localhost:3000/patron`
-   - Requiert rôle administrateur → s'assurer que le stash "bypass auth" est appliqué (voir Prérequis)
+1. **Identifier les pages qui affichent les composants du batch** :
+   - Utiliser `/patron` pour les composants DSFR courants (couvre ~10/12)
+   - Pour les composants absents de `/patron`, chercher dans les pages réelles (admin, instructeur, usager)
+   - **Préférer les pages réelles** = preuve plus forte que `/patron` isolé
+   ```bash
+   grep -r "NomDuComposant\|render.*nom_du_composant" app/views/ app/components/
+   ```
 
-2. **Capturer les screenshots HAML par sélecteur CSS** :
+   **Mapping composants DSFR connus :**
+
+   | Composant | Page | Sélecteur CSS |
+   |---|---|---|
+   | AlertComponent | `/patron` | `.fr-alert` |
+   | CalloutComponent | `/patron` | `.fr-callout` |
+   | CardVerticalComponent | `/patron` | `.fr-card` |
+   | NoticeComponent | `/patron` | `.fr-notice` |
+   | DownloadComponent | `/patron` (si attachment) | `.fr-download` |
+   | InputComponent | `/patron` (formulaire) | `.fr-input-group` |
+   | RadioButtonListComponent | `/patron` (formulaire) | `.fr-fieldset .fr-radio-group` |
+   | ToggleComponent | `/patron` (formulaire) | `.fr-toggle` |
+   | CopyButtonComponent | page admin | `.fr-btn.fr-icon-clipboard-line` |
+   | SidemenuComponent | page instructeur | `.fr-sidemenu` |
+
+2. **Naviguer avec MCP Playwright** :
+   - Utiliser `browser_navigate` vers la page identifiée
+   - S'assurer que le stash "bypass auth" est appliqué (voir Prérequis)
+
+3. **Capturer les screenshots HAML par sélecteur CSS** :
    - Utiliser `browser_run_code` avec `page.$$` (querySelectorAll) pour cibler chaque composant
    ```javascript
    async (page) => {
      const components = [
        { selector: '.fr-callout', name: 'callout' },
        { selector: '.fr-card', name: 'card' },
-       { selector: '.fr-notice', name: 'notice' },
-       { selector: '.fr-alert', name: 'alert' },
-       { selector: '.fr-download', name: 'download' },
-       { selector: '.fr-input-group', name: 'input' },
-       { selector: '.fr-select-group', name: 'select' }
+       { selector: '.fr-notice', name: 'notice' }
+       // Adapter selon le batch
      ];
      for (const comp of components) {
        const elements = await page.$$(comp.selector);
@@ -107,7 +127,6 @@ find app -name "*.html.haml" | head -15
      }
    }
    ```
-   - Adapter les sélecteurs selon les composants migrés dans le batch
 
 ### Étape 3 : Conversion (20min)
 
@@ -172,13 +191,15 @@ find app -name "*.html.haml" | head -15
 
 ### Étape 5 : Screenshot ERB — après migration (10min)
 
-1. **Redémarrer le serveur Rails** (vider le cache de templates)
+1. **Supprimer les fichiers `.haml` et ajouter les `.erb`**
+   - ⚠️ **ViewComponent refuse la coexistence `.haml` + `.erb`** → `TemplateError: More than one HTML template found`
+   - Le switch est atomique : supprimer le `.haml` AVANT de pouvoir servir le `.erb`
 
-2. **Recharger la page dans MCP Playwright** :
-   - Utiliser `browser_navigate` sur la même page que l'étape 2
-   - Rails sert automatiquement le fichier ERB maintenant que le HAML est supprimé
+2. **Redémarrer le serveur Rails** (obligatoire — cache des chemins de templates)
 
-3. **Capturer les screenshots ERB** avec le même script que l'étape 2, en changeant le path :
+3. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright
+
+4. **Capturer les screenshots ERB** avec le même script que l'étape 2, en changeant le path :
    - `tmp/screenshots/erb/dsfr-${comp.name}-${i+1}.png`
 
 4. **Comparer** :
