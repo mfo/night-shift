@@ -93,7 +93,7 @@ Commit 3: chore(haml): screenshot ERB après migration     → voir Étape 4
   ── Comparaison (Étape 5) ──
   Si ❌ : fix → commit "fix(haml): ..." → reprendre commit 3 → re-comparer
 Commit 4: chore(haml): remove screenshots                 → voir Étape 6
-  ── Créer la PR (Étape 6) ──
+  ── Créer ou mettre à jour la PR (Étape 6) ──
 ```
 
 **Après chaque commit, vérifier quel est le PROCHAIN dans ce plan. Ne pas improviser l'ordre.**
@@ -202,11 +202,10 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    ```
    **⚠️ CRITIQUE :** Le linter détecte la syntaxe, PAS la logique métier (SafeBuffer, helpers)
 
-3. **Vérifier patterns à risque** :
-   ```bash
-   grep '/>' <fichier.html.erb>                                    # Pas de balises auto-fermantes
-   grep '"#{.*link_to\|button_to\|form_' <fichier.html.erb>        # Pas d'interpolation helpers
-   ```
+3. **Vérifier patterns à risque** (1 grep par appel Bash) :
+   - `grep '/>' <fichier.html.erb>` → doit être vide (pas de balises auto-fermantes)
+   - `grep 'link_to' <fichier.html.erb>` → vérifier qu'aucun n'est dans une interpolation `"#{}"`
+   - `grep 'button_to' <fichier.html.erb>` → idem
 
 4. **Linter apostrophes typographiques** :
    ```bash
@@ -222,10 +221,11 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    git rm <fichier.html.haml>
    ```
 
-2. **Forcer le reload du cache ViewComponent** :
+2. **Si ViewComponent** — forcer le reload du cache :
    ```bash
-   touch <fichier.rb>  # le .rb associé au composant
+   touch <fichier.rb>
    ```
+   (Uniquement pour les composants ViewComponent, pas pour les vues classiques)
 
 3. **Commit** :
    ```bash
@@ -248,9 +248,9 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
 ### Étape 5 : Comparaison
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
-   ```bash
-   for f in docs/migrations/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "docs/migrations/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done
-   ```
+   - Pour chaque fichier dans `docs/migrations/screenshots/erb/`, comparer sa taille avec le fichier correspondant dans `haml/`
+   - Utiliser `stat -f%z` sur chaque fichier (1 appel Bash par fichier)
+   - Identique au byte = ✅, différence = ❌
 
 2. **Si tous les screenshots sont ✅** → passer directement à l'étape 6
 
@@ -275,21 +275,25 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
 
 ### Étape 6 : Suppression screenshots + PR → commit final
 
-1. **Capturer le résultat de comparaison** :
+1. **Construire le résultat de comparaison** : reprendre les résultats de l'étape 5 (✅/❌ par fichier)
+
+2. **Supprimer les screenshots** :
    ```bash
-   DIFF_RESULT=$(for f in docs/migrations/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "docs/migrations/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done)
+   rm -rf docs/migrations/screenshots/haml/
+   ```
+   ```bash
+   rm -rf docs/migrations/screenshots/erb/
+   ```
+   ```bash
+   git rm -r docs/migrations/screenshots/
    ```
 
-2. **Supprimer les screenshots + commit** :
-   ```bash
-   rm -rf docs/migrations/screenshots/haml/ docs/migrations/screenshots/erb/
-   git rm -r docs/migrations/screenshots/haml/ docs/migrations/screenshots/erb/
-   git commit --no-gpg-sign -m "$(cat <<EOF
+3. **Commit avec le résultat de comparaison dans le message** :
+   ```
    chore(haml): remove screenshots — NomDuComposant
 
-   $DIFF_RESULT
-   EOF
-   )"
+   ✅ component-1.png
+   ✅ component-2.png
    ```
 
 3. **Mettre à jour ou créer la PR** :
@@ -333,4 +337,4 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
 - [ ] Screenshot ERB capturé → commit
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
 - [ ] Screenshots supprimés avec résultat dans le commit → commit final
-- [ ] PR créée
+- [ ] PR créée ou mise à jour
