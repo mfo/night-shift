@@ -195,14 +195,25 @@ night-shift/
 │
 ├── kaizen/                # Documentation des apprentissages
 │   ├── templates/         # Templates pour documenter
-│   ├── session-1-6.md     # Learnings Simpliscore tunnel_id
-│   └── poc-*/             # Learnings par POC (à venir)
+│   ├── weekly/            # Rétrospectives hebdomadaires
+│   ├── 1-haml/            # Learnings migration HAML→ERB
+│   │   ├── iteration-1/   #   Phases 1.1→3.1 (2026-03-09/10)
+│   │   ├── iteration-2/   #   Stratégie screenshots (2026-03-14)
+│   │   └── iteration-3/   #   Fix cache ViewComponent (2026-03-14)
+│   ├── 3-bugs/            # Learnings correction bugs
+│   │   ├── iteration-1/   #   Bug 429 Mistral API
+│   │   ├── iteration-2/   #   Snowball renewal
+│   │   └── iteration-3/   #   Watermark JPEG
+│   └── 4-features/        # Learnings workflow features
+│       └── iteration-1/   #   Simpliscore tunnel_id (6 sessions)
 │
 └── .claude/               # Configuration Claude Code (versionné)
     ├── settings.local.json # Paramètres locaux
     └── skills/            # Skills pour lancer les agents (évolutifs)
-        ├── haml-migration/         # POC 1 (v3)
+        ├── haml-migration/         # POC 1 (v6)
         ├── bugfix/                 # POC 3 - Investigation + fix
+        ├── kaizen/                 # Documenter les learnings
+        ├── review-3-amigos/        # Review 3 Amigos (PM+UX+Dev)
         ├── feature-spec/           # POC 4 - Phase 0
         ├── feature-plan/           # POC 4 - Phase 1
         ├── feature-implementation/ # POC 4 - Phase 2

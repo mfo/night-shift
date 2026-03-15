@@ -20,12 +20,12 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 
 **Évolution skill :**
 - **Phase 1.1** (12 fichiers) : Score 3/10 → 4 erreurs critiques
-  - 📄 [Kaizen Phase 1.1](kaizen/1-haml/2026-03-09-phase-1.1-dsfr-components.md)
+  - 📄 [Kaizen Phase 1.1](kaizen/1-haml/iteration-1/2026-03-09-phase-1.1-dsfr-components.md)
 - **Phase 2.8a** (5 fichiers) : Score 8/10 → 1 erreur, skill v2
-  - 📄 [Kaizen Phase 2.8a](kaizen/1-haml/2026-03-09-phase-2.8a-autres-components.md)
+  - 📄 [Kaizen Phase 2.8a](kaizen/1-haml/iteration-1/2026-03-09-phase-2.8a-autres-components.md)
 - **Phase 3.1** (15 fichiers) : Score 9/10 → 0 erreur, skill v3 stable
-  - 📄 [Kaizen Phase 3.1](kaizen/1-haml/kaizen-2026-03-10-phase-3.1.md)
-  - 📄 [Session complète](kaizen/1-haml/kaizen-2026-03-10-session-complete.md)
+  - 📄 [Kaizen Phase 3.1](kaizen/1-haml/iteration-1/kaizen-2026-03-10-phase-3.1.md)
+  - 📄 [Session complète](kaizen/1-haml/iteration-1/kaizen-2026-03-10-session-complete.md)
 
 **Score moyen :** 7.7/10 (évolution 3→8→9)
 
