@@ -29,6 +29,8 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 
 **Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
 
+**Bypass `trusted_device_token`** : après le auto-login, `redirect_if_untrusted` bloque l'accès aux pages. Aller sur `localhost:3000/letter_opener`, ouvrir le dernier email et cliquer le lien de connexion sécurisé.
+
 **Adaptations dev temporaires** — appliquer en début de PR, **NE JAMAIS COMMITER** :
 
 **1. Auto-login dev** — ajouter dans `app/controllers/application_controller.rb` :
@@ -44,7 +46,8 @@ def auto_sign_in_dev_user
   return unless Rails.env.development?
   return if user_signed_in?
 
-  user = User.find_or_initialize_by(email: 'dev@localhost')
+  # Credentials fictifs — usage dev local uniquement, jamais commités
+  user = User.find_or_initialize_by(email: 'martin.fourcade@beta.gouv.fr')
   if user.new_record?
     user.password = 'Ds-P@ssw0rd!2026'
     user.confirmed_at = Time.current
