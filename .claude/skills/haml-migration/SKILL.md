@@ -111,7 +111,7 @@ find app -name "*.html.haml" | head -15
    grep -r "nom_du_composant" spec/
    ```
 
-### Étape 2 : Screenshot HAML — avant migration (10min)
+### Étape 2 : Capture screenshots HAML → commit (10min)
 
 **Évaluer la complexité de capture pour chaque composant :**
 
@@ -156,13 +156,15 @@ find app -name "*.html.haml" | head -15
    }
    ```
 
-4. **Commiter les screenshots HAML** (preuve de l'état avant migration) :
+4. **Commit** :
    ```bash
    git add tmp/screenshots/haml/
    git commit --no-gpg-sign -m "chore(haml): capture screenshots HAML avant migration [BATCH]"
    ```
 
-### Étape 3 : Conversion (20min)
+### Étape 3 : Migration HAML → ERB → commit (35min)
+
+#### 3a. Conversion
 
 **Règles de conversion :**
 
@@ -181,7 +183,7 @@ find app -name "*.html.haml" | head -15
 %div{ **options }        →  <div <%= tag.attributes(**options) %>>
 ```
 
-**⚠️ Règles critiques (Phases 1.1 + 2.8a) :**
+**⚠️ Règles critiques :**
 
 1. **Arrays de classes** : Si la méthode retourne un array, ajouter `.join(' ')`
 2. **Pas de balises auto-fermantes** : `<input>` pas `<input />`
@@ -191,7 +193,7 @@ find app -name "*.html.haml" | head -15
    - ❌ `<%= "#{link_to('text', url)}." %>` (échappe le HTML)
    - ✅ `<%= link_to('text', url) %>.` (sortir le texte de l'interpolation)
 
-### Étape 4 : Validation locale (15min)
+#### 3b. Validation locale
 
 **⚠️ OBLIGATOIRE - Ne JAMAIS skip cette étape**
 
@@ -218,58 +220,49 @@ find app -name "*.html.haml" | head -15
    grep '"#{.*link_to\|button_to\|form_' app/components/nom/nom.html.erb  # Doit être vide
    ```
 
-4. **Diff visuel** :
+#### 3c. Suppression HAML + commit
+
+1. **Supprimer les fichiers `.haml`** :
+   - ⚠️ **ViewComponent refuse la coexistence `.haml` + `.erb`** → `TemplateError: More than one HTML template found`
    ```bash
-   git diff app/components/nom/
+   git rm app/components/nom/*.html.haml
    ```
 
-### Étape 5 : Screenshot ERB — après migration (10min)
-
-1. **Supprimer les fichiers `.haml` et ajouter les `.erb`**
-   - ⚠️ **ViewComponent refuse la coexistence `.haml` + `.erb`** → `TemplateError: More than one HTML template found`
-   - Le switch est atomique : supprimer le `.haml` AVANT de pouvoir servir le `.erb`
-
 2. **Forcer le reload du cache ViewComponent** :
-   - ⚠️ `config.to_prepare` ne se déclenche que sur les changements de fichiers `.rb` surveillés — supprimer/ajouter des `.haml`/`.erb` ne déclenche PAS le reload
-   - **Fix obligatoire** : après suppression des `.haml`, toucher le `.rb` de chaque composant migré :
+   - ⚠️ `config.to_prepare` ne se déclenche que sur les changements de fichiers `.rb` — supprimer/ajouter des `.haml`/`.erb` ne déclenche PAS le reload
+   - **Fix obligatoire** : toucher le `.rb` de chaque composant migré :
    ```bash
    touch app/components/nom_component.rb
    ```
-   - L'initializer `view_component_dev_reload.rb` aide, mais le `touch` reste nécessaire pour garantir l'invalidation
 
-3. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright
+3. **Commit** :
+   ```bash
+   git add app/components/
+   git commit --no-gpg-sign -m "refactor(haml): migrate [BATCH] to ERB"
+   ```
 
-4. **Capturer les screenshots ERB** avec le même script que l'étape 2, en changeant le path :
+### Étape 4 : Capture screenshots ERB → commit (10min)
+
+1. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright
+
+2. **Capturer les screenshots ERB** avec le même script que l'étape 2, en changeant le path :
    - `tmp/screenshots/erb/${comp.name}-${i+1}.png`
 
-4. **Comparer** :
-   - Comparer les tailles de fichiers (identique au byte = preuve forte)
-   ```bash
-   for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name"; done
-   ```
-   - Si différence détectée → investiguer et corriger avant de continuer
-
-5. **Commiter les screenshots ERB** (preuve de l'état après migration) :
+3. **Commit** :
    ```bash
    git add tmp/screenshots/erb/
    git commit --no-gpg-sign -m "chore(haml): capture screenshots ERB après migration [BATCH]"
    ```
 
-### Étape 6 : Commit + publication PR (10min)
+### Étape 5 : Comparaison + publication PR (10min)
 
-**Seulement si validation locale + screenshots OK ✅**
-
-1. Supprimer fichiers HAML :
+1. **Comparer les screenshots** (identique au byte = preuve forte) :
    ```bash
-   git rm app/**/*.haml
+   for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name"; done
    ```
+   - Si différence détectée → investiguer et corriger avant de continuer
 
-2. Commit :
-   ```bash
-   git commit --no-gpg-sign -m "refactor(haml): migrate [BATCH] to ERB"
-   ```
-
-3. **Publier screenshots dans la PR** :
+2. **Mettre à jour la description de la PR** avec les résultats de comparaison :
    ```bash
    gh pr comment <PR_NUMBER> --body "$(cat <<'EOF'
    ## 📸 Validation Visuelle HAML → ERB
@@ -301,32 +294,50 @@ find app -name "*.html.haml" | head -15
 
    **Note :** Pour inclure les images dans le commentaire PR, les uploader d'abord via l'interface GitHub (drag & drop) ou via `gh release create` pour obtenir les URLs.
 
-4. **Supprimer les screenshots avant merge** (ne pas polluer le repo) :
-   ```bash
-   git rm -r tmp/screenshots/haml/ tmp/screenshots/erb/
-   git commit --no-gpg-sign -m "chore(haml): remove screenshots after visual validation [BATCH]"
-   ```
+### Étape 6 : Suppression screenshots → commit final (avec résultat comparaison)
+
+```bash
+# Capturer le résultat de comparaison avant de supprimer
+DIFF_RESULT=$(for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done)
+
+git rm -r tmp/screenshots/haml/ tmp/screenshots/erb/
+git commit --no-gpg-sign -m "$(cat <<EOF
+chore(haml): remove screenshots after visual validation [BATCH]
+
+$DIFF_RESULT
+EOF
+)"
+```
 
 ---
 
 ## Checklist
 
-- [ ] Batch sélectionné automatiquement (max 15 fichiers)
-- [ ] Fichier HAML lu
-- [ ] **Fichier Ruby lu (vérifier types de retour)**
-- [ ] **📸 Screenshot HAML capturé (MCP Playwright)**
-- [ ] Conversion complète
-- [ ] Arrays avec `.join(' ')` si nécessaire
-- [ ] Pas de balises auto-fermantes
-- [ ] Espacement contrôlé (`<%-`, `-%>`)
-- [ ] Pas d'interpolation de helpers HTML dans strings
-- [ ] **Linter herb passé**
-- [ ] **Tests passés (si identifiés)**
+**Étape 1 — Analyse**
+- [ ] Batch sélectionné (max 15 fichiers)
+- [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
+
+**Étape 2 — Screenshots HAML → commit**
+- [ ] Screenshots HAML capturés (MCP Playwright)
+- [ ] Commit screenshots HAML
+
+**Étape 3 — Migration → commit**
+- [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
+- [ ] Linter herb passé
+- [ ] Tests passés (si identifiés)
 - [ ] Patterns à risque vérifiés (grep)
-- [ ] Diff vérifié
-- [ ] **📸 Screenshot ERB capturé (MCP Playwright)**
-- [ ] **📸 Screenshots comparés — pas de régression visuelle**
-- [ ] Fichiers HAML supprimés
-- [ ] Commit créé
-- [ ] **Screenshots publiés dans la PR**
+- [ ] Fichiers HAML supprimés (`git rm`) + `touch` des `.rb`
+- [ ] Commit migration
+
+**Étape 4 — Screenshots ERB → commit**
+- [ ] Screenshots ERB capturés (MCP Playwright)
+- [ ] Commit screenshots ERB
+
+**Étape 5 — Comparaison + PR**
+- [ ] Screenshots comparés — pas de régression visuelle
+- [ ] Résultats publiés dans la PR
+
+**Étape 6 — Cleanup → commit**
+- [ ] Screenshots supprimés (`git rm -r`)
+- [ ] Commit final
 
