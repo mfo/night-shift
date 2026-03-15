@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb:*), Bash(bundle exec rspec:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb:*), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*)
 ---
 
 # Migration HAML → ERB
