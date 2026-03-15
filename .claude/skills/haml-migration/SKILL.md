@@ -230,13 +230,13 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    ```
    Si des apostrophes typographiques sont détectées → extraire les textes en traductions I18n.
 
-#### 3c. Suppression HAML + commit
+#### 3c. Remplacement HAML → ERB + commit
 
-1. **Supprimer le fichier `.haml`** :
-   - ⚠️ **ViewComponent refuse la coexistence `.haml` + `.erb`** → `TemplateError`
+1. **Renommer le fichier via `git mv`** (préserve l'historique git) :
    ```bash
-   git rm <fichier.html.haml>
+   git mv <fichier.html.haml> <fichier.html.erb>
    ```
+   Puis écrire le contenu ERB dans le fichier renommé.
 
 2. **Si ViewComponent** — forcer le reload du cache :
    ```bash
