@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb:*), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf docs/migrations/screenshots:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*)
 ---
 
 # Migration HAML → ERB
@@ -96,6 +96,13 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 
 ## Workflow (1 fichier)
 
+### Étape 0 : Reset des répertoires de screenshots
+
+```bash
+rm -rf docs/migrations/screenshots/haml docs/migrations/screenshots/erb
+mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
+```
+
 ### Étape 1 : Analyse
 
 **⚠️ CRITIQUE :** Lire le HAML ET le fichier Ruby
@@ -130,7 +137,7 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
      const elements = await page.$$('.component-selector');
      for (let i = 0; i < elements.length; i++) {
        if (await elements[i].isVisible()) {
-         await elements[i].screenshot({ path: `tmp/screenshots/haml/component-${i+1}.png` });
+         await elements[i].screenshot({ path: `docs/migrations/screenshots/haml/component-${i+1}.png` });
        }
      }
    }
@@ -138,7 +145,7 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 
 4. **Commit** :
    ```bash
-   git add tmp/screenshots/haml/
+   git add docs/migrations/screenshots/haml/
    git commit --no-gpg-sign -m "chore(haml): screenshot HAML avant migration — NomDuComposant"
    ```
 
@@ -172,6 +179,7 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 5. **String interpolation avec helpers HTML** :
    - ❌ `<%= "#{link_to('text', url)}." %>` (échappe le HTML)
    - ✅ `<%= link_to('text', url) %>.` (sortir le texte de l'interpolation)
+6. **Apostrophes typographiques** : les textes inlinés dans les templates HAML contiennent souvent des apostrophes typographiques (`'` U+2019). Lors de la migration, extraire ces textes en traductions I18n (fichiers `config/locales/`) en respectant les conventions Rails. Ne PAS laisser de texte français en dur dans les templates ERB.
 
 #### 3b. Validation locale
 
@@ -193,6 +201,12 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
    grep '/>' <fichier.html.erb>                                    # Pas de balises auto-fermantes
    grep '"#{.*link_to\|button_to\|form_' <fichier.html.erb>        # Pas d'interpolation helpers
    ```
+
+4. **Linter apostrophes typographiques** :
+   ```bash
+   bundle exec rake apostrophe_lint
+   ```
+   Si des apostrophes typographiques sont détectées → extraire les textes en traductions I18n.
 
 #### 3c. Suppression HAML + commit
 
@@ -217,11 +231,11 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 
 1. **Naviguer sur la même page que l'étape 2** avec MCP Playwright
 
-2. **Capturer les screenshots ERB** avec le même script, path `tmp/screenshots/erb/`
+2. **Capturer les screenshots ERB** avec le même script, path `docs/migrations/screenshots/erb/`
 
 3. **Commit** :
    ```bash
-   git add tmp/screenshots/erb/
+   git add docs/migrations/screenshots/erb/
    git commit --no-gpg-sign -m "chore(haml): screenshot ERB après migration — NomDuComposant"
    ```
 
@@ -229,7 +243,7 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
    ```bash
-   for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done
+   for f in docs/migrations/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "docs/migrations/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done
    ```
 
 2. **Si tous les screenshots sont ✅** → passer directement à l'étape 6
@@ -257,12 +271,13 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 
 1. **Capturer le résultat de comparaison** :
    ```bash
-   DIFF_RESULT=$(for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done)
+   DIFF_RESULT=$(for f in docs/migrations/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "docs/migrations/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name (haml: ${haml_size}b, erb: ${erb_size}b)"; done)
    ```
 
 2. **Supprimer les screenshots + commit** :
    ```bash
-   git rm -r tmp/screenshots/haml/ tmp/screenshots/erb/
+   rm -rf docs/migrations/screenshots/haml/ docs/migrations/screenshots/erb/
+   git rm -r docs/migrations/screenshots/haml/ docs/migrations/screenshots/erb/
    git commit --no-gpg-sign -m "$(cat <<EOF
    chore(haml): remove screenshots — NomDuComposant
 
