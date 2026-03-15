@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf docs/migrations/screenshots:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf docs/migrations/screenshots:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*)
 ---
 
 # Migration HAML → ERB
@@ -9,6 +9,12 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_c
 **Contexte :** Migration d'un fichier HAML vers ERB avec validation visuelle via screenshots
 
 **Input :** chemin vers un fichier `.html.haml` (ex: `app/components/alert/alert_component.html.haml`)
+
+**⚠️ Règle Bash** : ne jamais utiliser de commandes qui déclenchent une approbation de sécurité. Concrètement :
+- Pas de `$()` (command substitution) — stocker dans une variable via un appel séparé
+- Pas de `;` ou `&&` pour chaîner — faire des appels Bash séparés
+- Pas de pipes complexes (`cmd1 | cmd2`) — découper en étapes
+- 1 commande simple = 1 appel Bash
 
 ---
 
@@ -286,29 +292,33 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    )"
    ```
 
-3. **Créer la PR** :
-   ```bash
-   gh pr create --title "refactor(haml): migrate NomDuComposant to ERB" --body "$(cat <<'EOF'
+3. **Mettre à jour ou créer la PR** :
+   - Si une PR existe déjà sur la branche → mettre à jour sa description (`gh pr edit`)
+   - Sinon → créer une PR (`gh pr create`)
+
+   **Template de description PR** (adapter les liens vers les commits réels) :
+   ```markdown
    ## Migration HAML → ERB — NomDuComposant
 
-   ### Commits
-   1. 📸 Screenshot HAML (avant)
-   2. 🔄 Migration HAML → ERB
-   3. 📸 Screenshot ERB (après)
-   4. 🧹 Suppression screenshots (résultat comparaison dans le commit)
+   ### Plan de commits
+   1. 📸 [`chore: screenshot HAML`](lien-commit-1) — captures avant migration ([voir screenshots](lien-tree-commit-1/docs/migrations/screenshots/haml/))
+   2. 🔄 [`refactor: migrate to ERB`](lien-commit-2) — conversion + validation
+   3. 📸 [`chore: screenshot ERB`](lien-commit-3) — captures après migration ([voir screenshots](lien-tree-commit-3/docs/migrations/screenshots/erb/))
+   4. 🧹 [`chore: remove screenshots`](lien-commit-4) — résultat comparaison dans le message de commit
 
    ### Résultat comparaison visuelle
    <!-- Coller ici le DIFF_RESULT -->
 
    ### Validation
-   - Linter herb : ✅ 0 offenses
-   - Tests : ✅ passés
+   - Linter herb : ✅ / ❌
+   - Tests : ✅ / ❌
+   - Apostrophes : ✅ / ❌
    - Screenshots : ✅ identiques au byte / ❌ différences documentées
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
-   EOF
-   )"
    ```
+
+   Les liens `lien-tree-commit-X` pointent vers `github.com/<repo>/tree/<sha>/docs/migrations/screenshots/` — le reviewer peut voir les screenshots directement dans GitHub même après leur suppression au commit 4.
 
 ---
 
