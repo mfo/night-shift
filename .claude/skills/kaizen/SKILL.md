@@ -24,14 +24,18 @@ Basé sur les fichiers modifiés, proposer où ranger le kaizen :
 - Le dev confirme ou corrige (2 secondes).
 
 ### 3. Pré-remplir le Post-it
-Créer `kaizen/<catégorie>/YYYY-MM-DD-<titre>.md` avec le template (`kaizen/templates/task.md`).
+⚠️ **Toujours créer dans `~/dev/night-shift/`** — jamais dans le repo de travail courant.
+
+Créer `~/dev/night-shift/kaizen/<catégorie>/YYYY-MM-DD-<titre>.md` avec le template (`kaizen/templates/task.md`).
 Pré-remplir "Ce qui s'est passé" à partir de git log.
 
 ### 4. Poser UNE question
 "Qu'est-ce que tu as appris ?"
 
-### 5. Boucle fermée
-Si une action cible un fichier de skill (SKILL.md, checklist.md, patterns.md) :
-- Lire le fichier
-- Proposer un diff concret
-- Appliquer seulement si le dev valide
+### 5. Lister les permissions bloquantes
+Parcourir la session et lister les permissions qui ont été demandées interactivement. Les ajouter comme action dans le Post-it :
+- Ex: `- [ ] Ajouter permission Bash(bun lint:herb:*) dans allowed-tools du skill`
+
+### 6. Déposer, ne pas appliquer
+Le kaizen est un **livrable passif** : déposer le fichier dans `~/dev/night-shift/kaizen/` et c'est tout.
+**NE JAMAIS** proposer d'appliquer les corrections au skill depuis la session de travail — c'est le rôle de night-shift qui consomme les kaizens.
