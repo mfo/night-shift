@@ -75,6 +75,25 @@ rm config/initializers/view_component_dev_reload.rb
 
 ---
 
+## Plan de commits (OBLIGATOIRE — suivre dans l'ordre)
+
+**❌ Ne jamais commencer à coder sans avoir ce plan en tête.**
+**❌ Ne jamais sauter un commit ou en fusionner deux.**
+
+```
+Commit 1: chore(haml): screenshot HAML avant migration   → voir Étape 2
+Commit 2: refactor(haml): migrate NomDuComposant to ERB   → voir Étape 3
+Commit 3: chore(haml): screenshot ERB après migration     → voir Étape 4
+  ── Comparaison (Étape 5) ──
+  Si ❌ : fix → commit "fix(haml): ..." → reprendre commit 3 → re-comparer
+Commit 4: chore(haml): remove screenshots                 → voir Étape 6
+  ── Créer la PR (Étape 6) ──
+```
+
+**Après chaque commit, vérifier quel est le PROCHAIN dans ce plan. Ne pas improviser l'ordre.**
+
+---
+
 ## Workflow (1 fichier)
 
 ### Étape 1 : Analyse
