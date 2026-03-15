@@ -7,7 +7,7 @@ description: Migrate HAML templates to ERB with validation and visual comparison
 
 **Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
 
-**Version :** v5 - Learnings session screenshots Playwright (2026-03-14)
+**Version :** v6 - Fix cache ViewComponent (plus de redémarrage serveur) (2026-03-14)
 
 ---
 
@@ -28,14 +28,19 @@ description: Migrate HAML templates to ERB with validation and visual comparison
 
 **Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
 
-**Authentification dev** : Un stash nommé `bypass auth` contient un hack `auto_sign_in_dev_user` dans `ApplicationController` qui crée et connecte automatiquement un utilisateur admin en dev. Pour l'appliquer :
+**Stash `haml-migration-adapter`** : Contient 2 fichiers indispensables :
+1. **`app/controllers/application_controller.rb`** — auto-login dev (bypass auth)
+2. **`config/initializers/view_component_dev_reload.rb`** — invalidation cache ViewComponent (plus besoin de redémarrer le serveur après switch .haml → .erb)
+
 ```bash
 # Trouver le stash
-git stash list | grep "bypass auth"
+git stash list | grep "haml-migration-adapter"
 # Appliquer (garder dans le stash pour réutilisation)
 git stash apply stash@{N}
+# Redémarrer le serveur UNE fois pour charger l'initializer
+# Ensuite, plus jamais de redémarrage pour les changements de templates
 ```
-⚠️ Ne jamais commiter ce hack. Le re-stasher ou `git checkout` après les captures.
+⚠️ Ne jamais commiter ces fichiers. Les re-stasher ou `git checkout` après les captures.
 
 ---
 
@@ -117,7 +122,7 @@ find app -name "*.html.haml" | head -15
 
 2. **Naviguer avec MCP Playwright** :
    - Utiliser `browser_navigate` vers la page identifiée
-   - S'assurer que le stash "bypass auth" est appliqué (voir Prérequis)
+   - S'assurer que le stash `haml-migration-adapter` est appliqué (voir Prérequis)
 
 3. **Capturer les screenshots HAML par sélecteur CSS** :
    - Utiliser `browser_run_code` avec `page.$$` (querySelectorAll) pour cibler chaque composant
@@ -205,7 +210,8 @@ find app -name "*.html.haml" | head -15
    - ⚠️ **ViewComponent refuse la coexistence `.haml` + `.erb`** → `TemplateError: More than one HTML template found`
    - Le switch est atomique : supprimer le `.haml` AVANT de pouvoir servir le `.erb`
 
-2. **Redémarrer le serveur Rails** (obligatoire — cache des chemins de templates)
+2. **Si le stash `haml-migration-adapter` est appliqué** : pas besoin de redémarrer le serveur (l'initializer `view_component_dev_reload.rb` invalide automatiquement le cache des templates à chaque requête via `config.to_prepare`).
+   - **Sans le stash** : redémarrer le serveur Rails (cache des chemins de templates)
 
 3. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright
 
@@ -296,13 +302,18 @@ find app -name "*.html.haml" | head -15
 **Phase 2.8a :** 1 erreur, 1 amend, score 8/10 (amélioration +75%)
 **Phase 3.1 :** 0 erreur, score 9/10
 
-**v5 intègre (learnings session screenshots 2026-03-14) :**
+**v6 intègre (fix cache ViewComponent 2026-03-14) :**
+- Stash `haml-migration-adapter` remplace `bypass auth` (inclut bypass auth + initializer cache ViewComponent)
+- Plus de redémarrage serveur après switch .haml → .erb (initializer `view_component_dev_reload.rb` invalide le cache via `config.to_prepare`)
+- Fix API ViewComponent 4.1.0 : `klass.compiler` → `klass.instance_variable_get(:@__vc_compiler)`
+
+**v5 intégrait :**
 - Auth dev via stash `bypass auth` en prérequis
 - Page `/patron` comme cible screenshots (composants DSFR en situation)
 - `page.$$` (querySelectorAll) au lieu de `page.$` pour capturer tous les éléments
 - Sélecteurs CSS des composants DSFR courants documentés
 - Comparaison par taille de fichier (`stat -f%z`) = preuve forte
-- Redémarrage serveur Rails obligatoire après changement de templates
+- Redémarrage serveur Rails obligatoire après changement de templates (corrigé en v6)
 
 **v4 intégrait :**
 - Validation visuelle via MCP Playwright (screenshots HAML vs ERB)
