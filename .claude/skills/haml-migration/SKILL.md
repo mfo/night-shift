@@ -166,7 +166,7 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    }
    ```
 
-4. **Commit** :
+4. **Commit** (inclure le preview si créé à l'étape 2b) :
    ```bash
    git add docs/migrations/screenshots/haml/
    git commit --no-gpg-sign -m "chore(haml): screenshot HAML avant migration — NomDuComposant"
@@ -202,7 +202,32 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
 5. **String interpolation avec helpers HTML** :
    - ❌ `<%= "#{link_to('text', url)}." %>` (échappe le HTML)
    - ✅ `<%= link_to('text', url) %>.` (sortir le texte de l'interpolation)
-6. **Apostrophes typographiques** : les textes inlinés dans les templates HAML contiennent souvent des apostrophes typographiques (`'` U+2019). Lors de la migration, extraire ces textes en traductions I18n (fichiers `config/locales/`) en respectant les conventions Rails. Ne PAS laisser de texte français en dur dans les templates ERB.
+6. **Extraction i18n obligatoire** : tout texte français en dur dans le HAML doit être extrait en clé i18n dans l'ERB. Ne PAS recopier les textes tels quels.
+
+   **Pour un ViewComponent** (`app/components/`) : utiliser le fichier de traduction du composant (le créer si besoin) :
+   ```yaml
+   # app/components/export_dropdown/export_dropdown_component.yml
+   fr:
+     standard: "Standard"
+     cancel: "Annuler"
+   ```
+   ```erb
+   <%= t(".standard") %>
+   <%= t(".cancel") %>
+   ```
+
+   **Pour une vue classique** (`app/views/`) : utiliser le namespace Rails standard correspondant au chemin du fichier :
+   ```yaml
+   # config/locales/views/dossiers/show.fr.yml
+   fr:
+     dossiers:
+       show:
+         submit_button: "Envoyer le dossier"
+   ```
+   ```erb
+   <%= t(".submit_button") %>
+   ```
+
 
 #### 3b. Validation locale
 
@@ -228,7 +253,8 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    ```bash
    bundle exec rake apostrophe_lint
    ```
-   Si des apostrophes typographiques sont détectées → extraire les textes en traductions I18n.
+
+5. **Check i18n** : relire le fichier ERB et vérifier qu'aucun texte français n'est resté en dur (cf. règle 6 étape 3a)
 
 #### 3c. Remplacement HAML → ERB + commit
 
@@ -244,7 +270,7 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    ```
    (Uniquement pour les composants ViewComponent, pas pour les vues classiques)
 
-3. **Commit** :
+3. **Commit** (inclure les fichiers i18n si créés) :
    ```bash
    git add <fichier.html.erb>
    git commit --no-gpg-sign -m "refactor(haml): migrate NomDuComposant to ERB"
@@ -313,7 +339,7 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    ✅ component-2.png
    ```
 
-3. **Mettre à jour ou créer la PR** :
+4. **Mettre à jour ou créer la PR** :
    - Si une PR existe déjà sur la branche → mettre à jour sa description (`gh pr edit`)
    - Sinon → créer une PR (`gh pr create`)
 
@@ -346,11 +372,12 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
 ## Checklist
 
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Screenshot HAML capturé → commit
+- [ ] Screenshot HAML capturé (+ preview si créé) → commit
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
+- [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
 - [ ] Linter herb passé
 - [ ] Tests passés (si identifiés)
-- [ ] HAML supprimé (`git rm`) + `touch` du `.rb` → commit migration
+- [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
 - [ ] Screenshot ERB capturé → commit
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
 - [ ] Screenshots supprimés avec résultat dans le commit → commit final
