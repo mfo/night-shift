@@ -7,23 +7,17 @@ description: Migrate HAML templates to ERB with validation and visual comparison
 
 **Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
 
-**Version :** v6 - Fix cache ViewComponent (plus de redémarrage serveur) (2026-03-14)
+**Version :** v7 - Touch .rb + MCP CLI + isVisible filter (2026-03-15)
 
 ---
 
 ## Prérequis
 
-**MCP Playwright** doit être configuré dans `.mcp.json` :
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
-    }
-  }
-}
+**MCP Playwright** doit être enregistré via la CLI (le `.mcp.json` seul n'est PAS détecté par Claude Code) :
+```bash
+claude mcp add playwright -- npx -y @playwright/mcp@latest
+# Le -- est obligatoire pour séparer les args
+# Relancer Claude Code après ajout (/exit puis claude)
 ```
 
 **Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
@@ -137,10 +131,19 @@ find app -name "*.html.haml" | head -15
      for (const comp of components) {
        const elements = await page.$$(comp.selector);
        for (let i = 0; i < elements.length; i++) {
-         await elements[i].screenshot({ path: `tmp/screenshots/haml/dsfr-${comp.name}-${i+1}.png` });
+         // ⚠️ Toujours vérifier isVisible() — des éléments hidden causent un timeout
+         if (await elements[i].isVisible()) {
+           await elements[i].screenshot({ path: `tmp/screenshots/haml/dsfr-${comp.name}-${i+1}.png` });
+         }
        }
      }
    }
+   ```
+
+4. **Commiter les screenshots HAML** (preuve de l'état avant migration) :
+   ```bash
+   git add tmp/screenshots/haml/
+   git commit --no-gpg-sign -m "chore(haml): capture screenshots HAML avant migration [BATCH]"
    ```
 
 ### Étape 3 : Conversion (20min)
@@ -210,8 +213,13 @@ find app -name "*.html.haml" | head -15
    - ⚠️ **ViewComponent refuse la coexistence `.haml` + `.erb`** → `TemplateError: More than one HTML template found`
    - Le switch est atomique : supprimer le `.haml` AVANT de pouvoir servir le `.erb`
 
-2. **Si le stash `haml-migration-adapter` est appliqué** : pas besoin de redémarrer le serveur (l'initializer `view_component_dev_reload.rb` invalide automatiquement le cache des templates à chaque requête via `config.to_prepare`).
-   - **Sans le stash** : redémarrer le serveur Rails (cache des chemins de templates)
+2. **Forcer le reload du cache ViewComponent** :
+   - ⚠️ `config.to_prepare` ne se déclenche que sur les changements de fichiers `.rb` surveillés — supprimer/ajouter des `.haml`/`.erb` ne déclenche PAS le reload
+   - **Fix obligatoire** : après suppression des `.haml`, toucher le `.rb` de chaque composant migré :
+   ```bash
+   touch app/components/dsfr/nom_component.rb
+   ```
+   - Alternative si le stash `haml-migration-adapter` est appliqué : l'initializer aide, mais le `touch` reste nécessaire pour garantir l'invalidation
 
 3. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright
 
@@ -224,6 +232,12 @@ find app -name "*.html.haml" | head -15
    for f in tmp/screenshots/erb/*.png; do name=$(basename "$f"); haml_size=$(stat -f%z "tmp/screenshots/haml/$name"); erb_size=$(stat -f%z "$f"); [ "$haml_size" = "$erb_size" ] && echo "✅ $name" || echo "❌ $name"; done
    ```
    - Si différence détectée → investiguer et corriger avant de continuer
+
+5. **Commiter les screenshots ERB** (preuve de l'état après migration) :
+   ```bash
+   git add tmp/screenshots/erb/
+   git commit --no-gpg-sign -m "chore(haml): capture screenshots ERB après migration [BATCH]"
+   ```
 
 ### Étape 6 : Commit + publication PR (10min)
 
@@ -271,6 +285,12 @@ find app -name "*.html.haml" | head -15
 
    **Note :** Pour inclure les images dans le commentaire PR, les uploader d'abord via l'interface GitHub (drag & drop) ou via `gh release create` pour obtenir les URLs.
 
+4. **Supprimer les screenshots avant merge** (ne pas polluer le repo) :
+   ```bash
+   git rm -r tmp/screenshots/haml/ tmp/screenshots/erb/
+   git commit --no-gpg-sign -m "chore(haml): remove screenshots after visual validation [BATCH]"
+   ```
+
 ---
 
 ## Checklist
@@ -302,7 +322,13 @@ find app -name "*.html.haml" | head -15
 **Phase 2.8a :** 1 erreur, 1 amend, score 8/10 (amélioration +75%)
 **Phase 3.1 :** 0 erreur, score 9/10
 
-**v6 intègre (fix cache ViewComponent 2026-03-14) :**
+**v7 intègre (iteration 4 — crash-proof 2026-03-15) :**
+- MCP Playwright via `claude mcp add` (`.mcp.json` seul non détecté par Claude Code)
+- `touch *.rb` après suppression `.haml` pour forcer invalidation cache ViewComponent (`config.to_prepare` ne détecte pas les changements .haml/.erb)
+- Filtre `isVisible()` avant screenshot (éléments hidden = timeout)
+- Auth dev via `letter_opener` pour valider trusted device
+
+**v6 intégrait (fix cache ViewComponent 2026-03-14) :**
 - Stash `haml-migration-adapter` remplace `bypass auth` (inclut bypass auth + initializer cache ViewComponent)
 - Plus de redémarrage serveur après switch .haml → .erb (initializer `view_component_dev_reload.rb` invalide le cache via `config.to_prepare`)
 - Fix API ViewComponent 4.1.0 : `klass.compiler` → `klass.instance_variable_get(:@__vc_compiler)`
