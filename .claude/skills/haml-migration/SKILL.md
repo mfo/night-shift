@@ -149,7 +149,7 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
      end
      ```
    - Visiter `localhost:3000/rails/view_components/nom_du_composant/default`
-   - ⚠️ **Le preview est temporaire** : le commiter avec le commit 1, le supprimer au commit 4 (avec les screenshots)
+   - Commiter le preview avec le commit 1 (il restera dans le projet — utile pour la suite)
 
    **c. Composant trop complexe** (données imbriquées, interactions, contexte lourd) → **skip le screenshot**, documenter la raison dans la PR
    - Seuil : > 5min de setup = skip
