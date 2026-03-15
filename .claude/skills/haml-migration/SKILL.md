@@ -5,9 +5,7 @@ description: Migrate HAML templates to ERB with validation and visual comparison
 
 # Migration HAML → ERB
 
-**Contexte :** Migration des templates HAML vers ERB pour le projet demarche.numerique.gouv.fr
-
-**Version :** v7 - Touch .rb + MCP CLI + isVisible filter (2026-03-15)
+**Contexte :** Migration de templates HAML vers ERB avec validation visuelle via screenshots
 
 ---
 
@@ -22,25 +20,61 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 
 **Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
 
-**Stash `haml-migration-adapter`** : Contient 2 fichiers indispensables :
-1. **`app/controllers/application_controller.rb`** — auto-login dev (bypass auth)
-2. **`config/initializers/view_component_dev_reload.rb`** — invalidation cache ViewComponent (plus besoin de redémarrer le serveur après switch .haml → .erb)
+**Adaptations dev temporaires** — appliquer en début de PR, **NE JAMAIS COMMITER** :
 
-```bash
-# Trouver le stash
-git stash list | grep "haml-migration-adapter"
-# Appliquer (garder dans le stash pour réutilisation)
-git stash apply stash@{N}
-# Redémarrer le serveur UNE fois pour charger l'initializer
-# Ensuite, plus jamais de redémarrage pour les changements de templates
+**1. Auto-login dev** — ajouter dans `app/controllers/application_controller.rb` :
+```diff
++  prepend_before_action :auto_sign_in_dev_user
+   before_action :set_sentry_user
+   before_action :redirect_if_untrusted
 ```
-⚠️ Ne jamais commiter ces fichiers. Les re-stasher ou `git checkout` après les captures.
+
+Et la méthode (avant `private`) :
+```ruby
+def auto_sign_in_dev_user
+  return unless Rails.env.development?
+  return if user_signed_in?
+
+  user = User.find_or_initialize_by(email: 'dev@localhost')
+  if user.new_record?
+    user.password = 'Ds-P@ssw0rd!2026'
+    user.confirmed_at = Time.current
+    user.save!
+    Administrateur.create!(user: user)
+  end
+  sign_in(user, scope: :user)
+end
+```
+
+**2. Invalidation cache ViewComponent** — créer `config/initializers/view_component_dev_reload.rb` :
+```ruby
+# Force le reload des templates ViewComponent à chaque requête en dev
+# Permet de switcher .haml → .erb sans redémarrer le serveur
+Rails.application.config.to_prepare do
+  next unless Rails.env.development?
+
+  ViewComponent::CompileCache.invalidate!
+
+  ObjectSpace.each_object(Class).select { |klass| klass < ViewComponent::Base }.each do |klass|
+    if klass.instance_variable_defined?(:@__vc_compiler)
+      compiler = klass.instance_variable_get(:@__vc_compiler)
+      compiler.instance_variable_set(:@templates, nil) if compiler.instance_variable_defined?(:@templates)
+    end
+  end
+end
+```
+
+⚠️ **CRITIQUE** : ces 2 modifications ne doivent JAMAIS être commitées. Les annuler avant tout commit :
+```bash
+git checkout app/controllers/application_controller.rb
+rm config/initializers/view_component_dev_reload.rb
+```
 
 ---
 
 ## Objectif
 
-Convertir un batch de fichiers HAML en ERB en préservant le markup HTML, les classes CSS DSFR, et tous les attributs data-/aria-. Prouver l'équivalence visuelle avec des screenshots comparatifs HAML vs ERB.
+Convertir un batch de fichiers HAML en ERB en préservant le markup HTML, les classes CSS, et tous les attributs data-/aria-. Prouver l'équivalence visuelle avec des screenshots comparatifs HAML vs ERB.
 
 ---
 
@@ -83,7 +117,7 @@ find app -name "*.html.haml" | head -15
 
 | Niveau | Critère | Action |
 |---|---|---|
-| **Simple** | Visible sur `/patron` ou page accessible directement | Screenshot automatique |
+| **Simple** | Visible sur une page accessible directement | Screenshot automatique |
 | **Moyen** | Nécessite navigation + auth mais pas de données spécifiques | Screenshot avec bypass auth |
 | **Complexe** | Nécessite données spécifiques, interactions (modal, dropdown), ou aucune page standard | **Skip → validation manuelle** |
 
@@ -92,40 +126,22 @@ find app -name "*.html.haml" | head -15
 **Si Simple ou Moyen** : capturer l'état visuel AVANT de modifier quoi que ce soit.
 
 1. **Identifier les pages qui affichent les composants du batch** :
-   - Utiliser `/patron` pour les composants DSFR courants (couvre ~10/12)
-   - Pour les composants absents de `/patron`, chercher dans les pages réelles (admin, instructeur, usager)
-   - **Préférer les pages réelles** = preuve plus forte que `/patron` isolé
+   - Chercher les pages qui rendent les composants du batch
+   - **Préférer les pages réelles** = preuve plus forte qu'une page de démo isolée
    ```bash
    grep -r "NomDuComposant\|render.*nom_du_composant" app/views/ app/components/
    ```
 
-   **Mapping composants DSFR connus :**
-
-   | Composant | Page | Sélecteur CSS |
-   |---|---|---|
-   | AlertComponent | `/patron` | `.fr-alert` |
-   | CalloutComponent | `/patron` | `.fr-callout` |
-   | CardVerticalComponent | `/patron` | `.fr-card` |
-   | NoticeComponent | `/patron` | `.fr-notice` |
-   | DownloadComponent | `/patron` (si attachment) | `.fr-download` |
-   | InputComponent | `/patron` (formulaire) | `.fr-input-group` |
-   | RadioButtonListComponent | `/patron` (formulaire) | `.fr-fieldset .fr-radio-group` |
-   | ToggleComponent | `/patron` (formulaire) | `.fr-toggle` |
-   | CopyButtonComponent | page admin | `.fr-btn.fr-icon-clipboard-line` |
-   | SidemenuComponent | page instructeur | `.fr-sidemenu` |
-
 2. **Naviguer avec MCP Playwright** :
    - Utiliser `browser_navigate` vers la page identifiée
-   - S'assurer que le stash `haml-migration-adapter` est appliqué (voir Prérequis)
+   - S'assurer que les adaptations dev sont appliquées (voir Prérequis)
 
 3. **Capturer les screenshots HAML par sélecteur CSS** :
    - Utiliser `browser_run_code` avec `page.$$` (querySelectorAll) pour cibler chaque composant
    ```javascript
    async (page) => {
      const components = [
-       { selector: '.fr-callout', name: 'callout' },
-       { selector: '.fr-card', name: 'card' },
-       { selector: '.fr-notice', name: 'notice' }
+       { selector: '.component-class', name: 'component-name' },
        // Adapter selon le batch
      ];
      for (const comp of components) {
@@ -133,7 +149,7 @@ find app -name "*.html.haml" | head -15
        for (let i = 0; i < elements.length; i++) {
          // ⚠️ Toujours vérifier isVisible() — des éléments hidden causent un timeout
          if (await elements[i].isVisible()) {
-           await elements[i].screenshot({ path: `tmp/screenshots/haml/dsfr-${comp.name}-${i+1}.png` });
+           await elements[i].screenshot({ path: `tmp/screenshots/haml/${comp.name}-${i+1}.png` });
          }
        }
      }
@@ -217,14 +233,14 @@ find app -name "*.html.haml" | head -15
    - ⚠️ `config.to_prepare` ne se déclenche que sur les changements de fichiers `.rb` surveillés — supprimer/ajouter des `.haml`/`.erb` ne déclenche PAS le reload
    - **Fix obligatoire** : après suppression des `.haml`, toucher le `.rb` de chaque composant migré :
    ```bash
-   touch app/components/dsfr/nom_component.rb
+   touch app/components/nom_component.rb
    ```
-   - Alternative si le stash `haml-migration-adapter` est appliqué : l'initializer aide, mais le `touch` reste nécessaire pour garantir l'invalidation
+   - L'initializer `view_component_dev_reload.rb` aide, mais le `touch` reste nécessaire pour garantir l'invalidation
 
 3. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright
 
 4. **Capturer les screenshots ERB** avec le même script que l'étape 2, en changeant le path :
-   - `tmp/screenshots/erb/dsfr-${comp.name}-${i+1}.png`
+   - `tmp/screenshots/erb/${comp.name}-${i+1}.png`
 
 4. **Comparer** :
    - Comparer les tailles de fichiers (identique au byte = preuve forte)
@@ -314,39 +330,3 @@ find app -name "*.html.haml" | head -15
 - [ ] Commit créé
 - [ ] **Screenshots publiés dans la PR**
 
----
-
-## Évolution du Prompt
-
-**Phase 1.1 :** 4 erreurs, 3 amends, score 3/10
-**Phase 2.8a :** 1 erreur, 1 amend, score 8/10 (amélioration +75%)
-**Phase 3.1 :** 0 erreur, score 9/10
-
-**v7 intègre (iteration 4 — crash-proof 2026-03-15) :**
-- MCP Playwright via `claude mcp add` (`.mcp.json` seul non détecté par Claude Code)
-- `touch *.rb` après suppression `.haml` pour forcer invalidation cache ViewComponent (`config.to_prepare` ne détecte pas les changements .haml/.erb)
-- Filtre `isVisible()` avant screenshot (éléments hidden = timeout)
-- Auth dev via `letter_opener` pour valider trusted device
-
-**v6 intégrait (fix cache ViewComponent 2026-03-14) :**
-- Stash `haml-migration-adapter` remplace `bypass auth` (inclut bypass auth + initializer cache ViewComponent)
-- Plus de redémarrage serveur après switch .haml → .erb (initializer `view_component_dev_reload.rb` invalide le cache via `config.to_prepare`)
-- Fix API ViewComponent 4.1.0 : `klass.compiler` → `klass.instance_variable_get(:@__vc_compiler)`
-
-**v5 intégrait :**
-- Auth dev via stash `bypass auth` en prérequis
-- Page `/patron` comme cible screenshots (composants DSFR en situation)
-- `page.$$` (querySelectorAll) au lieu de `page.$` pour capturer tous les éléments
-- Sélecteurs CSS des composants DSFR courants documentés
-- Comparaison par taille de fichier (`stat -f%z`) = preuve forte
-- Redémarrage serveur Rails obligatoire après changement de templates (corrigé en v6)
-
-**v4 intégrait :**
-- Validation visuelle via MCP Playwright (screenshots HAML vs ERB)
-- `git rm` au lieu de `rm` (learning Phase 3.1)
-- 5 patterns critiques (Phase 1.1 + 2.8a)
-- Sélection automatique batch (max 15 fichiers)
-- Validation tests locaux si identifiés
-- Vérification string interpolation helpers
-
-Voir `essentials.md` pour les patterns détaillés.
