@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf docs/migrations/screenshots:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf docs/migrations/screenshots:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(git -C:*)
 ---
 
 # Migration HAML → ERB
@@ -133,8 +133,26 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    ```
    - **Préférer les pages réelles** = preuve plus forte qu'une page de démo
 
-2. **Évaluer la faisabilité** :
-   - Si le composant nécessite des données spécifiques, des interactions (modal, dropdown), ou n'est visible sur aucune page standard → **skip le screenshot**, documenter la raison dans la PR
+2. **Évaluer la faisabilité** (dans cet ordre de préférence) :
+
+   **a. Page réelle disponible** → capturer directement (cas idéal)
+
+   **b. Pas de page réelle mais composant simple** → créer un **preview ViewComponent** :
+   - Évaluer la complexité : le composant peut-il se rendre avec des données mockées simples ?
+   - Si oui (< 5min de setup) → créer un preview dans `spec/components/previews/` :
+     ```ruby
+     # spec/components/previews/nom_du_composant_preview.rb
+     class NomDuComposantPreview < ViewComponent::Preview
+       def default
+         render NomDuComposant.new(param: valeur_simple)
+       end
+     end
+     ```
+   - Visiter `localhost:3000/rails/view_components/nom_du_composant/default`
+   - ⚠️ **Le preview est temporaire** : le créer AVANT le commit 1, le supprimer au commit 4 (avec les screenshots)
+   - ⚠️ **Ne JAMAIS commiter le fichier preview** — l'ajouter au `.gitignore` local ou le supprimer avant chaque commit
+
+   **c. Composant trop complexe** (données imbriquées, interactions, contexte lourd) → **skip le screenshot**, documenter la raison dans la PR
    - Seuil : > 5min de setup = skip
 
 3. **Capturer avec MCP Playwright** :
