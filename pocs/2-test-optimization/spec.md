@@ -31,7 +31,7 @@ On construit le **workflow**, pas un rapport.
         │  re-profiling entre chaque (nouvelle baseline)
         ▼
    ┌──────────┐
-   │ kaizen X │  kaizen/test-optimization/<agent-id>/kaizen.md
+   │ kaizen X │  kaizen/2-test-optimization/<agent-id>/kaizen.md
    └────┬─────┘  1 kaizen par fichier
         │
         ▼
@@ -133,7 +133,7 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 
 ### Kaizen
 
-- **1 kaizen par fichier** dans `kaizen/test-optimization/<agent-id>/kaizen.md`
+- **1 kaizen par fichier** dans `kaizen/2-test-optimization/<agent-id>/kaizen.md`
 - Agent-id = nom du fichier spec (ex: `dossier-spec`)
 - Template : `.claude/skills/test-optimization/template.md`
 - **Kaizen toujours** — même en cas d'échec (`status: echec`)
@@ -159,7 +159,7 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 
 - Mode ajouté au **skill kaizen existant** (`/kaizen synth`)
 - Déclenchée **quand l'humain décide** (pas après chaque fichier)
-- Lit tous les kaizen de `kaizen/test-optimization/*/kaizen.md`
+- Lit tous les kaizen de `kaizen/2-test-optimization/*/kaizen.md`
 - Session **interactive** : itère sur les fichiers, compare avec le skill, propose des modifications
 - **Rien n'est écrit sans validation** de l'utilisateur
 - Propose :

@@ -19,7 +19,7 @@ Après une session de travail significative. Si tu n'as rien à dire, ne dis rie
 #### 1. Suggérer la catégorie
 Basé sur le contexte de la session, proposer où ranger le kaizen :
 - `kaizen/1-haml/` si .haml/.erb
-- `kaizen/test-optimization/` si tests
+- `kaizen/2-test-optimization/` si tests
 - `kaizen/3-bugs/` si bugfix
 - `kaizen/4-features/` si feature
 - Le dev confirme ou corrige (2 secondes).
