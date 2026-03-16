@@ -22,9 +22,13 @@ description: Optimiser un fichier spec — profiler, explorer, optimiser, vérif
 
 ## Workflow
 
-### Étape 0 : Setup (worktree + DB)
+### Étape 0 : Setup
 
-Suivre `quickstart.md` Phase 1 : créer le worktree, installer le hook, checkout la branche (déclenche la DB), vérifier bundle + migrations.
+**Si on est dans le repo principal** (pas un worktree) :
+Suivre `quickstart.md` Phase 1 : créer le worktree, afficher la commande `cd + claude` à l'utilisateur, puis **STOP**. Ne pas continuer.
+
+**Si on est dans un worktree** :
+Suivre `quickstart.md` Phase 2 (bundle, db:test:prepare, spring start), puis enchaîner sur l'étape 1.
 
 ### Étape 1 : Profiler (baseline locale)
 
@@ -57,18 +61,18 @@ Pour chaque technique du catalogue (communes + system si `spec/system/`) :
 1. **Appliquer** la technique
 2. **Vérifier tests** (un seul run) :
    ```bash
-   bundle exec rspec spec/path/to/file_spec.rb
+   bundle exec spring rspec spec/path/to/file_spec.rb
    ```
    - Si un test casse → rollback et passer à la technique suivante.
    - **Vérifier la coverage si :** du code source (`app/`) a été modifié, OU des `it`/`describe` ont été supprimés/fusionnés (risque de perdre un cas couvert). **Skip le run coverage** pour les refactors setup-only (let_it_be, let! → let, before_all, aggregate_failures…) qui ne changent pas les cas testés.
    ```bash
    rm -f coverage/.resultset.json
-   COVERAGE=true bundle exec rspec spec/path/to/file_spec.rb
+   COVERAGE=true bundle exec spring rspec spec/path/to/file_spec.rb
    ```
    - Comparer la coverage avec la baseline courante (initiale à l'étape 1, puis mise à jour après chaque commit). **Toute baisse = rollback immédiat.**
 3. **Mesurer le gain** (1 warm-up + 3 runs, médiane, **SANS** `COVERAGE=true` — l'overhead fausserait les temps) :
    ```bash
-   bundle exec rspec spec/path/to/file_spec.rb
+   bundle exec spring rspec spec/path/to/file_spec.rb
    ```
    - **>= 5% ET >= 0.5s** → commit (étape 4), puis nouvelle baseline = cette mesure
    - **< seuil** → rollback, noter dans le kaizen comme tentative échouée

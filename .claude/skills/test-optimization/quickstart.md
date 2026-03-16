@@ -4,37 +4,57 @@
 
 ---
 
-## Phase 1 : Setup (worktree + DB)
+## Phase 1 : Créer le worktree (depuis le repo principal)
+
+L'agent crée le worktree, puis **s'arrête** et donne la commande à l'utilisateur pour se relancer dans le worktree. Aucun `cd` — l'agent travaille toujours depuis son `cwd`.
 
 ```bash
 # 1. Dériver le nom depuis le fichier spec
 #    spec/models/dossier_spec.rb → dossier-spec
 NOM="dossier-spec"
 
-# 2. Créer le worktree (sans branche — on checkout après le hook)
-cd /Users/mfo/dev/demarches-simplifiees.fr
+# 2. Créer le worktree
 git worktree add ../demarches-simplifiees.fr-perf-$NOM main
 
 # 3. Installer le hook DB
-/Users/mfo/dev/night-shift/hooks/worktree/install.sh /Users/mfo/dev/demarches-simplifiees.fr-perf-$NOM
+/Users/mfo/dev/night-shift/hooks/worktree/install.sh ../demarches-simplifiees.fr-perf-$NOM
 
-# 4. Se placer dans le worktree et créer la branche (déclenche le hook → crée la DB)
-cd /Users/mfo/dev/demarches-simplifiees.fr-perf-$NOM
-git checkout -b perf/$NOM
-
-# 5. Vérifier que tout est prêt
-bundle check || bundle install
-bin/rails db:test:prepare  # ⚠️ JAMAIS db:schema:load (PostGIS casse)
+# 4. Créer la branche dans le worktree (déclenche le hook → crée la DB)
+git -C ../demarches-simplifiees.fr-perf-$NOM checkout -b perf/$NOM
 ```
+
+Puis **afficher à l'utilisateur** :
+
+```
+Worktree prêt. Lance Claude depuis le worktree :
+
+  cd ../demarches-simplifiees.fr-perf-$NOM && claude
+```
+
+**STOP — ne pas continuer.** L'utilisateur relance Claude dans le worktree.
 
 ---
 
-## Phase 2 : Commandes de référence
+## Phase 2 : Init (depuis le worktree)
+
+L'agent détecte qu'il est dans un worktree (`git rev-parse --show-toplevel` ≠ repo principal). Il initialise l'environnement :
+
+```bash
+bundle check || bundle install
+bin/rails db:test:prepare  # ⚠️ JAMAIS db:schema:load (PostGIS casse)
+bundle exec spring start   # élimine le boot ~3s par run
+```
+
+Puis enchaîner directement sur l'étape 1 du workflow (profiling baseline).
+
+---
+
+## Commandes de référence
 
 ### Lancer un fichier spec (temps)
 
 ```bash
-bundle exec rspec spec/path/to/file_spec.rb
+bundle exec spring rspec spec/path/to/file_spec.rb
 ```
 
 **Sans `COVERAGE=true`** — l'overhead SimpleCov fausse les mesures (5-15%).
@@ -43,7 +63,7 @@ bundle exec rspec spec/path/to/file_spec.rb
 
 ```bash
 rm -f coverage/.resultset.json  # éviter accumulation entre runs
-COVERAGE=true bundle exec rspec spec/path/to/file_spec.rb
+COVERAGE=true bundle exec spring rspec spec/path/to/file_spec.rb
 ```
 
 ### Extraire le % coverage depuis SimpleCov
@@ -75,9 +95,13 @@ cat coverage/.resultset.json | ruby -rjson -e '
 ## Phase 3 : Cleanup (après kaizen)
 
 ```bash
-# Revenir au repo principal
+bundle exec spring stop
+```
+
+L'agent ne fait **jamais** le cleanup du worktree — c'est l'humain qui décide quand le supprimer.
+
+```bash
+# Depuis le repo principal :
 cd /Users/mfo/dev/demarches-simplifiees.fr
 git worktree remove ../demarches-simplifiees.fr-perf-$NOM
 ```
-
-L'agent ne fait **jamais** le cleanup — c'est l'humain qui décide quand supprimer le worktree.
