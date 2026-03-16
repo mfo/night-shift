@@ -185,7 +185,7 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 ## Inventaire
 
 **Source :** CI GitHub Actions du 2026-03-15
-**Fichier :** `pocs/2-test-optimization/slow-tests-inventory.md`
+**Fichier :** `pocs/test-optimization/slow-tests-inventory.md`
 
 | Catégorie | Fichiers | Tests lents | Temps cumulé |
 |---|---|---|---|
@@ -215,9 +215,9 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 
 | Fichier | Rôle |
 |---|---|
-| `pocs/2-test-optimization/spec.md` | Ce fichier — spec complète |
-| `pocs/2-test-optimization/setup.md` | Setup (worktree, DB, prérequis) |
-| `pocs/2-test-optimization/slow-tests-inventory.md` | Inventaire + suivi avant/après/gain |
+| `pocs/test-optimization/spec.md` | Ce fichier — spec complète |
+| `pocs/test-optimization/setup.md` | Setup (worktree, DB, prérequis) |
+| `pocs/test-optimization/slow-tests-inventory.md` | Inventaire + suivi avant/après/gain |
 | `.claude/skills/test-optimization/SKILL.md` | Skill agent |
 | `.claude/skills/test-optimization/patterns.md` | Catalogue des techniques communes (lecture seule) |
 | `.claude/skills/test-optimization/patterns-system.md` | Catalogue des techniques system specs (lecture seule) |

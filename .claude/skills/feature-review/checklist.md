@@ -435,7 +435,7 @@ end
 **Template :** `template.md` (dans ce dossier)
 **Input :** Feature implémentée (Phase 2)
 **Patterns :** `../feature-implementation/patterns.md`
-**Methodology :** `pocs/4-features/setup.md`
+**Methodology :** `pocs/features/setup.md`
 
 ---
 

@@ -492,7 +492,7 @@ git rebase -i HEAD~N --autosquash
 **PR :** #XXXX
 **Spec :** `specs/YYYY-MM-DD-[nom]-spec.md`
 **Plan :** `specs/YYYY-MM-DD-[nom]-implementation-plan.md`
-**Methodology :** `pocs/4-features/setup.md`
+**Methodology :** `pocs/features/setup.md`
 
 ---
 

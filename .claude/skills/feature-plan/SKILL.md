@@ -32,7 +32,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    - 10 patterns à appliquer dans le plan
    - Scores 8-10/10
 
-4. **`pocs/4-features/setup.md`**
+4. **`pocs/features/setup.md`**
    - Vue d'ensemble workflow complet
 
 ---

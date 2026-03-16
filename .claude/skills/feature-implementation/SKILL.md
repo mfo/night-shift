@@ -32,7 +32,7 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
    - Structure commits atomiques
    - Plan d'implémentation détaillé
 
-4. **`pocs/4-features/setup.md`**
+4. **`pocs/features/setup.md`**
    - Vue d'ensemble workflow complet
 
 ---

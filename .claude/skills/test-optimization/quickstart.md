@@ -50,7 +50,11 @@ COVERAGE=true bundle exec rspec spec/path/to/file_spec.rb
 ```bash
 cat coverage/.resultset.json | ruby -rjson -e '
   data = JSON.parse(STDIN.read)
-  lines = data.values.first["coverage"].values.flat_map { |f| f["lines"] }.compact
+  # Only count files actually exercised (at least one line hit)
+  touched = data.values.first["coverage"].select { |_path, info|
+    info["lines"]&.any? { |l| l && l > 0 }
+  }
+  lines = touched.values.flat_map { |f| f["lines"] }.compact
   covered = lines.count { |l| l && l > 0 }
   total = lines.count { |l| !l.nil? }
   puts "Coverage: #{(covered.to_f / total * 100).round(2)}%"

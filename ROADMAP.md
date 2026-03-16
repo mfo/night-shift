@@ -51,7 +51,7 @@ Spec v4 prête, skill prêt, inventaire 52 fichiers. PR #12788 ouverte en WIP po
 
 **Prochaine action :** intégrer le feedback équipe dans `patterns.md`, puis lancer le skill sur un premier fichier en supervisé.
 
-**Référence :** `pocs/2-test-optimization/spec.md`
+**Référence :** `pocs/test-optimization/spec.md`
 
 ---
 

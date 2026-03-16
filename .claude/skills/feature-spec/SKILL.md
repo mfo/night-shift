@@ -32,7 +32,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
    - 10 patterns validés (score 8-10/10)
    - Utile pour détection proactive
 
-4. **`pocs/4-features/setup.md`**
+4. **`pocs/features/setup.md`**
    - Vue d'ensemble 4 phases workflow
 
 ---

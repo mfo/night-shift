@@ -327,7 +327,7 @@ grep -r "NewQueryName" app/
 **Template :** `template.md` (dans ce dossier)
 **Input :** Spec validée Phase 0
 **Patterns :** `../feature-implementation/patterns.md`
-**Methodology :** `pocs/4-features/setup.md`
+**Methodology :** `pocs/features/setup.md`
 **Prochaine phase :** `../feature-implementation/checklist.md`
 
 ---
