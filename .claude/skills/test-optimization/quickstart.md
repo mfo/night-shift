@@ -42,6 +42,7 @@ bundle exec rspec spec/path/to/file_spec.rb
 ### Lancer un fichier spec (coverage)
 
 ```bash
+rm -f coverage/.resultset.json  # éviter accumulation entre runs
 COVERAGE=true bundle exec rspec spec/path/to/file_spec.rb
 ```
 

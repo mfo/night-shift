@@ -55,11 +55,16 @@ C'est la baseline (temps + coverage). Les temps CI sont indicatifs, le local fai
 Pour chaque technique du catalogue (communes + system si `spec/system/`) :
 
 1. **Appliquer** la technique
-2. **Vérifier tests + couverture** (un seul run) :
+2. **Vérifier tests** (un seul run) :
    ```bash
-   COVERAGE=true bundle exec rspec spec/path/to/file_spec.rb
+   bundle exec rspec spec/path/to/file_spec.rb
    ```
    - Si un test casse → rollback et passer à la technique suivante.
+   - **Vérifier la coverage si :** du code source (`app/`) a été modifié, OU des `it`/`describe` ont été supprimés/fusionnés (risque de perdre un cas couvert). **Skip le run coverage** pour les refactors setup-only (let_it_be, let! → let, before_all, aggregate_failures…) qui ne changent pas les cas testés.
+   ```bash
+   rm -f coverage/.resultset.json
+   COVERAGE=true bundle exec rspec spec/path/to/file_spec.rb
+   ```
    - Comparer la coverage avec la baseline courante (initiale à l'étape 1, puis mise à jour après chaque commit). **Toute baisse = rollback immédiat.**
 3. **Mesurer le gain** (1 warm-up + 3 runs, médiane, **SANS** `COVERAGE=true` — l'overhead fausserait les temps) :
    ```bash

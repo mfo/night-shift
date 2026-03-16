@@ -39,3 +39,15 @@ spec/services/instructeur_procedures_counters_service_spec.rb,37.38,1c04bf754c
 spec/system/routing/rules_full_scenario_spec.rb,55.1,6abe04fe55
 spec/system/instructeurs/instruction_spec.rb,58.66,98014b0b76
 spec/system/users/dropdown_spec.rb,FAILED,16d6d02570
+spec/system/administrateurs/procedure_cloning_spec.rb,44.64,1939ffcb2b
+spec/system/administrateurs/api_referentiel_spec.rb,FAILED,d74086d24b
+spec/system/instructeurs/expert_spec.rb,49.85,ce32d033fa
+spec/system/users/brouillon_spec.rb,FAILED,7212d97b0d
+spec/system/accessibilite/wcag_usager_spec.rb,45.63,1939ffcb2b
+spec/system/api_particulier/api_particulier_spec.rb,FAILED,6b58fbef44
+spec/system/instructeurs/procedure_export_template_zip_spec.rb,43.81,1c7182a00c
+spec/system/administrateurs/procedure_attestation_template_spec.rb,45.45,16d6d02570
+spec/system/instructeurs/procedure_filters_spec.rb,46.32,17694917d7
+spec/system/administrateurs/procedure_publish_spec.rb,46.15,16d6d02570
+spec/system/experts/expert_spec.rb,45.55,889bfb88ab
+spec/system/instructeurs/instructeur_creation_spec.rb,43.17,6abe04fe55
