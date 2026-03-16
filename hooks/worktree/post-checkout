@@ -55,6 +55,19 @@ else
   echo "==> .env déjà présent"
 fi
 
+# Symlink Procfile.sidekiq.dev depuis le repo principal
+procfile_dev="$worktree_path/Procfile.sidekiq.dev"
+if [ ! -e "$procfile_dev" ]; then
+  if [ -f "$main_repo/Procfile.sidekiq.dev" ]; then
+    ln -s "$main_repo/Procfile.sidekiq.dev" "$procfile_dev"
+    echo "==> Procfile.sidekiq.dev symlinké depuis le repo principal"
+  else
+    echo "⚠️  Pas de Procfile.sidekiq.dev trouvé dans le repo principal ($main_repo)"
+  fi
+else
+  echo "==> Procfile.sidekiq.dev déjà présent"
+fi
+
 echo "==> Configuration de la base de données: $db_name"
 
 # Crée ou met à jour .env.test.local avec le nom de DB unique
@@ -88,6 +101,19 @@ else
     exit 0
   }
 fi
+
+# Installation des dépendances
+cd "$worktree_path"
+
+echo "==> Installation des gems Ruby (bundle install)"
+bundle install --quiet || {
+  echo "⚠️  Erreur lors du bundle install."
+}
+
+echo "==> Installation des packages JS (bun install)"
+bun install || {
+  echo "⚠️  Erreur lors du bun install."
+}
 
 echo "✓ Configuration worktree terminée!"
 echo "  → Base de données: $db_name"
