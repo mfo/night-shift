@@ -19,6 +19,8 @@ Ce document catalogue les **patterns découverts et validés** au fil des sessio
 
 ## 📊 Index Patterns par Score
 
+> **Note :** Scores d'utilité estimés par le créateur sur 1 feature (N=1). Servent de guide de priorisation, pas de mesure objective.
+
 | Pattern | Score | Phase | Fréquence |
 |---------|-------|-------|-----------|
 | [Migration DB Safe (3 commits)](#pattern-1--migration-db-safe-3-commits) | 10/10 | Create-Plan | Élevée |
@@ -722,5 +724,5 @@ N+1 query (1 par tunnel actif) mais N petit (< 10) → simplicité > optimisatio
 
 **Version :** 2.0
 **Source :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
-**Status :** Production-ready, 10 patterns validés empiriquement
+**Status :** Stabilisé (testé sur 1 feature, N=1), 10 patterns validés empiriquement
 

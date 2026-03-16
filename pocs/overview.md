@@ -35,7 +35,7 @@
 - Claude peut convertir HAML→ERB en 30-45min autonome
 - Markup HTML reste identique
 - Tests passent sans modification
-- Fire-and-forget réel (pas de supervision)
+- Supervision minimale (0-1 intervention)
 
 **Setup :** `pocs/1-haml/setup.md` ✅
 
@@ -247,7 +247,7 @@ Exemples de bugs "agent-friendly" :
 - ✅ Objectif atteint (code mergeable)
 - ✅ Tests passent
 - ✅ Temps < budget (+20% max)
-- ✅ Fire-and-forget (0-1 intervention)
+- ✅ Supervision minimale (0-1 intervention)
 - ✅ Rapport clair et actionnable
 
 ### POC Partiellement Réussi (Score 3/5)
@@ -278,7 +278,7 @@ Exemples de bugs "agent-friendly" :
 - Peut-être abandonner les types trop complexes
 
 **Si ≤ 1 POC validé :**
-- Revoir hypothèse fire-and-forget
+- Revoir hypothèse supervision minimale
 - Augmenter contexte/documentation
 - Ou pivoter vers workflow assisté (vs autonome)
 

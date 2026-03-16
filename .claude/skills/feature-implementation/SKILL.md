@@ -10,7 +10,7 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 **Ta mission :** Exécuter le plan d'implémentation atomique avec tests verts à chaque étape.
 
 **Temps estimé :** 8-20h (selon complexité)
-**Score autonomie cible :** 7/10
+**Score autonomie cible (cible) :** 7/10
 
 ---
 

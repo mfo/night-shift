@@ -49,9 +49,9 @@
 
 **Contexte :** Implémentation de features complexes (refactorings architecturaux, migrations DB, workflows multi-composants)
 
-**Objectif :** Workflow agent-friendly en 4 phases pour passer d'un problème/besoin à une feature production-ready
+**Objectif :** Workflow agent-friendly en 4 phases pour passer d'un problème/besoin à une feature mergeable
 
-**Score autonomie visé :** 7-9/10 selon phase
+**Score autonomie visé :** 7-9/10 selon phase (auto-évalué)
 
 ---
 
@@ -63,7 +63,7 @@ Phase 0: Create-Spec (4-8h)
   ├─ Conception architecture (décisions avec user)
   ├─ Rédaction spec v1 (15 sections)
   ├─ Review agent PM (obligatoire si > 500 lignes)
-  └─ Itérations user → Spec production-ready
+  └─ Itérations user → Spec validée
       ↓
 Phase 1: Create-Plan (1-2h)
   ├─ Lecture spec complète
@@ -90,7 +90,7 @@ Phase 3: Review & Cleanup (1-3h)
 ## Phase 0 : Create-Spec (4-8h)
 
 ### Objectif
-Créer une spécification technique production-ready documentant toutes les décisions d'architecture.
+Créer une spécification technique validée documentant toutes les décisions d'architecture.
 
 ### Quand utiliser ?
 - ✅ Bug architectural (nécessite refactoring global)
@@ -234,7 +234,7 @@ find spec -name "*nom_fichier*_spec.rb"
 **Checkpoint :**
 - [ ] Review findings analysés ?
 - [ ] Problèmes critiques corrigés ?
-- [ ] Spec v2 production-ready ?
+- [ ] Spec v2 validée ?
 
 ---
 
@@ -881,4 +881,4 @@ git rebase -i HEAD~N --autosquash
 
 **Version :** 2.0
 **Sources :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
-**Status :** Production-ready, testé sur feature complexe (17 commits, 7 phases, 8-15h)
+**Status :** Stabilisé, testé sur 1 feature (17 commits, 7 phases, 8-15h — N=1)

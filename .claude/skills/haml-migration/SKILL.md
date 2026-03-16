@@ -58,6 +58,8 @@ def auto_sign_in_dev_user
 end
 ```
 
+> **Note RGPD :** L'email et le mot de passe ci-dessus sont des **valeurs mock pour l'environnement de dev local**. Ce code n'est jamais commité dans le repo cible (instruction "NE JAMAIS COMMITER" ci-dessus). Les screenshots de validation visuelle sont pris sur une **base de dev anonymisée** (seed data fictive), sans données personnelles réelles.
+
 **2. Invalidation cache ViewComponent** — créer `config/initializers/view_component_dev_reload.rb` :
 ```ruby
 # Force le reload des templates ViewComponent à chaque requête en dev

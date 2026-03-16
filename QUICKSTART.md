@@ -16,7 +16,7 @@ claude
 # 3. Utiliser le slash command
 /haml-migrate app/views/release_notes/_announce.html.haml
 
-# 4. Observer (fire-and-forget)
+# 4. Observer (supervision minimale)
 # 5. Après : /results puis /kaizen
 ```
 
@@ -69,7 +69,7 @@ cp kaizen/templates/task.md pocs/1-haml/kaizen-$(date +%Y-%m-%d).md
 → Itérer : améliorer prompt, retry POC 1 v2
 
 **Si POC 1 score ≤ 2/5 :**
-→ Analyser causes, revoir hypothèse fire-and-forget
+→ Analyser causes, revoir hypothèse supervision minimale
 
 ---
 

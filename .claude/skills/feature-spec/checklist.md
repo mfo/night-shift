@@ -8,14 +8,14 @@
 
 ## 🎯 Vue d'Ensemble Phase 0
 
-**Objectif :** Créer une spécification technique production-ready
+**Objectif :** Créer une spécification technique complète et validée
 
 **Livrables attendus :**
 - `specs/YYYY-MM-DD-[nom]-spec.md` (spec finale)
 - `specs/YYYY-MM-DD-[nom]-review-v1.md` (review PM)
 - `specs/YYYY-MM-DD-[nom]-review-v2.md` (validation finale)
 
-**Score autonomie cible :** 7/10 seul, 9/10 avec review PM
+**Score autonomie cible (cible) :** 7/10 seul, 9/10 avec review PM
 
 ---
 
@@ -211,7 +211,7 @@
 - [ ] Edge cases couverts ?
 
 **Checkpoint :**
-- Spec v2 production-ready ?
+- Spec v2 validée ?
 
 ---
 
@@ -232,7 +232,7 @@
 
 **Checkpoint final Phase 0 :**
 - [ ] User approuve l'architecture ?
-- [ ] Spec finale production-ready ?
+- [ ] Spec finale validée ?
 - [ ] Prêt pour Phase 1 (Create-Plan) ?
 
 ---
@@ -323,5 +323,5 @@ cat db/schema.rb | grep -A3 "unique: true"
 
 **Version :** 2.0
 **Source :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
-**Status :** Production-ready
+**Status :** Stabilisé (testé sur 1 feature, N=1)
 

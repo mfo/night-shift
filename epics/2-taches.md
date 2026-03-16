@@ -2,7 +2,7 @@
 
 **Status :** 📋 Phase 2 (Après validation POCs)
 **Effort :** 3-4h
-**Priorité :** MEDIUM (après validation fire-and-forget sur POC 1-2)
+**Priorité :** MEDIUM (après validation supervision minimale sur POC 1-2)
 
 **Note :** Phase 1 utilise lancement manuel (pas de queue, pas de scripts). Le système de queue sera implémenté seulement si POCs 1-2 validés (≥ 4/5).
 
@@ -15,7 +15,7 @@
 **Solution MVP (Phase 2) :** Queuing manuel + scripts bash simples
 
 **Résultat attendu :**
-- Workflow fire-and-forget fonctionnel
+- Workflow supervision minimale fonctionnel
 - Scripts pour lancer/review facilement
 - Rapports structurés et actionnables
 
@@ -289,7 +289,7 @@ OU
 
 ### Objectif
 
-Lancer Claude sur une tâche dans un worktree isolé en mode fire-and-forget
+Lancer Claude sur une tâche dans un worktree isolé en mode supervision minimale
 
 ### Usage
 

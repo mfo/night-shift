@@ -869,5 +869,5 @@ bundle exec rspec spec/components/
 
 **Template version :** 2.0
 **Basé sur learnings :** Sessions 1-6 (Simpliscore tunnel_id)
-**Status :** Production-ready, testé sur feature complexe (17 commits, 8-15h)
+**Status :** Stabilisé (testé sur 1 feature, N=1) — feature complexe (17 commits, 8-15h)
 

@@ -498,5 +498,5 @@ git rebase -i HEAD~N --autosquash
 
 **Template version :** 2.0
 **Basé sur learnings :** Session 5 (Review & Cleanup)
-**Status :** Production-ready, testé sur feature tunnel_id
+**Status :** Stabilisé (testé sur 1 feature, N=1) — feature tunnel_id
 

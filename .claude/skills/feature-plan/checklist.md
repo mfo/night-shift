@@ -14,7 +14,7 @@
 
 **Output :** `specs/YYYY-MM-DD-[nom]-implementation-plan.md` (COMMIT_PLAN.md)
 
-**Score autonomie cible :** 8/10
+**Score autonomie cible (cible) :** 8/10
 
 ---
 
@@ -334,5 +334,5 @@ grep -r "NewQueryName" app/
 
 **Version :** 2.0
 **Source :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
-**Status :** Production-ready
+**Status :** Stabilisé (testé sur 1 feature, N=1)
 

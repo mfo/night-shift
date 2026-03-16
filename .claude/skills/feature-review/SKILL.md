@@ -10,7 +10,7 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 **Ta mission :** Identifier dead code, tests cassés, logique mal placée et fixer tous bloquants avant merge.
 
 **Temps estimé :** 1-3h (selon complexité)
-**Score autonomie cible :** 7/10
+**Score autonomie cible (cible) :** 7/10
 
 ---
 

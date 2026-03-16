@@ -10,7 +10,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 **Ta mission :** Transformer une spec technique en plan exécutable avec commits atomiques.
 
 **Temps estimé :** 1-2h
-**Score autonomie cible :** 8/10
+**Score autonomie cible (cible) :** 8/10
 
 ---
 
@@ -246,7 +246,7 @@ Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi) pour valider 
 
 ---
 
-## ✅ Checklist Production-Ready
+## ✅ Checklist Plan Validé
 
 Avant de soumettre le plan au user :
 

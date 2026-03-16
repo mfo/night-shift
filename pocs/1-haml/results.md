@@ -220,7 +220,7 @@ git diff app/views/release_notes/_announce.html.erb
 
 **Options :**
 - Pivoter vers use case plus simple (ex: Tests coverage)
-- Revoir hypothèse fire-and-forget
+- Revoir hypothèse supervision minimale
 - Augmenter niveau de contexte/documentation
 
 ---

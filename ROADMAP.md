@@ -27,14 +27,14 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
   - 📄 [Kaizen Phase 3.1](kaizen/1-haml/iteration-1/kaizen-2026-03-10-phase-3.1.md)
   - 📄 [Session complète](kaizen/1-haml/iteration-1/kaizen-2026-03-10-session-complete.md)
 
-**Score moyen :** 7.7/10 (évolution 3→8→9)
+**Score moyen (auto-évalué) :** 7.7/10 (évolution 3→8→9)
 
 **Learnings clés :**
 - 5 patterns critiques identifiés (arrays, balises, espacement, guillemets, helpers)
 - Validation locale obligatoire (linter + tests)
 - Stratégie "ultra-simples d'abord" = zéro risque
 
-**Status :** ✅ Skill v3 production-ready pour fichiers simples
+**Status :** ✅ Skill v3 stabilisé pour fichiers simples (N=1)
 
 ---
 
@@ -48,14 +48,14 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 - **Implémentation** : 20min → Score 4.8/5
   - 📄 [Kaizen Implémentation](kaizen/3-bugs/2026-03-10-bug-429-mistral-api-implementation.md)
 
-**Score global : 4.7/5** ✅
+**Score global (auto-évalué) : 4.7/5** ✅
 
 **Learnings clés :**
 - Split = 50% gain temps vs approche monolithique
 - Handoff clair (rapport investigation) = 0 question nécessaire
 - 3 patterns découverts (Rate limiting API, Enqueue massif, Suppression > Désactivation)
 
-**Status :** ✅ Workflow production-ready pour bugs complexes
+**Status :** ✅ Workflow testé sur 1 bug complexe (à valider sur davantage de cas)
 
 ---
 
@@ -74,7 +74,7 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 - **Phase 3 : Review & Cleanup** → À valider (1-3h estimé)
   - 📄 [Session 5 Review](kaizen/4-features/iteration-1/session-5-review-cleanup.md)
 
-**Score moyen : 8.2/10** (phases 0-1 validées)
+**Score moyen (auto-évalué) : 8.2/10** (phases 0-1 testées sur 1 feature)
 
 **Learnings clés :**
 - Review agent PM détecte 15 problèmes critiques (spec > 500 lignes)
@@ -174,8 +174,8 @@ Déléguer des tâches répétitives à des agents IA. Apprendre ce qui marche (
 | **POC 3 - Bugs** | 1 | 4.7/5 | ✅ Workflow validé |
 | **POC 4 - Features** | 2 (spec+plan) | 8.2/10 | ⚠️ Implémentation à valider |
 
-**Définition scores :**
-- **8-10/10** : Production-ready (autonomie élevée)
+**Définition scores (auto-évalués, N=1) :**
+- **8-10/10** : Autonomie élevée (supervision minimale)
 - **5-7/10** : Utilisable (supervision modérée)
 - **< 5/10** : Non viable (trop d'interventions)
 
@@ -280,7 +280,7 @@ skills/
 
 ```markdown
 # Contexte
-Night Shift - Démonstrateur pipelines de dev avec IA
+Night Shift - Démonstrateur workflows de dev avec IA
 État : Voir ROADMAP.md section "Ce qui est fait"
 
 # Objectif session

@@ -192,7 +192,7 @@ DossierService.new(dossier).process
 
 **Objectif :** **RÉDUIRE LES DEMANDES D'AUTORISATION**
 
-**C'est le fichier le plus critique pour le workflow fire-and-forget.**
+**C'est le fichier le plus critique pour le workflow supervision minimale.**
 
 **Contenu :**
 
@@ -221,7 +221,7 @@ DossierService.new(dossier).process
 4. Ai-je respecté les patterns ?
 
 **Pourquoi c'est critique :**
-Sans ce fichier, Claude demandera autorisation pour tout → casse le fire-and-forget
+Sans ce fichier, Claude demandera autorisation pour tout → casse le supervision minimale
 
 ---
 

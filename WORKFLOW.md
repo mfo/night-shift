@@ -76,7 +76,7 @@ Ce slash command :
 **Focus kaizen :**
 - Ce qui a bien marché → à réutiliser
 - Ce qui a coincé → à améliorer
-- Agent-friendly score → est-ce vraiment fire-and-forget ?
+- Agent-friendly score → est-ce vraiment supervision minimale ?
 - Améliorations concrètes → essentials.md v2 ? skill v1.1 ?
 
 ### Étape 5 : Décision (5min)
@@ -114,7 +114,7 @@ cat pocs/overview.md  # Lire planning Semaine 1
 
 ### Objectif
 
-Transformer le kaizen en commit qui raconte l'histoire de l'évolution du pipeline. Le git log doit être **une histoire fluide**, pas une suite de commits aléatoires.
+Transformer le kaizen en commit qui raconte l'histoire de l'évolution du workflow. Le git log doit être **une histoire fluide**, pas une suite de commits aléatoires.
 
 ### Workflow Kaizen → Commit
 
@@ -192,7 +192,7 @@ git commit -m "[message proposé par Claude]"
 
 ```markdown
 # Contexte
-Je travaille sur Night Shift, un pipeline Toyotiste pour dev logiciel.
+Je travaille sur Night Shift, un workflow de dev logiciel assisté par IA.
 Le ground 0 pose une hypothèse : "Un agent IA peut-il migrer HAML→ERB ?"
 
 # Kaizen Phase 1.1
@@ -250,7 +250,7 @@ Améliorations:
 - essentials.md: patterns HAML→ERB critiques
 - skill: validation locale + règles complètes
 
-Hypothèse invalidée: fire-and-forget impossible sans validation
+Hypothèse invalidée: supervision minimale impossible sans validation
 Prochaine étape: tester skill amélioré (target: 8/10)
 ```
 
@@ -356,7 +356,7 @@ Crée le kaizen de cette tâche.
 15:15 - /kaizen (10min pour documenter)
 
 Durée totale : 42min POC + 20min doc = 62min
-Score : 5/5 (aucune intervention, fire-and-forget total)
+Score : 5/5 (aucune intervention, supervision minimale total)
 ```
 
 ### Exemple Session Partiellement Réussie (Score 3/5)
@@ -407,7 +407,7 @@ Le v1.1 doit avoir un score ≥ v1.0 + 1 point.
 
 ## 💡 Tips
 
-### Pour Maximiser Fire-and-Forget
+### Pour Maximiser Supervision Minimale
 
 1. **Essentials.md clair** : Plus c'est clair, moins de questions
 2. **Prompt détaillé** : Exemples concrets > instructions vagues

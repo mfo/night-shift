@@ -415,5 +415,5 @@ rails dbconsole
 
 **Version :** 2.0
 **Source :** Sessions 1-6 kaizen (Simpliscore tunnel_id)
-**Status :** Production-ready
+**Status :** Stabilisé (testé sur 1 feature, N=1)
 

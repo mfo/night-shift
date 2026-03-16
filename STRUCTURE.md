@@ -195,7 +195,7 @@ Worktree POC
     ↓
 .claude/skills/X/SKILL.md (skill v1)
     ↓
-Claude exécute (fire-and-forget)
+Claude exécute (supervision minimale)
     ↓
 Résultats dans worktree
 ```

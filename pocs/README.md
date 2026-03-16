@@ -41,7 +41,7 @@ pocs/X-nom/
 
 ### 2. Exécution
 - Lancer Claude avec le prompt
-- Observer sans intervenir (fire-and-forget)
+- Observer sans intervenir (supervision minimale)
 - Noter temps écoulé
 
 ### 3. Documentation
@@ -110,7 +110,7 @@ Créer dans `.claude/commands/` du worktree
 - ✅ Objectif atteint (code mergeable)
 - ✅ Tests passent
 - ✅ Temps < budget (+20% max)
-- ✅ Fire-and-forget (0-1 intervention)
+- ✅ Supervision minimale (0-1 intervention)
 - ✅ Rapport clair et actionnable
 
 ### POC Partiellement Réussi (3/5)
@@ -135,7 +135,7 @@ Après chaque POC, documenter dans `kaizen/` :
 - Questions Claude a posées
 - Blocages rencontrés
 - Agent-friendly score (1-10)
-- Fire-and-forget réussi ? (OUI/NON)
+- Supervision minimale réussi ? (OUI/NON)
 
 **Décisions :**
 - Continuer avec POC suivant ?
@@ -159,7 +159,7 @@ cat .claude/context/essentials.md
 # Copier le prompt de pocs/1-haml/setup.md
 # OU utiliser slash command (si créé)
 
-# 4. Observer (fire-and-forget)
+# 4. Observer (supervision minimale)
 # Noter heure début/fin
 
 # 5. Documenter résultats

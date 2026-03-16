@@ -491,7 +491,7 @@ cat > .claude/tasks/queue/migrate-haml-test-1.md <<EOF
 # Migration HAML → ERB (Test 1)
 
 ## Contexte
-Test du workflow fire-and-forget
+Test du workflow supervision minimale
 
 ## Fichiers à migrer
 - app/views/dossiers/_header.html.haml
@@ -594,7 +594,7 @@ bin/launch-night-task migrate-haml-test-1
 **Objectif Phase 2 :**
 - Taux merge moyen : > 60%
 - Gain temps total : > 10h/semaine
-- Workflow fire-and-forget validé : 100% (pas de supervision)
+- Workflow supervision minimale validé : 100% (pas de supervision)
 
 ---
 

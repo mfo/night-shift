@@ -1,6 +1,6 @@
-# Night Shift - Pipelines de développement avec IA
+# Night Shift - Workflows de développement avec IA
 
-**Statut :** Démonstrateur - Apprentissage en cours
+**Statut :** Démonstrateur — Exploration et apprentissage en cours (N=1)
 
 ---
 
@@ -108,7 +108,7 @@ Pas tout automatiser d'un coup. Juste :
 
 ### Phase 0 : Identifier la complexité
 
-**Votre projet est unique.** Avant de construire un pipeline, comprendre :
+**Votre projet est unique.** Avant de construire un workflow, comprendre :
 
 **1. Les tâches répétitives**
 - Quelles tâches reviennent souvent ?
@@ -234,66 +234,68 @@ night-shift/
 
 ### POC 4 : Workflow Features (⭐ Référence)
 
-**Statut :** Production-ready - Workflow complet validé sur 6 sessions
+**Statut :** Stabilisé — workflow testé sur 1 feature par 1 utilisateur (N=1, à valider avec un 2e utilisateur)
 
 **Découverte majeure :** Un workflow en 4 phases pour développer des features avec un agent IA.
 
 #### Le Workflow Découvert
 
-**Phase 0 : Create-Spec** (4-8h) - Score autonomie : 7/10
+**Phase 0 : Create-Spec**
 - Analyse problème + architecture existante
 - Conception architecture (décisions avec user)
 - Rédaction spec v1 (15 sections obligatoires)
 - Review agent PM (obligatoire si > 500 lignes)
-- Itérations user → Spec production-ready
+- Itérations user → Spec validée
 
-**Phase 1 : Create-Plan** (1-2h) - Score autonomie : 8/10
+**Phase 1 : Create-Plan**
 - Découpage en commits atomiques (< 20)
 - 7 phases standards : DB → Infra → Features → UI → Tests → Cleanup → UX
-- Patterns validés : Migration DB Safe, Breaking Change Bloc, Tests Verts
+- Patterns identifiés : Migration DB Safe, Breaking Change Bloc, Tests Verts
 - Validation user
 
-**Phase 2 : Implementation** (8-20h) - Score autonomie : 7/10
+**Phase 2 : Implementation**
 - Exécution plan commit par commit
 - **Tests verts à chaque commit** (RÈGLE ABSOLUE)
-- Application systématique de 10 patterns validés
+- Application systématique de 10 patterns identifiés
 - Checkpoint mi-phase + fin phase
 
-**Phase 3 : Review & Cleanup** (1-3h) - Score autonomie : 7/10
+**Phase 3 : Review & Cleanup**
 - Review structurée : dead code, tests cassés, logique mal placée
 - Fixes par gravité : 🔴 Bloquants, 🟠 Importants, 🟡 Nice-to-have
 - Git absorb pour historique clean
 - Validation finale → PR mergeable
 
-#### Patterns Critiques Découverts (score 8-10/10)
+#### Patterns Découverts
 
-1. **Tests Verts à Chaque Commit** (10/10)
+> **Note :** Ces patterns ont été identifiés et testés sur 1 feature (Simpliscore tunnel_id) par 1 utilisateur. Ils sont prometteurs mais pas encore validés à l'échelle.
+
+1. **Tests Verts à Chaque Commit**
    - Interleave code + specs (PAS code first, tests later)
-   - Impact : Historique git bisectable, reviewable
+   - Impact observé : Historique git bisectable, reviewable
 
-2. **Migration DB Safe** (10/10)
+2. **Migration DB Safe**
    - 3 commits : Add nullable → Backfill → Add constraints
-   - Impact : Déploiement safe en production
+   - Impact observé : Déploiement safe en production
 
-3. **Query Object pour DRY** (10/10)
+3. **Query Object pour DRY**
    - Si logique répétée 3+ fois → extraction
-   - Impact : -45% lignes, testable isolément
+   - Impact observé : -45% lignes, testable isolément
 
-4. **State Checks Explicites** (9/10)
+4. **State Checks Explicites**
    - `.state&.in?([...])` au lieu de boolean combinations
-   - Impact : Code fragile → robuste
+   - Impact observé : Code fragile → robuste
 
-5. **Breaking Change Bloc** (9/10)
+5. **Breaking Change Bloc**
    - Change signature + Fix tous call-sites en bloc
-   - Impact : Tests cassés isolés, merge safe
+   - Impact observé : Tests cassés isolés, merge safe
 
-6. **Self-Documenting Variables** (9/10)
+6. **Self-Documenting Variables**
    - Si nesting > 2 → variables auto-documentées
-   - Impact : -40% lignes, -75% nesting
+   - Impact observé : -40% lignes, -75% nesting
 
-7. **Checkpoint Validation Uniqueness** (9/10)
+7. **Checkpoint Validation Uniqueness**
    - Rails validation DOIT matcher index DB
-   - Impact : Tests passent (SQLite) → prod ne crashe pas (PostgreSQL)
+   - Impact observé : Tests passent (SQLite) → prod ne crashe pas (PostgreSQL)
 
 #### Documentation Complète
 
@@ -309,15 +311,14 @@ Voir `pocs/4-features/` pour :
 #### Learnings Kaizen
 
 6 sessions documentées (`kaizen/session-1-6.md`) :
-- Session 1 : Implémentation initiale (7/10) - Erreur : tests cassés commits 4-15
+- Session 1 : Implémentation initiale — Erreur : tests cassés commits 4-15
 - Session 2 : 4 bugs découverts (boolean combinations, memoization)
-- Session 3 : Schema change detection (70% autonomie)
+- Session 3 : Schema change detection
 - Session 4 : Git history reconstruction (30→7 commits)
 - Session 5 : Review & cleanup (Component → Query Object)
 - Session 6 : Self-documenting variables (-45% lignes)
 
-**Temps total sur feature Simpliscore tunnel_id :** ~20h sur 6 sessions
-**Résultat :** Feature production-ready, workflow reproductible documenté
+**Résultat :** Feature mergeable, workflow documenté (à reproduire avec un 2e utilisateur)
 
 ---
 
@@ -342,6 +343,29 @@ Documentation en cours d'enrichissement.
 
 ---
 
+## 🔧 Infrastructure
+
+- **Modèle :** Claude Max (abonnement forfaitaire, pas de coût API à la tâche)
+- **Évaluations :** Les scores d'autonomie et évaluations qualitatives sont générés par le LLM lui-même — ce ne sont pas des mesures objectives
+
+## ⚠️ Limites connues
+
+- **N=1** : 1 créateur, 1 projet, 1 évaluateur — aucun résultat n'est reproductible tant qu'un 2e utilisateur indépendant n'a pas testé
+- **Périmètre = apprentissage** : l'objectif actuel n'est pas la productivité mais la capacité à créer des skills et les déployer à l'échelle
+- **Vendor lock-in opérationnel** : les skills sont structurellement liés à Claude Code (le code produit reste portable)
+
+### Seuils de rentabilité estimés par skill
+
+Un skill n'est intéressant à créer que si le volume de tâches justifie l'investissement initial :
+
+| Skill | Seuil estimé | Raisonnement |
+|---|---|---|
+| HAML→ERB | > 50 templates | En-dessous, migration manuelle plus rapide |
+
+*(Estimations tech du créateur — à prendre ou à laisser)*
+
+---
+
 ## 🎯 Philosophie
 
 ### Ce projet réussit si :
@@ -363,6 +387,6 @@ Documentation en cours d'enrichissement.
 ---
 
 *Night Shift - Démonstrateur d'apprentissage*
-*Construire des pipelines de dev adaptés à VOTRE projet*
+*Construire des workflows de dev adaptés à VOTRE projet*
 
-**On ne construit pas un outil, on apprend à construire des pipelines. L'échec fait partie du processus.**
+**On ne construit pas un outil, on apprend à construire des workflows. L'échec fait partie du processus.**

@@ -1,6 +1,6 @@
 # POC 4 : Création de Spécifications Techniques d'Architecture
 
-**Objectif :** Créer des specs techniques production-ready avec review agent PM
+**Objectif :** Créer des specs techniques complètes et validées avec review agent PM
 
 **Score cible :** 7/10 seul, 9/10 avec review agent PM
 
@@ -822,7 +822,7 @@ end
 **Checkpoint :**
 - [ ] Review findings analysés ?
 - [ ] Problèmes critiques corrigés ?
-- [ ] Spec v2 production-ready ?
+- [ ] Spec v2 validée ?
 
 ---
 
@@ -988,7 +988,7 @@ end
 
 ---
 
-## Checklist Production-Ready
+## Checklist Spec Validée
 
 Avant de soumettre spec au user :
 
@@ -1057,8 +1057,8 @@ Avant de soumettre spec au user :
 - Review agent PM efficace pour specs > 500 lignes
 - Itérations rapides user + agent fonctionnent bien
 - Query Object proactif apprécié
-- Fire-and-forget irréaliste (décisions métier nécessaires)
+- Supervision minimale irréaliste (décisions métier nécessaires)
 
 ---
 
-**Principe :** Spec production-ready permet implémentation rapide. Review agent PM critique pour qualité.
+**Principe :** Spec complète et validée permet implémentation rapide. Review agent PM critique pour qualité.

@@ -1,7 +1,7 @@
 # POC 4 : Bug Sentry Investigation - Setup
 
 **Date :** 2026-03-09
-**Objectif :** Valider que Claude peut investiguer et fixer un bug simple en mode fire-and-forget
+**Objectif :** Valider que Claude peut investiguer et fixer un bug simple avec supervision minimale
 
 ---
 

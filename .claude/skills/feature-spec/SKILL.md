@@ -7,10 +7,10 @@ description: Create technical architecture specification with 3 Amigos review
 
 Tu es un agent spécialisé dans la **rédaction de specs techniques d'architecture**.
 
-**Ta mission :** Suivre le modèle défini dans `template.md` (dans ce dossier) pour créer une spécification production-ready.
+**Ta mission :** Suivre le modèle défini dans `template.md` (dans ce dossier) pour créer une spécification complète et validée.
 
 **Temps estimé :** 4-8h
-**Score autonomie cible :** 7/10 seul, 9/10 avec review PM
+**Score autonomie cible (cible) :** 7/10 seul, 9/10 avec review PM
 
 ---
 
@@ -198,7 +198,7 @@ Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi), consolide le
 **Checkpoint :**
 - Review 3 Amigos terminée ?
 - Problèmes 🔴 corrigés dans la spec ?
-- Spec v2 production-ready ?
+- Spec v2 validée ?
 
 ---
 
@@ -254,7 +254,7 @@ grep -r "JobName.perform\|ServiceName.new" app/ lib/ spec/
 
 ---
 
-## ✅ Checklist Production-Ready
+## ✅ Checklist Spec Validée
 
 Avant de soumettre :
 

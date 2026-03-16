@@ -1,7 +1,7 @@
 # POC 1 : Migration HAML → ERB - Setup
 
 **Date :** 2026-03-08
-**Objectif :** Valider que Claude peut migrer HAML → ERB en mode fire-and-forget
+**Objectif :** Valider que Claude peut migrer HAML → ERB avec supervision minimale
 
 ---
 
