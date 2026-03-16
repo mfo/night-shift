@@ -14,7 +14,8 @@ description: Optimiser un fichier spec — profiler, explorer, optimiser, vérif
 
 - Worktree isolé avec DB dédiée (hook post-checkout)
 - Ne jamais push
-- Catalogue de techniques (lecture seule) : `/Users/mfo/dev/night-shift/pocs/2-tests/techniques.md`
+- Catalogue de techniques communes (lecture seule) : `/Users/mfo/dev/night-shift/pocs/2-tests/techniques.md`
+- Catalogue de techniques system specs (lecture seule) : `/Users/mfo/dev/night-shift/pocs/2-tests/techniques-system.md` — **à consulter en plus** quand le fichier cible est dans `spec/system/`
 - Template kaizen : `/Users/mfo/dev/night-shift/pocs/2-tests/kaizen-template.md`
 
 ---
@@ -30,7 +31,7 @@ Suivre `quickstart.md` Phase 1 : créer le worktree, installer le hook, checkout
 Voir `quickstart.md` pour les commandes exactes (runs, coverage, extraction %).
 
 1. **Temps** : 1 warm-up + 3 runs (médiane) — **SANS** `COVERAGE=true`
-2. **Coverage** : 1 run `COVERAGE=true` puis extraire le % depuis `coverage/.resultset.json`
+2. **Coverage** : vérifier d'abord la colonne `Coverage %` dans l'inventaire (`slow-tests-inventory.md`). Si elle est remplie, utiliser cette valeur comme baseline. Sinon, 1 run `COVERAGE=true` puis extraire le % depuis `coverage/.resultset.json` et mettre à jour l'inventaire.
 
 C'est la baseline (temps + coverage). Les temps CI sont indicatifs, le local fait foi.
 
@@ -51,7 +52,7 @@ C'est la baseline (temps + coverage). Les temps CI sont indicatifs, le local fai
 
 ### Étape 3 : Explorer, vérifier, décider
 
-Pour chaque technique du catalogue (`/Users/mfo/dev/night-shift/pocs/2-tests/techniques.md`) :
+Pour chaque technique du catalogue (communes + system si `spec/system/`) :
 
 1. **Appliquer** la technique
 2. **Vérifier tests + couverture** (un seul run) :
@@ -128,6 +129,7 @@ Mettre à jour `/Users/mfo/dev/night-shift/pocs/2-tests/slow-tests-inventory.md`
 - `techniques.md` est en **lecture seule** — noter les techniques découvertes dans le kaizen
 - Documenter les tentatives échouées dans le kaizen
 - **Autonome** dans le périmètre des permissions — tu fonces
+- **Choix du fichier** : pas de priorisation par lenteur. Prendre les fichiers et techniques de manière aléatoire pour maximiser la découverte de nouvelles approches
 - **Collaboratif** : si tu as besoin de quelque chose, demande une fois
 - **Mesure** : toujours 1 warm-up + 3 runs, médiane
 
