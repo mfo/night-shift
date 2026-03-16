@@ -71,7 +71,7 @@ On construit le **workflow**, pas un rapport.
 - L'agent optimise le **fichier entier**, pas seulement les lignes identifiées comme lentes
 - L'agent **re-profile en local** pour établir sa propre baseline (les temps CI ≠ local)
 - L'agent peut **modifier le code source** si c'est la root cause de la lenteur
-- `techniques.md` est en **lecture seule** pour l'agent — seule la synthèse l'enrichit
+- `patterns.md` est en **lecture seule** pour l'agent — seule la synthèse l'enrichit
 
 ### Protocole de mesure
 
@@ -149,7 +149,7 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 | `status` | frontmatter | `succes` (≥1 commit), `echec` (aucune technique viable), ou `flaky` (baseline rouge) |
 | Temps avant / après | métriques | Baseline locale (médiane 3 runs) |
 | Coverage avant / après | métriques | Via `COVERAGE=true`, doit être >= avant |
-| Technique(s) appliquée(s) | checklist | Depuis `techniques.md` |
+| Technique(s) appliquée(s) | checklist | Depuis `patterns.md` |
 | Technique(s) tentées sans succès | structuré | Technique + raison |
 | Piège(s) rencontré(s) | structuré | Cause + fix |
 | Blocages | liste plate | Ce qui a empêché d'avancer |

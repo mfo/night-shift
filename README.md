@@ -189,7 +189,7 @@ night-shift/
 │
 ├── pocs/                  # Expérimentations
 │   ├── 1-haml/            # POC migration HAML→ERB
-│   ├── 2-tests/           # POC optimisation tests
+│   ├── 2-test-optimization/ # POC optimisation tests
 │   ├── 3-bugs/            # POC correction bugs
 │   └── 4-features/        # POC workflow features (⭐ référence)
 │

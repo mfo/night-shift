@@ -149,7 +149,7 @@ night-shift/
 │   ├── README.md               # Guide
 │   ├── overview.md             # Vue d'ensemble
 │   ├── 1-haml/                 # POC 1 ✅
-│   ├── 2-tests/                # POC 2 ✅
+│   ├── 2-test-optimization/    # POC 2 ✅
 │   ├── 3-bugs/                 # POC 3 ✅
 │   └── 4-features/             # POC 4 ✅
 │

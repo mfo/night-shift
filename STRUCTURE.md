@@ -29,7 +29,7 @@ night-shift/
 │   │   ├── setup.md                # Setup POC 1
 │   │   └── results.md              # Résultats POC 1 (template)
 │   │
-│   ├── 2-tests/                    # POC 2 : Optimisation tests lents
+│   ├── 2-test-optimization/        # POC 2 : Optimisation tests lents
 │   │   └── setup.md
 │   │
 │   ├── 3-bugs/                     # POC 3 : Investigation bugs

@@ -126,7 +126,7 @@ Mettre à jour `pocs/2-test-optimization/slow-tests-inventory.md` avec les colon
 - Peut supprimer des assertions, des `it`/`describe` dupliqués
 - Peut réorganiser le setup
 - Peut appliquer n'importe quelle technique, même hors catalogue
-- `techniques.md` est en **lecture seule** — noter les techniques découvertes dans le kaizen
+- `patterns.md` est en **lecture seule** — noter les techniques découvertes dans le kaizen
 - Documenter les tentatives échouées dans le kaizen
 - **Autonome** dans le périmètre des permissions — tu fonces
 - **Choix du fichier** : pas de priorisation par lenteur. Prendre les fichiers et techniques de manière aléatoire pour maximiser la découverte de nouvelles approches

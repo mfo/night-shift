@@ -9,7 +9,7 @@
 | # | Type | Complexité | Temps | Status |
 |---|------|------------|-------|--------|
 | 1 | [HAML→ERB](1-haml/) | LOW | 30-45min | ✅ Ready |
-| 2 | [Tests Lents](2-tests/) | MEDIUM | 45-60min | ✅ Ready |
+| 2 | [Tests Lents](2-test-optimization/) | MEDIUM | 45-60min | ✅ Ready |
 | 3 | [Bug Sentry](3-bugs/) | MEDIUM | 2-3h | ✅ Ready |
 | 4 | [Feature Simple](4-features/) | MEDIUM-HIGH | 2-4h | ✅ Ready |
 

@@ -1,6 +1,6 @@
 # Techniques d'optimisation — System specs
 
-**Complément à `techniques.md`** (techniques communes). À consulter en plus quand le fichier cible est dans `spec/system/`.
+**Complément à `patterns.md`** (techniques communes). À consulter en plus quand le fichier cible est dans `spec/system/`.
 
 ---
 
