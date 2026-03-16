@@ -73,7 +73,7 @@ Spec v4 prête, skill prêt, inventaire 52 fichiers. PR #12788 ouverte en WIP po
 - #12764 en review — envisager un meilleur découpage des PRs (trop gros d'un bloc)
 
 ### Transverse
-- Séparation batch / per-item : extraire l'orchestration batch dans un skill générique — **Référence :** `specs/2026-03-14-batch-skill-architecture.md`
+- Séparation batch / per-item : extraire l'orchestration batch dans un skill générique
 - Suivi de PRs et relance : pour les tâches répétitives (HAML, tests), mécanisme pour suivre les PRs ouvertes et relancer du batch dès qu'une PR est mergée
 - MCP Sentry : connecter Sentry pour consommer le stock de bugs directement depuis l'agent
 - Review → 3 Amigos : tirer automatiquement les commentaires de review d'une PR et les piper dans `/review-3-amigos` pour boucler plus vite
@@ -92,9 +92,7 @@ Spec v4 prête, skill prêt, inventaire 52 fichiers. PR #12788 ouverte en WIP po
 
 | Fichier | Contenu |
 |---|---|
-| `README.md` | Vision et méthodologie |
-| `WORKFLOW.md` | Guide pratique (lancer un skill, kaizen) |
-| `STRUCTURE.md` | Architecture du projet |
+| `README.md` | Vision, workflow, structure |
 | `pocs/` | Setup, specs, inventaires par POC |
 | `kaizen/` | Learnings par itération |
 | `.claude/skills/` | Les skills (le livrable principal) |

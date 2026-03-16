@@ -12,8 +12,6 @@ Pas tout automatiser d'un coup. Juste : choisir UNE tâche, créer un prompt, ob
 
 ## Approche
 
-**Petits pas itératifs, adapté à VOTRE projet.** Pas de prompt géant de 2000 lignes, pas de solution universelle.
-
 1. Choisir 1 tâche répétitive
 2. Créer un skill (prompt + checklist + patterns)
 3. Tester, observer, documenter (kaizen)
@@ -31,24 +29,49 @@ Application Rails, ~30 000 commits, contraintes fortes (RGAA, sécurité, GraphQ
 | 3 | `bugfix` | Investigation + correction bugs |
 | 4 | `feature-*` | Workflow features en 4 phases (spec → plan → impl → review) |
 
-Détails dans `pocs/`.
+## Utiliser un skill
+
+Les skills sont des slash commands. Lancer Claude Code dans le projet cible :
+
+```bash
+/haml-migration app/views/path/to/file.html.haml
+/test-optimization spec/models/dossier_spec.rb
+/bugfix <description ou lien Sentry>
+/feature-spec → /feature-plan → /feature-implementation → /feature-review
+```
+
+Après une session : `/kaizen write`. Pour améliorer les skills : `/kaizen synth`.
+
+Review transversale : `/review-3-amigos <spec, plan, ou PR diff>`.
+
+## Structure
+
+```
+night-shift/
+├── .claude/skills/                    # Skills (le livrable principal)
+│   ├── haml-migration/                # POC 1
+│   ├── test-optimization/             # POC 2
+│   ├── bugfix/                        # POC 3
+│   ├── feature-spec/                  # POC 4 — Phase 0
+│   ├── feature-plan/                  # POC 4 — Phase 1
+│   ├── feature-implementation/        # POC 4 — Phase 2
+│   ├── feature-review/                # POC 4 — Phase 3
+│   ├── kaizen/                        # Transversal — write + synth
+│   └── review-3-amigos/              # Transversal — Review PM+UX+Dev
+│
+├── pocs/                              # Data projet par POC (setup, specs, inventaires)
+├── kaizen/                            # Learnings par itération
+├── specs/                             # Specs techniques ponctuelles
+└── hooks/                             # Hooks git (worktree DB)
+```
+
+Chaque POC a un numéro aligné entre skills, pocs/ et kaizen/ (ex: `2-test-optimization`).
 
 ## Limites connues
 
 - **N=1** : 1 créateur, 1 projet — aucun résultat n'est reproductible tant qu'un 2e utilisateur n'a pas testé
 - **Périmètre = apprentissage** : l'objectif est la capacité à créer des skills, pas la productivité immédiate
 - **Vendor lock-in opérationnel** : les skills sont liés à Claude Code (le code produit reste portable)
-
-## Documentation
-
-| Fichier | Contenu |
-|---|---|
-| `STRUCTURE.md` | Architecture du projet |
-| `WORKFLOW.md` | Guide pratique (lancer un POC, documenter) |
-| `QUICKSTART.md` | Démarrage rapide |
-| `pocs/` | POCs et résultats |
-| `kaizen/` | Learnings par itération |
-| `.claude/skills/` | Skills (le livrable principal) |
 
 ---
 
