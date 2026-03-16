@@ -79,7 +79,7 @@ bundle exec rspec --profile 10
 
 **Temps estimé :** 45-60min
 
-**Setup :** `pocs/2-tests/setup.md` ✅
+**Setup :** `pocs/2-test-optimization/setup.md` ✅
 
 ---
 

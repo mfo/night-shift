@@ -310,7 +310,7 @@
 ### Prompt Template : `.claude/prompts/optimize-tests.md`
 
 **Localisation :**
-- Setup POC : `night-shift/pocs/2-tests/setup.md`
+- Setup POC : `night-shift/pocs/2-test-optimization/setup.md`
 
 **Structure (~350 lignes) :**
 

@@ -108,7 +108,7 @@ Auto-remplir "Ce qu'on a appris". Si tu as besoin de quelque chose (tooling, MCP
 
 ### Étape 6 : Mettre à jour l'inventaire
 
-Mettre à jour `pocs/2-tests/slow-tests-inventory.md` avec les colonnes avant/après/gain pour le fichier traité.
+Mettre à jour `pocs/2-test-optimization/slow-tests-inventory.md` avec les colonnes avant/après/gain pour le fichier traité.
 
 ---
 
