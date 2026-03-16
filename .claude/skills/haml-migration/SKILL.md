@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf docs/migrations/screenshots:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(git -C:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(git -C:*), Bash(stat:*), Bash(touch:*)
 ---
 
 # Migration HAML → ERB
@@ -92,16 +92,13 @@ rm config/initializers/view_component_dev_reload.rb
 **❌ Ne jamais sauter un commit ou en fusionner deux.**
 
 ```
-Commit 1: chore(haml): screenshot HAML avant migration   → voir Étape 2
-Commit 2: refactor(haml): migrate NomDuComposant to ERB   → voir Étape 3
-Commit 3: chore(haml): screenshot ERB après migration     → voir Étape 4
-  ── Comparaison (Étape 5) ──
-  Si ❌ : fix → commit "fix(haml): ..." → reprendre commit 3 → re-comparer
-Commit 4: chore(haml): remove screenshots                 → voir Étape 6
-  ── Créer ou mettre à jour la PR (Étape 6) ──
+Commit 1: refactor(haml): migrate NomDuComposant to ERB   → voir Étape 3
+  ── Screenshots locaux + comparaison (Étapes 2, 4, 5) ──
+  Si ❌ : fix → commit "fix(haml): ..." → reprendre screenshots → re-comparer
+  ── Upload evidence via gist + commentaire PR (Étape 6) ──
 ```
 
-**Après chaque commit, vérifier quel est le PROCHAIN dans ce plan. Ne pas improviser l'ordre.**
+**Les screenshots ne sont JAMAIS commités dans le repo.** Ils vivent dans `/tmp/haml-migration/` et sont uploadés comme gist GitHub pour la review.
 
 ---
 
@@ -110,8 +107,8 @@ Commit 4: chore(haml): remove screenshots                 → voir Étape 6
 ### Étape 0 : Reset des répertoires de screenshots
 
 ```bash
-rm -rf docs/migrations/screenshots/haml docs/migrations/screenshots/erb
-mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
+rm -rf /tmp/haml-migration
+mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
 ```
 
 ### Étape 1 : Analyse
@@ -130,7 +127,7 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    grep -r "NomDuComposant" spec/
    ```
 
-### Étape 2 : Screenshot HAML → commit
+### Étape 2 : Screenshot HAML (local uniquement — PAS de commit)
 
 1. **Trouver une page qui affiche le composant** :
    ```bash
@@ -154,7 +151,7 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
      end
      ```
    - Visiter `localhost:3000/rails/view_components/nom_du_composant/default`
-   - Commiter le preview avec le commit 1 (il restera dans le projet — utile pour la suite)
+   - Commiter le preview avec le commit de migration (il restera dans le projet — utile pour la suite)
 
    **c. Composant trop complexe** (données imbriquées, interactions, contexte lourd) → **skip le screenshot**, documenter la raison dans la PR
    - Seuil : > 5min de setup = skip
@@ -165,16 +162,10 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
      const elements = await page.$$('.component-selector');
      for (let i = 0; i < elements.length; i++) {
        if (await elements[i].isVisible()) {
-         await elements[i].screenshot({ path: `docs/migrations/screenshots/haml/component-${i+1}.png` });
+         await elements[i].screenshot({ path: `/tmp/haml-migration/haml/component-${i+1}.png` });
        }
      }
    }
-   ```
-
-4. **Commit** (inclure le preview si créé à l'étape 2b) :
-   ```bash
-   git add docs/migrations/screenshots/haml/
-   git commit --no-gpg-sign -m "chore(haml): screenshot HAML avant migration — NomDuComposant"
    ```
 
 ### Étape 3 : Migration HAML → ERB → commit
@@ -281,22 +272,16 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
    git commit --no-gpg-sign -m "refactor(haml): migrate NomDuComposant to ERB"
    ```
 
-### Étape 4 : Screenshot ERB → commit
+### Étape 4 : Screenshot ERB (local uniquement — PAS de commit)
 
 1. **Naviguer sur la même page que l'étape 2** avec MCP Playwright
 
-2. **Capturer les screenshots ERB** avec le même script, path `docs/migrations/screenshots/erb/`
-
-3. **Commit** :
-   ```bash
-   git add docs/migrations/screenshots/erb/
-   git commit --no-gpg-sign -m "chore(haml): screenshot ERB après migration — NomDuComposant"
-   ```
+2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/erb/`
 
 ### Étape 5 : Comparaison
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
-   - Pour chaque fichier dans `docs/migrations/screenshots/erb/`, comparer sa taille avec le fichier correspondant dans `haml/`
+   - Pour chaque fichier dans `/tmp/haml-migration/erb/`, comparer sa taille avec le fichier correspondant dans `haml/`
    - Utiliser `stat -f%z` sur chaque fichier (1 appel Bash par fichier)
    - Identique au byte = ✅, différence = ❌
 
@@ -312,78 +297,85 @@ mkdir -p docs/migrations/screenshots/haml docs/migrations/screenshots/erb
      1. Corriger le fichier `.html.erb`
      2. Valider (linter + tests)
      3. `touch` le `.rb` du composant
-     4. Reprendre les screenshots ERB
+     4. Reprendre les screenshots ERB (dans `/tmp/haml-migration/erb/`)
      5. Commit le fix :
         ```bash
         git add <fichier.html.erb>
         git commit --no-gpg-sign -m "fix(haml): fix conversion NomDuComposant — <description du problème>"
         ```
-     6. Re-commiter les nouveaux screenshots ERB
-     7. Relancer la comparaison (retour au point 1)
+     6. Relancer la comparaison (retour au point 1)
 
-### Étape 6 : Suppression screenshots + PR → commit final
+### Étape 6 : Evidence via gist + PR
 
 1. **Construire le résultat de comparaison** : reprendre les résultats de l'étape 5 (✅/❌ par fichier)
 
-2. **Supprimer les screenshots** :
+2. **Créer un gist avec les screenshots** :
    ```bash
-   rm -rf docs/migrations/screenshots/haml/
+   gh gist create /tmp/haml-migration/haml/*.png /tmp/haml-migration/erb/*.png --public --desc "Screenshots migration HAML→ERB — NomDuComposant"
    ```
-   ```bash
-   rm -rf docs/migrations/screenshots/erb/
-   ```
-   ```bash
-   git rm -r docs/migrations/screenshots/
-   ```
+   Récupérer l'URL du gist dans la sortie.
 
-3. **Commit avec le résultat de comparaison dans le message** :
-   ```
-   chore(haml): remove screenshots — NomDuComposant
-
-   ✅ component-1.png
-   ✅ component-2.png
-   ```
-
-4. **Mettre à jour ou créer la PR** :
+3. **Mettre à jour ou créer la PR** :
    - Si une PR existe déjà sur la branche → mettre à jour sa description (`gh pr edit`)
    - Sinon → créer une PR (`gh pr create`)
 
-   **Template de description PR** (adapter les liens vers les commits réels) :
+4. **Ajouter un commentaire PR avec la comparaison visuelle** :
+
+   Pour construire les URLs des images du gist :
+   - Récupérer le gist ID depuis l'URL (dernière partie du path)
+   - Format des URLs raw : `https://gist.githubusercontent.com/<user>/<gist-id>/raw/<filename>`
+
+   ```bash
+   gh pr comment <pr-number> --body "$(cat <<'EOF'
+   ## Comparaison visuelle — NomDuComposant
+
+   | HAML (avant) | ERB (après) |
+   |---|---|
+   | ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/component-1.png) | ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/component-1.png) |
+
+   Résultat : ✅ Identique au byte / ❌ Différences documentées ci-dessus
+
+   [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
+   EOF
+   )"
+   ```
+
+   **⚠️ Règle Bash** : la commande `gh pr comment` avec HEREDOC nécessite `$()` — c'est la seule exception acceptée car le HEREDOC ne contient pas de commandes shell.
+
+   **Template de description PR** :
    ```markdown
    ## Migration HAML → ERB — NomDuComposant
 
-   ### Plan de commits
-   1. 📸 [`chore: screenshot HAML`](lien-commit-1) — captures avant migration ([voir screenshots](lien-tree-commit-1/docs/migrations/screenshots/haml/))
-   2. 🔄 [`refactor: migrate to ERB`](lien-commit-2) — conversion + validation
-   3. 📸 [`chore: screenshot ERB`](lien-commit-3) — captures après migration ([voir screenshots](lien-tree-commit-3/docs/migrations/screenshots/erb/))
-   4. 🧹 [`chore: remove screenshots`](lien-commit-4) — résultat comparaison dans le message de commit
-
-   ### Résultat comparaison visuelle
-   <!-- Coller ici le DIFF_RESULT -->
+   ### Commits
+   - `refactor(haml): migrate NomDuComposant to ERB` — conversion + validation
 
    ### Validation
    - Linter herb : ✅ / ❌
    - Tests : ✅ / ❌
    - Apostrophes : ✅ / ❌
-   - Screenshots : ✅ identiques au byte / ❌ différences documentées
+   - Comparaison visuelle : voir commentaire PR (screenshots via gist)
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-   Les liens `lien-tree-commit-X` pointent vers `github.com/<repo>/tree/<sha>/docs/migrations/screenshots/` — le reviewer peut voir les screenshots directement dans GitHub même après leur suppression au commit 4.
+5. **Nettoyage local** :
+   ```bash
+   rm -rf /tmp/haml-migration
+   ```
 
 ---
 
 ## Checklist
 
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Screenshot HAML capturé (+ preview si créé) → commit
+- [ ] Screenshot HAML capturé localement (`/tmp/haml-migration/haml/`)
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
 - [ ] Linter herb passé
 - [ ] Tests passés (si identifiés)
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
-- [ ] Screenshot ERB capturé → commit
+- [ ] Screenshot ERB capturé localement (`/tmp/haml-migration/erb/`)
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
-- [ ] Screenshots supprimés avec résultat dans le commit → commit final
-- [ ] PR créée ou mise à jour
+- [ ] Gist créé avec les screenshots HAML + ERB
+- [ ] PR créée/mise à jour + commentaire avec comparaison visuelle
+- [ ] `/tmp/haml-migration/` nettoyé
