@@ -13,7 +13,6 @@ description: Optimiser un fichier spec — profiler, explorer, optimiser, vérif
 ## Prérequis
 
 - Worktree isolé avec DB dédiée (hook post-checkout)
-- Ne jamais push
 - Catalogue de techniques communes (lecture seule) : `.claude/skills/test-optimization/patterns.md`
 - Catalogue de techniques system specs (lecture seule) : `.claude/skills/test-optimization/patterns-system.md` — **à consulter en plus** quand le fichier cible est dans `spec/system/`
 - Template kaizen : `.claude/skills/test-optimization/template.md`
@@ -144,23 +143,29 @@ Mettre à jour `pocs/test-optimization/slow-tests-inventory.md` avec les colonne
 
 ## Pièges connus (retours kaizen)
 
-### let_it_be : modifiers indisponibles
+### let_it_be sur ce projet
 
-`reload:` et `refind:` ne fonctionnent **pas** sur ce projet. Le `require 'test_prof/recipes/rspec/let_it_be'` est dans `spec_helper.rb:25`, chargé **avant** Rails. Les modifiers s'enregistrent via un hook qui détecte `ActiveRecord::Base`, absent à ce stade.
+`let_it_be` est utilisable mais avec 3 contraintes :
 
-**Conséquence :** `let_it_be` ne s'applique qu'aux blocs **read-only** (scopes, queries, méthodes pures). Les blocs qui mutent les objets (`accepter!`, `passer_en_instruction!`, `update`, etc.) ne peuvent pas être convertis sans pollution inter-tests.
+1. **Modifiers indisponibles.** `reload:` et `refind:` ne fonctionnent pas — le `require 'test_prof/recipes/rspec/let_it_be'` est chargé avant Rails (`spec_helper.rb:25`). Donc `let_it_be` ne s'applique qu'aux blocs **read-only** (scopes, queries, méthodes pures). Les blocs qui mutent les objets (`accepter!`, `update`, etc.) → pollution inter-tests.
 
-### let_it_be : ordre des FK
+2. **Ordre de déclaration.** L'insertion est séquentielle : déclarer les dépendances avant les dépendants (ex: `expert` avant `experts_procedure`).
 
-Avec `let!`, l'ordre de déclaration n'importait pas (eager + lazy). Avec `let_it_be`, l'insertion est séquentielle : **déclarer les dépendances avant les dépendants** (ex: `expert` avant `experts_procedure`).
+3. **FK validation Rails 7.2.** `check_all_foreign_keys_valid!` valide toutes les FK de la DB après chaque insertion. Si l'objet `let_it_be` persiste mais que ses dépendances sont nettoyées par le rollback par-test → FK orpheline détectée. Fonctionne pour les objets sans FK sensibles, échoue sinon.
 
-### DB : ne jamais lancer db:schema:load
+**Piste à explorer :** utiliser des fixtures pour les dépendances stables (administrateur, etc.) afin que `let_it_be` puisse référencer des FK qui persistent.
 
-PostGIS + libxml2 non linkée sur cette machine → `db:schema:load` échoue sur les extensions → DB vide et irrécupérable. **Toujours utiliser `db:test:prepare`** (quickstart).
+### etablissement requis par DossierOperationLog
 
-### aggregate_failures (T09) : gain marginal
+Les transitions d'état (`accepter!`, `passer_en_construction!`, etc.) créent un `DossierOperationLog` dont `serialize_subject` appelle `SerializerService.dossier` qui accède à `etablissement`. Si `etablissement` est nil → erreur.
 
-Testé sur dossier_spec — fusion de 3 `it` en 1 : aucun gain mesurable (dans le bruit). Déprioritiser cette technique sauf sur des fichiers avec beaucoup de `it` identiques (10+).
+**Conséquence :** quand on supprime un `let(:etablissement)` inutilisé (T04), vérifier que le contexte ne fait pas de transition d'état. Pistes à explorer : désactiver les `DossierOperationLog` en test, ou stuber `serialize_subject`, pour alléger le setup des transitions d'état.
+
+### aggregate_failures (T09) : efficacité liée au coût du setup
+
+Testé sur dossier_spec (setup léger) — gain marginal. Mais sur tags_substitution_concern_spec (setup avec transitions d'état dossier ~1s chacune) — **gain majeur** (4→1 = ~3s économisées).
+
+**Règle :** prioriser T09 quand le `before`/setup fait des transitions d'état (`accepter!`, `passer_en_instruction!`, `passer_en_construction!`) ou des opérations lourdes. Déprioritiser si le setup est léger (<0.3s).
 
 ## Convention de nommage
 

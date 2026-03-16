@@ -41,7 +41,8 @@ L'agent détecte qu'il est dans un worktree (`git rev-parse --show-toplevel` ≠
 
 ```bash
 bundle check || bundle install
-bin/rails db:test:prepare  # ⚠️ JAMAIS db:schema:load (PostGIS casse)
+bin/rails db:test:prepare RAILS_ENV=test
+bin/rails db:schema:load RAILS_ENV=test
 bundle exec spring start   # élimine le boot ~3s par run
 ```
 
