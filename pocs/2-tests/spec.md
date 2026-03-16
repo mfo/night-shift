@@ -31,7 +31,7 @@ On construit le **workflow**, pas un rapport.
         │  re-profiling entre chaque (nouvelle baseline)
         ▼
    ┌──────────┐
-   │ kaizen X │  kaizen/2-tests/<agent-id>/kaizen.md
+   │ kaizen X │  kaizen/test-optimization/<agent-id>/kaizen.md
    └────┬─────┘  1 kaizen par fichier
         │
         ▼
@@ -133,9 +133,9 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 
 ### Kaizen
 
-- **1 kaizen par fichier** dans `kaizen/2-tests/<agent-id>/kaizen.md`
+- **1 kaizen par fichier** dans `kaizen/test-optimization/<agent-id>/kaizen.md`
 - Agent-id = nom du fichier spec (ex: `dossier-spec`)
-- Template : `pocs/2-tests/kaizen-template.md`
+- Template : `.claude/skills/test-optimization/template.md`
 - **Kaizen toujours** — même en cas d'échec (`status: echec`)
 - **Auto-rempli** par l'agent, question à l'humain si besoin de collaborer
 - Si on relance sur le même fichier → le kaizen est écrasé
@@ -159,17 +159,17 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 
 - Mode ajouté au **skill kaizen existant** (`/kaizen synth`)
 - Déclenchée **quand l'humain décide** (pas après chaque fichier)
-- Lit tous les kaizen de `kaizen/2-tests/*/kaizen.md`
+- Lit tous les kaizen de `kaizen/test-optimization/*/kaizen.md`
 - Session **interactive** : itère sur les fichiers, compare avec le skill, propose des modifications
 - **Rien n'est écrit sans validation** de l'utilisateur
 - Propose :
   - Améliorations au skill `test-optimization`
-  - Nouvelles techniques pour `techniques.md`
+  - Nouvelles techniques pour `.claude/skills/test-optimization/patterns.md`
   - Blocages récurrents à résoudre
 
 ### Catalogue de techniques
 
-- Fichier : `pocs/2-tests/techniques.md`
+- Fichier : `.claude/skills/test-optimization/patterns.md`
 - **Lecture seule** pour les agents
 - Enrichi uniquement via `/kaizen synth` après validation humaine
 - Catalogué par une équipe de 5 experts (T01-T11 par fichier + G01-G08 globales) — voir le fichier pour le détail
@@ -218,9 +218,10 @@ Les agents sont des **explorateurs** et des **collaborateurs** :
 | `pocs/2-tests/spec.md` | Ce fichier — spec complète |
 | `pocs/2-tests/setup.md` | Setup (worktree, DB, prérequis) |
 | `pocs/2-tests/slow-tests-inventory.md` | Inventaire + suivi avant/après/gain |
-| `pocs/2-tests/techniques.md` | Catalogue des techniques (lecture seule pour agents) |
-| `pocs/2-tests/kaizen-template.md` | Template kaizen structuré |
 | `.claude/skills/test-optimization/SKILL.md` | Skill agent |
+| `.claude/skills/test-optimization/patterns.md` | Catalogue des techniques communes (lecture seule) |
+| `.claude/skills/test-optimization/patterns-system.md` | Catalogue des techniques system specs (lecture seule) |
+| `.claude/skills/test-optimization/template.md` | Template kaizen structuré |
 | `.claude/skills/kaizen/SKILL.md` | Skill kaizen (modes write + synth) |
 
 ---

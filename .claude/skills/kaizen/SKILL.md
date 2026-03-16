@@ -19,7 +19,7 @@ Après une session de travail significative. Si tu n'as rien à dire, ne dis rie
 #### 1. Suggérer la catégorie
 Basé sur le contexte de la session, proposer où ranger le kaizen :
 - `kaizen/1-haml/` si .haml/.erb
-- `kaizen/2-tests/` si tests
+- `kaizen/test-optimization/` si tests
 - `kaizen/3-bugs/` si bugfix
 - `kaizen/4-features/` si feature
 - Le dev confirme ou corrige (2 secondes).
@@ -69,7 +69,7 @@ Présenter la liste à l'utilisateur : date, catégorie, titre.
 4. Comparer : le kaizen contient-il des learnings pas encore dans le skill ?
 5. Proposer des modifications :
    - Améliorations au skill (nouvelles règles, pièges à documenter)
-   - Nouvelles techniques pour le catalogue associé (ex: `pocs/2-tests/techniques.md`)
+   - Nouvelles techniques pour le catalogue associé (ex: `.claude/skills/test-optimization/patterns.md`)
    - Blocages récurrents à résoudre (permissions, setup)
 
 #### 4. L'utilisateur valide chaque proposition

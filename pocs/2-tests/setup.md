@@ -44,6 +44,6 @@ git worktree remove ../demarches-simplifiees.fr-perf-<nom>
 - **Spec complète** : `pocs/2-tests/spec.md`
 - **Skill agent** : `.claude/skills/test-optimization/SKILL.md`
 - **Inventaire** : `pocs/2-tests/slow-tests-inventory.md`
-- **Techniques** : `pocs/2-tests/techniques.md`
-- **Template kaizen** : `pocs/2-tests/kaizen-template.md`
+- **Techniques** : `.claude/skills/test-optimization/patterns.md`
+- **Template kaizen** : `.claude/skills/test-optimization/template.md`
 - **Hook worktree** : `hooks/worktree/`

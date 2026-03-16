@@ -18,7 +18,7 @@ date: YYYY-MM-DD
 
 ## Technique(s) appliquée(s)
 
-<!-- Voir /Users/mfo/dev/night-shift/pocs/2-tests/techniques.md pour le catalogue -->
+<!-- Voir .claude/skills/test-optimization/patterns.md pour le catalogue -->
 - [ ] ...
 - [ ] autre : ...
 

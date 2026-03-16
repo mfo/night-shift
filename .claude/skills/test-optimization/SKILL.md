@@ -14,9 +14,9 @@ description: Optimiser un fichier spec — profiler, explorer, optimiser, vérif
 
 - Worktree isolé avec DB dédiée (hook post-checkout)
 - Ne jamais push
-- Catalogue de techniques communes (lecture seule) : `/Users/mfo/dev/night-shift/pocs/2-tests/techniques.md`
-- Catalogue de techniques system specs (lecture seule) : `/Users/mfo/dev/night-shift/pocs/2-tests/techniques-system.md` — **à consulter en plus** quand le fichier cible est dans `spec/system/`
-- Template kaizen : `/Users/mfo/dev/night-shift/pocs/2-tests/kaizen-template.md`
+- Catalogue de techniques communes (lecture seule) : `.claude/skills/test-optimization/patterns.md`
+- Catalogue de techniques system specs (lecture seule) : `.claude/skills/test-optimization/patterns-system.md` — **à consulter en plus** quand le fichier cible est dans `spec/system/`
+- Template kaizen : `.claude/skills/test-optimization/template.md`
 
 ---
 
@@ -91,7 +91,7 @@ perf(tests): [technique] — fichier_spec.rb
 
 **Toujours écrire un kaizen** — même en cas d'échec (aucune technique n'a fonctionné).
 
-Écrire dans `/Users/mfo/dev/night-shift/kaizen/2-tests/<agent-id>/kaizen.md` basé sur le template `/Users/mfo/dev/night-shift/pocs/2-tests/kaizen-template.md`.
+Écrire dans `/Users/mfo/dev/night-shift/kaizen/test-optimization/<agent-id>/kaizen.md` basé sur le template `.claude/skills/test-optimization/template.md`.
 
 Remplir les champs obligatoires :
 - `agent-id` : nom du fichier spec (ex: `dossier-spec`)
@@ -108,7 +108,7 @@ Auto-remplir "Ce qu'on a appris". Si tu as besoin de quelque chose (tooling, MCP
 
 ### Étape 6 : Mettre à jour l'inventaire
 
-Mettre à jour `/Users/mfo/dev/night-shift/pocs/2-tests/slow-tests-inventory.md` avec les colonnes avant/après/gain pour le fichier traité.
+Mettre à jour `pocs/2-tests/slow-tests-inventory.md` avec les colonnes avant/après/gain pour le fichier traité.
 
 ---
 
@@ -156,5 +156,5 @@ Testé sur dossier_spec — fusion de 3 `it` en 1 : aucun gain mesurable (dans l
 ## Convention de nommage
 
 - **Branche :** `perf/<nom-fichier-spec>` (ex: `perf/dossier-spec`)
-- **Kaizen :** `kaizen/2-tests/<nom-fichier-spec>/kaizen.md`
+- **Kaizen :** `kaizen/test-optimization/<nom-fichier-spec>/kaizen.md`
 - **Agent-id :** nom du fichier spec (ex: `dossier-spec`)
