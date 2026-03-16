@@ -23,4 +23,4 @@ Un skill ayant atteint le niveau **production-ready** (adoption équipe, pas seu
 
 - `haml-migration` est le candidat le plus avancé : skill le plus itéré (v6), 4 itérations kaizen, workflow validé sur plusieurs fichiers
 - `test-optimization` a un inventaire de 52 fichiers et un workflow worktree isolé, mais n'a été testé que sur 1 fichier
-- L'architecture batch a été spécifiée (`specs/2026-03-14-batch-skill-architecture.md`) mais pas implémentée
+- L'architecture batch (séparation orchestration / per-item) n'est pas encore implémentée

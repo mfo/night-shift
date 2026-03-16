@@ -67,12 +67,6 @@ night-shift/
 
 Chaque POC a un numéro aligné entre skills, pocs/ et kaizen/ (ex: `2-test-optimization`).
 
-## Limites connues
-
-- **N=1** : 1 créateur, 1 projet — aucun résultat n'est reproductible tant qu'un 2e utilisateur n'a pas testé
-- **Périmètre = apprentissage** : l'objectif est la capacité à créer des skills, pas la productivité immédiate
-- **Vendor lock-in opérationnel** : les skills sont liés à Claude Code (le code produit reste portable)
-
 ---
 
 *On ne construit pas un outil, on apprend à construire des workflows. L'échec fait partie du processus.*
