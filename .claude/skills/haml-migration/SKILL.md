@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git -C:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(stat:*), Bash(touch:*), Bash(echo:*), Bash(cp:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git -C:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(stat:*), Bash(touch:*), Bash(echo:*), Bash(cp:*)
 ---
 
 # Migration HAML → ERB
@@ -27,7 +27,9 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 # Relancer Claude Code après ajout (/exit puis claude)
 ```
 
-**Serveur de dev** doit tourner (`rails server` sur `localhost:3000`).
+**Serveur de dev** doit tourner dans le repo courant. Vérifier que `.overmind.sock` existe à la racine du repo — sinon le serveur tourne dans un autre workspace et le patch de connexion ne fonctionnera pas.
+
+**Chrome doit être fermé** avant de lancer le skill. Playwright a besoin de lancer Chrome avec son propre profil isolé — si Chrome est déjà ouvert, Playwright échoue silencieusement (`exitCode=0`) sans pouvoir prendre de screenshots.
 
 **Bypass `trusted_device_token`** : après le auto-login, `redirect_if_untrusted` bloque l'accès aux pages. Aller sur `localhost:3000/letter_opener`, ouvrir le dernier email et cliquer le lien de connexion sécurisé.
 
@@ -104,7 +106,15 @@ Commit 1: refactor(haml): migrate NomDuComposant to ERB   → voir Étape 3
 
 ## Workflow (1 fichier)
 
-### Étape 0 : Préparation gist + répertoires de screenshots
+### Étape 0 : Vérifications + lancement Playwright + préparation gist
+
+**1. Vérifier que le serveur tourne dans ce repo** :
+```bash
+stat .overmind.sock
+```
+Si le fichier n'existe pas → demander à l'utilisateur : *"Le serveur ne tourne pas dans ce workspace (.overmind.sock absent). Peux-tu le lancer ici avant qu'on continue ?"* — attendre sa confirmation avant de poursuivre.
+
+**2. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
 
 ⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via SSH pour y stocker les screenshots directement.
 
@@ -374,7 +384,10 @@ mkdir -p /tmp/haml-migration/gist/haml /tmp/haml-migration/gist/erb
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-5. **Nettoyage local** :
+5. **Fermer Playwright** (libère Chrome pour ne pas bloquer un autre skill) :
+   Appeler `mcp__playwright__browser_close`
+
+6. **Nettoyage local** :
    ```bash
    rm -rf /tmp/haml-migration
    ```
