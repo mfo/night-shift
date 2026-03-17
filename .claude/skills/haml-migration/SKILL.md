@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git checkout:*), Bash(git -C:*), Bash(bun lint:herb *), Bash(bun check-format:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(stat:*), Bash(touch:*), Bash(echo:*), Bash(cp:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git checkout:*), Bash(git -C:*), Bash(bun format:herb *), Bash(bun check-format:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake *), Bash(gh:*), Bash(stat:*), Bash(touch:*), Bash(echo:*), Bash(cp:*)
 ---
 
 # Migration HAML → ERB
@@ -121,9 +121,6 @@ Si le fichier n'existe pas → demander à l'utilisateur : *"Le serveur ne tourn
 ⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via HTTPS pour y stocker les screenshots directement.
 
 ```bash
-mkdir -p /tmp/haml-migration/gist
-```
-```bash
 echo "# Screenshots migration NomDuComposant" | gh gist create --public --desc "Screenshots migration HAML→ERB — NomDuComposant" -f README.md -
 ```
 Récupérer le gist ID depuis l'URL en sortie (dernière partie du path).
@@ -133,6 +130,7 @@ gh auth setup-git
 ```bash
 git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
 ```
+Le clone crée `/tmp/haml-migration/gist/` — les screenshots sont stockés à plat dedans (`haml-*.png`, `erb-*.png`).
 
 ### Étape 1 : Analyse
 
@@ -262,9 +260,9 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
 **⚠️ OBLIGATOIRE - Ne JAMAIS skip cette étape**
 
-1. **Linter herb** :
+1. **Formatter herb** :
    ```bash
-   bun lint:herb <fichier.html.erb>
+   bun format:herb -- <fichier.html.erb>
    ```
 
 2. **Tests locaux (si identifiés)** :
@@ -280,7 +278,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
 4. **Linter apostrophes typographiques** :
    ```bash
-   bundle exec rake apostrophe_lint
+   bundle exec rake lint:apostrophe:fix
    ```
 
 5. **Check i18n** : relire le fichier ERB et vérifier qu'aucun texte français n'est resté en dur (cf. règle 6 étape 3a)
@@ -392,7 +390,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    - `refactor(haml): migrate NomDuComposant to ERB` — conversion + validation
 
    ### Validation
-   - Linter herb : ✅ / ❌
+   - Formatter herb : ✅ / ❌
    - Tests : ✅ / ❌
    - Apostrophes : ✅ / ❌
    - Comparaison visuelle : voir commentaire PR (screenshots via gist)
@@ -425,7 +423,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 - [ ] Screenshot HAML capturé dans `/tmp/haml-migration/gist/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
-- [ ] Linter herb passé
+- [ ] Formatter herb passé
 - [ ] Tests passés (si identifiés)
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
 - [ ] Screenshot ERB capturé dans `/tmp/haml-migration/gist/erb-*.png`
