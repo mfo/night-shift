@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(git -C:*), Bash(stat:*), Bash(touch:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git -C:*), Bash(bun lint:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake:*), Bash(gh:*), Bash(stat:*), Bash(touch:*), Bash(echo:*), Bash(cp:*)
 ---
 
 # Migration HAML → ERB
@@ -95,20 +95,31 @@ rm config/initializers/view_component_dev_reload.rb
 Commit 1: refactor(haml): migrate NomDuComposant to ERB   → voir Étape 3
   ── Screenshots locaux + comparaison (Étapes 2, 4, 5) ──
   Si ❌ : fix → commit "fix(haml): ..." → reprendre screenshots → re-comparer
-  ── Upload evidence via gist + commentaire PR (Étape 6) ──
+  ── Upload evidence via gist (git clone/push) + commentaire PR (Étape 6) ──
 ```
 
-**Les screenshots ne sont JAMAIS commités dans le repo.** Ils vivent dans `/tmp/haml-migration/` et sont uploadés comme gist GitHub pour la review.
+**Les screenshots ne sont JAMAIS commités dans le repo cible.** Ils vivent dans `/tmp/haml-migration/` et sont uploadés sur un gist GitHub via git clone/push (le CLI `gh gist create` ne supporte pas les fichiers binaires).
 
 ---
 
 ## Workflow (1 fichier)
 
-### Étape 0 : Reset des répertoires de screenshots
+### Étape 0 : Préparation gist + répertoires de screenshots
+
+⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via SSH pour y stocker les screenshots directement.
 
 ```bash
 rm -rf /tmp/haml-migration
-mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
+```
+```bash
+echo "# Screenshots migration NomDuComposant" | gh gist create --public --desc "Screenshots migration HAML→ERB — NomDuComposant" -f README.md -
+```
+Récupérer le gist ID depuis l'URL en sortie (dernière partie du path).
+```bash
+git clone git@gist.github.com:<gist-id>.git /tmp/haml-migration/gist
+```
+```bash
+mkdir -p /tmp/haml-migration/gist/haml /tmp/haml-migration/gist/erb
 ```
 
 ### Étape 1 : Analyse
@@ -162,7 +173,7 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
      const elements = await page.$$('.component-selector');
      for (let i = 0; i < elements.length; i++) {
        if (await elements[i].isVisible()) {
-         await elements[i].screenshot({ path: `/tmp/haml-migration/haml/component-${i+1}.png` });
+         await elements[i].screenshot({ path: `/tmp/haml-migration/gist/haml/component-${i+1}.png` });
        }
      }
    }
@@ -276,12 +287,12 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
 
 1. **Naviguer sur la même page que l'étape 2** avec MCP Playwright
 
-2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/erb/`
+2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/gist/erb/`
 
 ### Étape 5 : Comparaison
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
-   - Pour chaque fichier dans `/tmp/haml-migration/erb/`, comparer sa taille avec le fichier correspondant dans `haml/`
+   - Pour chaque fichier dans `/tmp/haml-migration/gist/erb/`, comparer sa taille avec le fichier correspondant dans `haml/`
    - Utiliser `stat -f%z` sur chaque fichier (1 appel Bash par fichier)
    - Identique au byte = ✅, différence = ❌
 
@@ -297,7 +308,7 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
      1. Corriger le fichier `.html.erb`
      2. Valider (linter + tests)
      3. `touch` le `.rb` du composant
-     4. Reprendre les screenshots ERB (dans `/tmp/haml-migration/erb/`)
+     4. Reprendre les screenshots ERB (dans `/tmp/haml-migration/gist/erb/`)
      5. Commit le fix :
         ```bash
         git add <fichier.html.erb>
@@ -305,15 +316,20 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
         ```
      6. Relancer la comparaison (retour au point 1)
 
-### Étape 6 : Evidence via gist + PR
+### Étape 6 : Push gist + PR
 
 1. **Construire le résultat de comparaison** : reprendre les résultats de l'étape 5 (✅/❌ par fichier)
 
-2. **Créer un gist avec les screenshots** :
+2. **Pousser les screenshots sur le gist** (créé à l'Étape 0) :
    ```bash
-   gh gist create /tmp/haml-migration/haml/*.png /tmp/haml-migration/erb/*.png --public --desc "Screenshots migration HAML→ERB — NomDuComposant"
+   git -C /tmp/haml-migration/gist add .
    ```
-   Récupérer l'URL du gist dans la sortie.
+   ```bash
+   git -C /tmp/haml-migration/gist commit --no-gpg-sign -m "Add screenshots HAML + ERB"
+   ```
+   ```bash
+   git -C /tmp/haml-migration/gist push
+   ```
 
 3. **Mettre à jour ou créer la PR** :
    - Si une PR existe déjà sur la branche → mettre à jour sa description (`gh pr edit`)
@@ -323,7 +339,7 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
 
    Pour construire les URLs des images du gist :
    - Récupérer le gist ID depuis l'URL (dernière partie du path)
-   - Format des URLs raw : `https://gist.githubusercontent.com/<user>/<gist-id>/raw/<filename>`
+   - Format des URLs raw : `https://gist.githubusercontent.com/<user>/<gist-id>/raw/haml/<filename>` et `.../raw/erb/<filename>`
 
    ```bash
    gh pr comment <pr-number> --body "$(cat <<'EOF'
@@ -331,7 +347,7 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
 
    | HAML (avant) | ERB (après) |
    |---|---|
-   | ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/component-1.png) | ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/component-1.png) |
+   | ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/haml/component-1.png) | ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/erb/component-1.png) |
 
    Résultat : ✅ Identique au byte / ❌ Différences documentées ci-dessus
 
@@ -368,14 +384,15 @@ mkdir -p /tmp/haml-migration/haml /tmp/haml-migration/erb
 ## Checklist
 
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Screenshot HAML capturé localement (`/tmp/haml-migration/haml/`)
+- [ ] Gist créé + cloné en SSH dans `/tmp/haml-migration/gist/`
+- [ ] Screenshot HAML capturé dans `/tmp/haml-migration/gist/haml/`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
 - [ ] Linter herb passé
 - [ ] Tests passés (si identifiés)
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
-- [ ] Screenshot ERB capturé localement (`/tmp/haml-migration/erb/`)
+- [ ] Screenshot ERB capturé dans `/tmp/haml-migration/gist/erb/`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
-- [ ] Gist créé avec les screenshots HAML + ERB
+- [ ] Screenshots pushés sur le gist (git clone/push via SSH)
 - [ ] PR créée/mise à jour + commentaire avec comparaison visuelle
 - [ ] `/tmp/haml-migration/` nettoyé
