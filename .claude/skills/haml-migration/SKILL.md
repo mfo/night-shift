@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, Bash(git rm:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git checkout:*), Bash(git -C:*), Bash(bun format:herb *), Bash(bun check-format:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(rm -rf /tmp/haml-migration:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake *), Bash(gh:*), Bash(stat:*), Bash(touch:*), Bash(echo:*), Bash(cp:*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git checkout app/controllers/application_controller.rb), Bash(git -C /tmp/haml-migration:*), Bash(bun format:herb *), Bash(bun check-format:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake lint:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr list:*), Bash(stat *), Bash(touch:*), Bash(echo:*), Bash(bin/rails routes:*), Write(app/*), Write(spec/*), Write(config/*)
 ---
 
 # Migration HAML → ERB
@@ -11,6 +11,8 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_c
 **Input :**
 - Chemin vers un fichier `.html.haml` (ex: `app/components/alert/alert_component.html.haml`)
 - Remote git pour push/PR : `mfo` (pas `origin`)
+
+**⚠️ Règle Playwright** : ne JAMAIS naviguer en dehors de `localhost:3000`. Toutes les URLs doivent commencer par `http://localhost:3000/`.
 
 **⚠️ Règle Bash** : ne jamais utiliser de commandes qui déclenchent une approbation de sécurité. Concrètement :
 - Pas de `$()` (command substitution) — stocker dans une variable via un appel séparé
@@ -102,7 +104,7 @@ Commit 1: refactor(haml): migrate NomDuComposant to ERB   → voir Étape 3
   ── Upload evidence via gist (git clone/push) + commentaire PR (Étape 6) ──
 ```
 
-**Les screenshots ne sont JAMAIS commités dans le repo cible.** Ils vivent dans `/tmp/haml-migration/` et sont uploadés sur un gist GitHub via git clone/push (le CLI `gh gist create` ne supporte pas les fichiers binaires).
+**Les screenshots ne sont JAMAIS commités dans le repo cible.** Ils vivent dans `/tmp/haml-migration/<nom-composant>/` et sont uploadés sur un gist GitHub via git clone/push (le CLI `gh gist create` ne supporte pas les fichiers binaires). Chaque migration a son propre répertoire — pas de nettoyage nécessaire.
 
 ---
 
@@ -116,7 +118,13 @@ stat .overmind.sock
 ```
 Si le fichier n'existe pas → demander à l'utilisateur : *"Le serveur ne tourne pas dans ce workspace (.overmind.sock absent). Peux-tu le lancer ici avant qu'on continue ?"* — attendre sa confirmation avant de poursuivre.
 
-**2. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
+**2. Vérifier que le patch auto-login est en place** :
+```bash
+grep auto_sign_in_dev_user app/controllers/application_controller.rb
+```
+Si absent → demander à l'utilisateur : *"Le patch auto-login n'est pas appliqué (voir section Prérequis). Peux-tu l'ajouter avant qu'on continue ?"* — attendre sa confirmation avant de poursuivre.
+
+**3. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
 
 ⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via HTTPS pour y stocker les screenshots directement.
 
@@ -128,9 +136,9 @@ Récupérer le gist ID depuis l'URL en sortie (dernière partie du path).
 gh auth setup-git
 ```
 ```bash
-git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
+git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/<nom-composant>
 ```
-Le clone crée `/tmp/haml-migration/gist/` — les screenshots sont stockés à plat dedans (`haml-*.png`, `erb-*.png`).
+Le clone crée `/tmp/haml-migration/<nom-composant>/` — chaque migration a son propre répertoire (pas de collision entre runs). Les screenshots sont stockés à plat dedans (`haml-*.png`, `erb-*.png`).
 
 ### Étape 1 : Analyse
 
@@ -191,7 +199,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
      const elements = await page.$$('.component-selector');
      for (let i = 0; i < elements.length; i++) {
        if (await elements[i].isVisible()) {
-         await elements[i].screenshot({ path: `/tmp/haml-migration/gist/haml-usage1-component-${i+1}.png` });
+         await elements[i].screenshot({ path: `/tmp/haml-migration/<nom-composant>/haml-usage1-component-${i+1}.png` });
        }
      }
    }
@@ -290,6 +298,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    git mv <fichier.html.haml> <fichier.html.erb>
    ```
    Puis écrire le contenu ERB dans le fichier renommé.
+   ⚠️ **Ne PAS faire de `rm` sur l'ancien fichier** — `git mv` s'en charge déjà.
 
 2. **Si ViewComponent** — forcer le reload du cache :
    ```bash
@@ -307,12 +316,12 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
 1. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright (mêmes points d'entrée, même ordre)
 
-2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/gist/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
+2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/<nom-composant>/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
 
 ### Étape 5 : Comparaison
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
-   - Pour chaque fichier `erb-*.png` dans `/tmp/haml-migration/gist/`, comparer sa taille avec le fichier `haml-*.png` correspondant
+   - Pour chaque fichier `erb-*.png` dans `/tmp/haml-migration/<nom-composant>/`, comparer sa taille avec le fichier `haml-*.png` correspondant
    - Utiliser `stat -f%z` sur chaque fichier (1 appel Bash par fichier)
    - Identique au byte = ✅, différence = ❌
 
@@ -328,7 +337,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
      1. Corriger le fichier `.html.erb`
      2. Valider (linter + tests)
      3. `touch` le `.rb` du composant
-     4. Reprendre les screenshots ERB (dans `/tmp/haml-migration/gist/erb-*.png`)
+     4. Reprendre les screenshots ERB (dans `/tmp/haml-migration/<nom-composant>/erb-*.png`)
      5. Commit le fix :
         ```bash
         git add <fichier.html.erb>
@@ -342,13 +351,13 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
 2. **Pousser les screenshots sur le gist** (créé à l'Étape 0) :
    ```bash
-   git -C /tmp/haml-migration/gist add .
+   git -C /tmp/haml-migration/<nom-composant> add .
    ```
    ```bash
-   git -C /tmp/haml-migration/gist -c commit.gpgsign=false commit -m "Add screenshots HAML + ERB"
+   git -C /tmp/haml-migration/<nom-composant> -c commit.gpgsign=false commit -m "Add screenshots HAML + ERB"
    ```
    ```bash
-   git -C /tmp/haml-migration/gist push
+   git -C /tmp/haml-migration/<nom-composant> push
    ```
 
 3. **Mettre à jour ou créer la PR** :
@@ -376,6 +385,13 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    Résultat : ✅ Identique au byte / ❌ Différences documentées ci-dessus
 
    [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
+
+   ### Couverture visuelle (X/Y utilisations)
+   **Capturé :**
+   - ✅ `localhost:3000/path/page1` — usage dans contexte A
+
+   **Non couvert :**
+   - `localhost:3000/path/page2` — raison du skip
    EOF
    )"
    ```
@@ -409,25 +425,19 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 5. **Fermer Playwright** (libère Chrome pour ne pas bloquer un autre skill) :
    Appeler `mcp__playwright__browser_close`
 
-6. **Nettoyage local** :
-   ```bash
-   rm -rf /tmp/haml-migration
-   ```
-
 ---
 
 ## Checklist
 
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Gist créé + cloné en HTTPS dans `/tmp/haml-migration/gist/`
-- [ ] Screenshot HAML capturé dans `/tmp/haml-migration/gist/haml-*.png`
+- [ ] Gist créé + cloné en HTTPS dans `/tmp/haml-migration/<nom-composant>/`
+- [ ] Screenshot HAML capturé dans `/tmp/haml-migration/<nom-composant>/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
 - [ ] Formatter herb passé
 - [ ] Tests passés (si identifiés)
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
-- [ ] Screenshot ERB capturé dans `/tmp/haml-migration/gist/erb-*.png`
+- [ ] Screenshot ERB capturé dans `/tmp/haml-migration/<nom-composant>/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
 - [ ] Screenshots pushés sur le gist (git clone/push via HTTPS)
 - [ ] PR créée/mise à jour + commentaire avec comparaison visuelle
-- [ ] `/tmp/haml-migration/` nettoyé
