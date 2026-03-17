@@ -377,17 +377,27 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
    **Template de description PR** (tout dans la description, PAS de commentaire séparé) :
    ```markdown
-   ## Migration HAML → ERB — NomDuComposant
+   ## Problème
 
-   ### Commits
-   - `refactor(haml): migrate NomDuComposant to ERB` — conversion + validation
+   On migre HAML → ERB. C'est lent, pénible, et c'est une charge mentale.
 
-   ### Validation
-   - Formatter herb : ✅ / ❌
-   - Tests : ✅ / ❌
-   - Apostrophes : ✅ / ❌
+   ## Solution
 
-   ### Comparaison visuelle
+   Skill [`/haml-migration`](https://github.com/mfo/night-shift/blob/main/.claude/skills/haml-migration/SKILL.md)
+
+   ### Changements
+
+   <!-- Répéter ce bloc pour chaque composant migré -->
+
+   <details>
+   <!-- Résultat selon la comparaison réelle :
+        ✅ identique au byte — fichiers PNG strictement identiques (stat -f%z)
+        🟡 diff marginale — différence < quelques pixels, non significative (expliquer)
+        🟠 diff explicable — différence visible mais attendue (expliquer pourquoi)
+        ❌ régression — différence non expliquée, à investiguer -->
+   <summary><code>NomDuComposant</code> — RÉSULTAT + explication si non ✅</summary>
+
+   **Validation :** formatter herb ✅, tests ✅, apostrophes ✅
 
    **Avant :**
    ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/haml-usage1-component-1.png)
@@ -395,17 +405,14 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    **Après :**
    ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/erb-usage1-component-1.png)
 
-   Résultat : ✅ Identique au byte / ❌ Différences documentées ci-dessus
-
    [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
 
-   ### Couverture visuelle (X/Y utilisations)
-   **Capturé :**
+   **Couverture visuelle (X/Y utilisations) :**
    - ✅ `localhost:3000/path/page1` — usage dans contexte A
    - ✅ `localhost:3000/path/page2` — usage dans contexte B
+   - ⏭️ `localhost:3000/path/page3` — raison du skip
 
-   **Non couvert :**
-   - `localhost:3000/path/page3` — raison du skip (complexité, auth, données manquantes...)
+   </details>
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
