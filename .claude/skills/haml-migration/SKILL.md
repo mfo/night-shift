@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git checkout app/controllers/application_controller.rb), Bash(git -C /tmp/haml-migration:*), Bash(bun format:herb *), Bash(bun check-format:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake lint:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr list:*), Bash(stat *), Bash(touch:*), Bash(echo:*), Bash(bin/rails routes:*), Write(app/*), Write(spec/*), Write(config/*)
+allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git checkout app/controllers/application_controller.rb), Bash(git -C /tmp/haml-migration:*), Bash(bun format:herb *), Bash(bun check-format:herb *), Bash(bundle exec rspec:*), Bash(find:*), Bash(shuf:*), Bash(mkdir:*), Bash(grep:*), Bash(bundle exec rake lint:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr list:*), Bash(stat *), Bash(touch:*), Bash(echo:*), Bash(bin/rails routes:*), Write(app/*), Write(spec/*), Write(config/*)
 ---
 
 # Migration HAML → ERB
@@ -360,45 +360,22 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    git -C /tmp/haml-migration/<nom-composant> push
    ```
 
-3. **Mettre à jour ou créer la PR** :
-   Vérifier d'abord si une PR existe déjà sur la branche :
-   ```bash
-   gh pr list --head <branch-name> --state open
-   ```
-   - Si une PR existe → mettre à jour sa description (`gh pr edit`)
-   - Sinon → créer une PR (`gh pr create`)
-
-4. **Ajouter un commentaire PR avec la comparaison visuelle** :
+3. **Créer ou mettre à jour la PR** :
 
    Pour construire les URLs des images du gist :
    - Récupérer le gist ID depuis l'URL (dernière partie du path)
    - Format des URLs raw : `https://gist.githubusercontent.com/<user>/<gist-id>/raw/<filename>` (ex: `haml-component-1.png`)
 
+   Vérifier d'abord si une PR existe déjà sur la branche :
    ```bash
-   gh pr comment <pr-number> --body "$(cat <<'EOF'
-   ## Comparaison visuelle — NomDuComposant
-
-   | HAML (avant) | ERB (après) |
-   |---|---|
-   | ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/haml-component-1.png) | ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/erb-component-1.png) |
-
-   Résultat : ✅ Identique au byte / ❌ Différences documentées ci-dessus
-
-   [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
-
-   ### Couverture visuelle (X/Y utilisations)
-   **Capturé :**
-   - ✅ `localhost:3000/path/page1` — usage dans contexte A
-
-   **Non couvert :**
-   - `localhost:3000/path/page2` — raison du skip
-   EOF
-   )"
+   gh pr list --head <branch-name> --state open
    ```
+   - Si une PR existe → mettre à jour sa description (`gh pr edit --body`)
+   - Sinon → créer une PR (`gh pr create --body`)
 
-   **⚠️ Règle Bash** : la commande `gh pr comment` avec HEREDOC nécessite `$()` — c'est la seule exception acceptée car le HEREDOC ne contient pas de commandes shell.
+   **⚠️ Règle Bash** : les commandes `gh pr create/edit` avec HEREDOC nécessitent `$()` — c'est la seule exception acceptée car le HEREDOC ne contient pas de commandes shell.
 
-   **Template de description PR** :
+   **Template de description PR** (tout dans la description, PAS de commentaire séparé) :
    ```markdown
    ## Migration HAML → ERB — NomDuComposant
 
@@ -409,10 +386,21 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    - Formatter herb : ✅ / ❌
    - Tests : ✅ / ❌
    - Apostrophes : ✅ / ❌
-   - Comparaison visuelle : voir commentaire PR (screenshots via gist)
 
-   ### Couverture visuelle
-   **Capturé (X/Y utilisations) :**
+   ### Comparaison visuelle
+
+   **Avant :**
+   ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/haml-usage1-component-1.png)
+
+   **Après :**
+   ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/erb-usage1-component-1.png)
+
+   Résultat : ✅ Identique au byte / ❌ Différences documentées ci-dessus
+
+   [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
+
+   ### Couverture visuelle (X/Y utilisations)
+   **Capturé :**
    - ✅ `localhost:3000/path/page1` — usage dans contexte A
    - ✅ `localhost:3000/path/page2` — usage dans contexte B
 
@@ -440,4 +428,4 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 - [ ] Screenshot ERB capturé dans `/tmp/haml-migration/<nom-composant>/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
 - [ ] Screenshots pushés sur le gist (git clone/push via HTTPS)
-- [ ] PR créée/mise à jour + commentaire avec comparaison visuelle
+- [ ] PR créée/mise à jour avec comparaison visuelle dans la description
