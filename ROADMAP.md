@@ -1,6 +1,6 @@
 # ROADMAP — État réel et prochaines étapes
 
-**Dernière mise à jour :** 2026-03-16
+**Dernière mise à jour :** 2026-03-17
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Skill | POC | État |
 |---|---|---|
-| `haml-migration` | 1 | 4 itérations, validation visuelle MCP Playwright |
+| `haml-migration` | 1 | 4 itérations, validation visuelle MCP Playwright, prêt pour autonomie |
 | `test-optimization` | 2 | Skill + spec v4 + inventaire 52 fichiers |
 | `bugfix` | 3 | 3 bugs traités (Mistral 429, snowball renewal, watermark jpeg) |
 | `feature-spec` | 4 | Testé sur 1 feature (simpliscore tunnel_id) |
@@ -26,7 +26,7 @@ Chaque POC a produit au moins une PR sur le projet cible :
 
 | POC | PR | Titre | État |
 |---|---|---|---|
-| 1 — HAML | [#12760](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/pull/12760) | Migration haml → erb assisté par un Skill | Open |
+| 1 — HAML | [#12796](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/pull/12796) | Migration haml → erb (1ère PR de production) | Open |
 | 2 — Tests | [#12788](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/pull/12788) | perf(tests): let_it_be — dossier_spec.rb (WIP, collecte techniques équipe) | Open |
 | 3 — Bugs | [#12785](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/pull/12785) | Correctif renouvellement de session (mail en double) | Open |
 | 4 — Features | [#12764](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/pull/12764) | Amélioration UX écrans simpliscore | Open |
@@ -45,6 +45,14 @@ Chaque POC a produit au moins une PR sur le projet cible :
 
 ## En cours
 
+### POC 1 — HAML (passage en autonomie)
+
+Skill mature (4 itérations). Équipe OK pour recevoir des PRs en continu. Stock : 758 fichiers (206 components + 552 views).
+
+**PR en cours :** [#12796](https://github.com/demarche-numerique/demarche.numerique.gouv.fr/pull/12796) — 1ère PR de production.
+
+**Prochaine action :** trouver un mécanisme pour enchaîner les PRs automatiquement quand la précédente est mergée.
+
 ### POC 2 — Test optimization
 
 Spec v4 prête, skill prêt, inventaire 52 fichiers. PR #12788 ouverte en WIP pour récolter les techniques d'optimisation auprès de l'équipe avant de lancer en autonomie.
@@ -58,8 +66,9 @@ Spec v4 prête, skill prêt, inventaire 52 fichiers. PR #12788 ouverte en WIP po
 ## Prochaines étapes par POC
 
 ### POC 1 — HAML
-- Faire merger #12760, puis ouvrir une nouvelle PR (cycle : 1 PR à la fois)
-- Monter progressivement en volume
+- #12796 en review (1ère PR de production)
+- Trouver un mécanisme d'enchaînement automatique des PRs
+- Milestone : point de contrôle à 50 fichiers migrés
 
 ### POC 2 — Tests
 - Voir si #12788 est acceptée par l'équipe (validation de l'approche)
