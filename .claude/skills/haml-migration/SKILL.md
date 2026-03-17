@@ -118,20 +118,20 @@ Si le fichier n'existe pas → demander à l'utilisateur : *"Le serveur ne tourn
 
 **2. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
 
-⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via SSH pour y stocker les screenshots directement.
+⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via HTTPS pour y stocker les screenshots directement.
 
 ```bash
-rm -rf /tmp/haml-migration
+mkdir -p /tmp/haml-migration/gist
 ```
 ```bash
 echo "# Screenshots migration NomDuComposant" | gh gist create --public --desc "Screenshots migration HAML→ERB — NomDuComposant" -f README.md -
 ```
 Récupérer le gist ID depuis l'URL en sortie (dernière partie du path).
 ```bash
-git clone git@gist.github.com:<gist-id>.git /tmp/haml-migration/gist
+gh auth setup-git
 ```
 ```bash
-mkdir -p /tmp/haml-migration/gist
+git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
 ```
 
 ### Étape 1 : Analyse
@@ -180,6 +180,9 @@ mkdir -p /tmp/haml-migration/gist
    - Seuil : > 5min de setup = skip
 
 3. **Capturer avec MCP Playwright** :
+
+   ⚠️ **Toujours utiliser `browser_run_code`** avec un sélecteur CSS pour capturer les screenshots. Ne PAS utiliser `browser_take_screenshot` avec une ref Playwright — les refs peuvent pointer sur le mauvais élément (ex: header au lieu du composant dans un dropdown).
+
    ```javascript
    async (page) => {
      const elements = await page.$$('.component-selector');
@@ -337,14 +340,18 @@ mkdir -p /tmp/haml-migration/gist
    git -C /tmp/haml-migration/gist add .
    ```
    ```bash
-   git -C /tmp/haml-migration/gist commit --no-gpg-sign -m "Add screenshots HAML + ERB"
+   git -C /tmp/haml-migration/gist -c commit.gpgsign=false commit -m "Add screenshots HAML + ERB"
    ```
    ```bash
    git -C /tmp/haml-migration/gist push
    ```
 
 3. **Mettre à jour ou créer la PR** :
-   - Si une PR existe déjà sur la branche → mettre à jour sa description (`gh pr edit`)
+   Vérifier d'abord si une PR existe déjà sur la branche :
+   ```bash
+   gh pr list --head <branch-name> --state open
+   ```
+   - Si une PR existe → mettre à jour sa description (`gh pr edit`)
    - Sinon → créer une PR (`gh pr create`)
 
 4. **Ajouter un commentaire PR avec la comparaison visuelle** :
@@ -399,7 +406,7 @@ mkdir -p /tmp/haml-migration/gist
 ## Checklist
 
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Gist créé + cloné en SSH dans `/tmp/haml-migration/gist/`
+- [ ] Gist créé + cloné en HTTPS dans `/tmp/haml-migration/gist/`
 - [ ] Screenshot HAML capturé dans `/tmp/haml-migration/gist/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
@@ -408,6 +415,6 @@ mkdir -p /tmp/haml-migration/gist
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
 - [ ] Screenshot ERB capturé dans `/tmp/haml-migration/gist/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
-- [ ] Screenshots pushés sur le gist (git clone/push via SSH)
+- [ ] Screenshots pushés sur le gist (git clone/push via HTTPS)
 - [ ] PR créée/mise à jour + commentaire avec comparaison visuelle
 - [ ] `/tmp/haml-migration/` nettoyé
