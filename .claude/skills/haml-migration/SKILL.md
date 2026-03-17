@@ -150,15 +150,20 @@ git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
    grep -r "NomDuComposant" spec/
    ```
 
-### Étape 2 : Screenshot HAML (local uniquement — PAS de commit)
+### Étape 2 : Inventaire des utilisations + screenshots HAML
 
-1. **Trouver une page qui affiche le composant** :
-   ```bash
-   grep -r "NomDuComposant\|render.*nom_du_composant" app/views/ app/components/
-   ```
-   - **Préférer les pages réelles** = preuve plus forte qu'une page de démo
+**1. Trouver TOUTES les utilisations du template** :
+```bash
+grep -r "NomDuComposant\|render.*nom_du_composant" app/views/ app/components/
+```
+Lister chaque point d'utilisation avec la page correspondante (URL `localhost:3000/...`).
 
-2. **Évaluer la faisabilité** (dans cet ordre de préférence) :
+**2. Sélectionner jusqu'à 3 points d'entrée** pour les screenshots :
+- **Préférer les pages réelles** = preuve plus forte qu'une page de démo
+- Choisir des usages variés (contextes différents, paramètres différents)
+- Nommer les screenshots par point d'entrée : `haml-usage1-component-1.png`, `haml-usage2-component-1.png`, etc.
+
+**3. Évaluer la faisabilité de chaque point** (dans cet ordre de préférence) :
 
    **a. Page réelle disponible** → capturer directement (cas idéal)
 
@@ -179,7 +184,7 @@ git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
    **c. Composant trop complexe** (données imbriquées, interactions, contexte lourd) → **skip le screenshot**, documenter la raison dans la PR
    - Seuil : > 5min de setup = skip
 
-3. **Capturer avec MCP Playwright** :
+**4. Capturer avec MCP Playwright** (pour chaque point d'entrée sélectionné) :
 
    ⚠️ **Toujours utiliser `browser_run_code`** avec un sélecteur CSS pour capturer les screenshots. Ne PAS utiliser `browser_take_screenshot` avec une ref Playwright — les refs peuvent pointer sur le mauvais élément (ex: header au lieu du composant dans un dropdown).
 
@@ -188,11 +193,13 @@ git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
      const elements = await page.$$('.component-selector');
      for (let i = 0; i < elements.length; i++) {
        if (await elements[i].isVisible()) {
-         await elements[i].screenshot({ path: `/tmp/haml-migration/gist/haml-component-${i+1}.png` });
+         await elements[i].screenshot({ path: `/tmp/haml-migration/gist/haml-usage1-component-${i+1}.png` });
        }
      }
    }
    ```
+
+**5. Noter les utilisations non couvertes** — pour l'Étape 6, on les listera dans la PR.
 
 ### Étape 3 : Migration HAML → ERB → commit
 
@@ -300,9 +307,9 @@ git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
 
 ### Étape 4 : Screenshot ERB (local uniquement — PAS de commit)
 
-1. **Naviguer sur la même page que l'étape 2** avec MCP Playwright
+1. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright (mêmes points d'entrée, même ordre)
 
-2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/gist/erb-component-${i+1}.png`
+2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/gist/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
 
 ### Étape 5 : Comparaison
 
@@ -389,6 +396,14 @@ git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/gist
    - Tests : ✅ / ❌
    - Apostrophes : ✅ / ❌
    - Comparaison visuelle : voir commentaire PR (screenshots via gist)
+
+   ### Couverture visuelle
+   **Capturé (X/Y utilisations) :**
+   - ✅ `localhost:3000/path/page1` — usage dans contexte A
+   - ✅ `localhost:3000/path/page2` — usage dans contexte B
+
+   **Non couvert :**
+   - `localhost:3000/path/page3` — raison du skip (complexité, auth, données manquantes...)
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
