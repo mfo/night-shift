@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git clone:*), Bash(git diff:*), Bash(git log:*), Bash(git checkout app/controllers/application_controller.rb), Bash(git -C /tmp/haml-migration:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch app/components:*), Bash(stat .overmind.sock), Bash(stat -f%z /tmp/haml-migration:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr list:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr list:*), Bash(gh pr view:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*)
 ---
 
 # Migration HAML → ERB
@@ -9,8 +9,8 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_c
 **Contexte :** Migration d'un fichier HAML vers ERB avec validation visuelle via screenshots
 
 **Input :**
-- Chemin vers un fichier `.html.haml` (ex: `app/components/alert/alert_component.html.haml`)
-- Remote git pour push/PR : `mfo` (pas `origin`)
+- Fichier à migrer : `$ARGUMENTS` (ex: `app/components/alert/alert_component.html.haml`)
+- Remote git pour push/PR : `origin`
 
 **⚠️ Règle Playwright** : ne JAMAIS naviguer en dehors de `localhost:3000`. Toutes les URLs doivent commencer par `http://localhost:3000/`.
 
@@ -20,7 +20,6 @@ allowed-tools: mcp__playwright__browser_navigate, mcp__playwright__browser_run_c
 - Pas de pipes complexes (`cmd1 | cmd2`) — découper en étapes
 - 1 commande simple = 1 appel Bash
 - **Repo cible** : ne JAMAIS utiliser `git -C` — le working directory est déjà le repo cible, exécuter `git mv`, `git add`, `git commit`, etc. directement.
-- **Gist screenshots** : TOUJOURS utiliser `git -C /tmp/haml-migration/<nom-composant>` — le gist est cloné en dehors du repo cible.
 - **Ne JAMAIS utiliser `rm`** — aucune suppression de fichier n'est nécessaire dans ce workflow.
 
 ---
@@ -34,55 +33,17 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 # Relancer Claude Code après ajout (/exit puis claude)
 ```
 
+**Routes** : `data/routes-reference.txt` doit exister. Si absent → lancer le skill `rails-routes` pour le générer.
+
 **Serveur de dev** doit tourner dans le repo courant. Vérifier que `.overmind.sock` existe à la racine du repo — sinon le serveur tourne dans un autre workspace et le patch de connexion ne fonctionnera pas.
 
 **Chrome doit être fermé** avant de lancer le skill. Playwright a besoin de lancer Chrome avec son propre profil isolé — si Chrome est déjà ouvert, Playwright échoue silencieusement (`exitCode=0`) sans pouvoir prendre de screenshots.
 
-**Bypass `trusted_device_token`** : après le auto-login, `redirect_if_untrusted` bloque l'accès aux pages. Aller sur `localhost:3000/letter_opener`, ouvrir le dernier email et cliquer le lien de connexion sécurisé.
+**Adaptations dev temporaires** — git-ignorées, **NE JAMAIS COMMITER** :
 
-**Adaptations dev temporaires** — appliquer en début de PR, **NE JAMAIS COMMITER** :
+Utiliser le skill [`/dev-auto-login`](../dev-auto-login/SKILL.md) qui crée `config/initializers/dev_auto_login.rb` (git-ignoré, rouvre ApplicationController pour l'auto-login + invalidation cache ViewComponent).
 
-**1. Auto-login dev** — ajouter dans `app/controllers/application_controller.rb` :
-```diff
-+  prepend_before_action :auto_sign_in_dev_user
-   before_action :set_sentry_user
-   before_action :redirect_if_untrusted
-```
-
-Et la méthode (avant `private`) :
-```ruby
-def auto_sign_in_dev_user
-  return unless Rails.env.development?
-  return if user_signed_in?
-
-  user = User.find_by(email: 'martin.fourcade@beta.gouv.fr')
-  sign_in(user, scope: :user) if user
-end
-```
-
-**2. Invalidation cache ViewComponent** — créer `config/initializers/view_component_dev_reload.rb` :
-```ruby
-# Force le reload des templates ViewComponent à chaque requête en dev
-# Permet de switcher .haml → .erb sans redémarrer le serveur
-Rails.application.config.to_prepare do
-  next unless Rails.env.development?
-
-  ViewComponent::CompileCache.invalidate!
-
-  ObjectSpace.each_object(Class).select { |klass| klass < ViewComponent::Base }.each do |klass|
-    if klass.instance_variable_defined?(:@__vc_compiler)
-      compiler = klass.instance_variable_get(:@__vc_compiler)
-      compiler.instance_variable_set(:@templates, nil) if compiler.instance_variable_defined?(:@templates)
-    end
-  end
-end
-```
-
-⚠️ **CRITIQUE** : ces 2 modifications ne doivent JAMAIS être commitées. Les annuler avant tout commit :
-```bash
-git checkout app/controllers/application_controller.rb
-```
-Le fichier `config/initializers/view_component_dev_reload.rb` doit être supprimé manuellement par l'utilisateur.
+⚠️ **CRITIQUE** : ce fichier doit être dans le `.gitignore` du repo cible : `config/initializers/dev_auto_login.rb`
 
 ---
 
@@ -90,11 +51,13 @@ Le fichier `config/initializers/view_component_dev_reload.rb` doit être supprim
 
 **1 commit par fichier migré** : `refactor(haml): migrate NomDuComposant to ERB` — inclut le `.html.erb`, les fichiers i18n et le preview si créé.
 
-Les screenshots ne sont JAMAIS commités dans le repo cible. Ils vivent dans `/tmp/haml-migration/<nom-composant>/` et sont uploadés sur un gist GitHub.
+Les screenshots ne sont JAMAIS commités dans le repo cible. Ils vivent dans `/tmp/screenshot-gist/<nom-composant>/` et sont uploadés sur un gist GitHub.
 
 ---
 
 ## Workflow (1 fichier)
+
+**⚠️ OBLIGATION** : le workflow n'est TERMINÉ que quand la PR est créée/mise à jour (Étape 6). Ne JAMAIS s'arrêter avant.
 
 ### Étape 0 : Vérifications + lancement Playwright + préparation gist
 
@@ -104,31 +67,28 @@ stat .overmind.sock
 ```
 Si le fichier n'existe pas → demander à l'utilisateur : *"Le serveur ne tourne pas dans ce workspace (.overmind.sock absent). Peux-tu le lancer ici avant qu'on continue ?"* — attendre sa confirmation avant de poursuivre.
 
-**2. Appliquer le patch auto-login si absent** :
+**2. Vérifier que les routes sont disponibles** :
 ```bash
-grep auto_sign_in_dev_user app/controllers/application_controller.rb
+stat data/routes-reference.txt
 ```
-Si absent → appliquer automatiquement :
-- Lire `app/controllers/application_controller.rb`
-- Ajouter `prepend_before_action :auto_sign_in_dev_user` avant `before_action :set_sentry_user`
-- Ajouter la méthode `auto_sign_in_dev_user` (avant `private`, voir section Prérequis)
-- Créer `config/initializers/view_component_dev_reload.rb` (voir section Prérequis)
+Si absent → lancer le skill `/rails-routes` pour le générer. Ce fichier est utilisé à l'étape 2 pour trouver les URLs des pages à capturer.
 
-**3. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
+**3. Appliquer le auto-login si absent** :
+```bash
+grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
+```
+Si absent → appliquer le skill `/dev-auto-login` (crée `config/initializers/dev_auto_login.rb` avec auto-login + reload ViewComponent).
 
-⚠️ `gh gist create` ne supporte PAS les fichiers binaires (PNG). On crée le gist avec un placeholder texte, puis on clone via HTTPS pour y stocker les screenshots directement.
+Redémarrer le serveur pour charger l'initializer :
+```bash
+touch tmp/restart.txt
+```
 
-```bash
-echo "# Screenshots migration NomDuComposant" | gh gist create --public --desc "Screenshots migration HAML→ERB — NomDuComposant" -f README.md -
-```
-Récupérer le gist ID depuis l'URL en sortie (dernière partie du path).
-```bash
-gh auth setup-git
-```
-```bash
-git clone https://gist.github.com/<gist-id>.git /tmp/haml-migration/<nom-composant>
-```
-Le clone crée `/tmp/haml-migration/<nom-composant>/` — chaque migration a son propre répertoire (pas de collision entre runs). Les screenshots sont stockés à plat dedans (`haml-*.png`, `erb-*.png`).
+**4. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
+
+**5. Configurer le viewport** — le viewport Playwright est `null` par défaut, ce qui fait crasher `page.viewportSize()`. Toujours appeler `browser_resize` (1280×800) juste après le premier `browser_navigate`.
+
+Lancer le skill `/screenshot-gist NomDuComposant` pour créer le gist et cloner dans `/tmp/screenshot-gist/<nom-composant>/`. Les screenshots sont stockés à plat dedans (`haml-*.png`, `erb-*.png`).
 
 ### Étape 1 : Analyse
 
@@ -139,7 +99,7 @@ Le clone crée `/tmp/haml-migration/<nom-composant>/` — chaque migration a son
 3. Identifier les méthodes utilisées dans le template :
    - Si retourne `Array` → utiliser `.join(' ')` en ERB
    - Si retourne `String` → utiliser directement
-   - Si retourne `Hash` → utiliser `tag.attributes(**method)`
+   - Si retourne `Hash` → utiliser `tag.attributes(method)` (positionnel, PAS kwargs)
    - **⚠️ Si retourne HTML (helpers) → NE PAS interpoler dans string**
 4. Rechercher les tests :
    ```bash
@@ -152,7 +112,7 @@ Le clone crée `/tmp/haml-migration/<nom-composant>/` — chaque migration a son
 ```bash
 grep -r "NomDuComposant\|render.*nom_du_composant" app/views/ app/components/
 ```
-Lister chaque point d'utilisation avec la page correspondante (URL `localhost:3000/...`).
+Lister chaque point d'utilisation avec la page correspondante. Consulter `data/routes-reference.txt` pour trouver les URLs correctes (`localhost:3000/...`).
 
 **2. Sélectionner jusqu'à 3 points d'entrée** pour les screenshots :
 - **Préférer les pages réelles** = preuve plus forte qu'une page de démo
@@ -167,6 +127,8 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    - Évaluer la complexité : le composant peut-il se rendre avec des données mockées simples ?
    - Si oui (< 5min de setup) → créer un preview dans `spec/components/previews/` :
      ```ruby
+     # frozen_string_literal: true
+
      # spec/components/previews/nom_du_composant_preview.rb
      class NomDuComposantPreview < ViewComponent::Preview
        def default
@@ -174,11 +136,18 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
        end
      end
      ```
+   - Lancer Rubocop auto-correct sur le fichier preview :
+     ```bash
+     bundle exec rubocop -A spec/components/previews/nom_du_composant_preview.rb
+     ```
    - Visiter `localhost:3000/rails/view_components/nom_du_composant/default`
    - Commiter le preview avec le commit de migration (il restera dans le projet — utile pour la suite)
 
-   **c. Composant trop complexe** (données imbriquées, interactions, contexte lourd) → **skip le screenshot**, documenter la raison dans la PR
-   - Seuil : > 5min de setup = skip
+   **c. Composant trop complexe** → skip UNIQUEMENT après avoir tenté au moins 3 approches :
+   1. Page réelle (autre route, autre contexte)
+   2. Preview ViewComponent avec données mockées
+   3. Page de test créée ad hoc
+   Si les 3 échouent → skip le screenshot, documenter les 3 tentatives dans la PR
 
 **4. Capturer avec MCP Playwright** (pour chaque point d'entrée sélectionné) :
 
@@ -187,9 +156,19 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    ```javascript
    async (page) => {
      const elements = await page.$$('.component-selector');
+     const padding = 50;
+     const vp = page.viewportSize() || { width: 1280, height: 800 };
      for (let i = 0; i < elements.length; i++) {
        if (await elements[i].isVisible()) {
-         await elements[i].screenshot({ path: `/tmp/haml-migration/<nom-composant>/haml-usage1-component-${i+1}.png` });
+         const box = await elements[i].boundingBox();
+         if (!box) continue;
+         const clip = {
+           x: Math.max(0, box.x - padding),
+           y: Math.max(0, box.y - padding),
+           width: Math.min(box.width + padding * 2, vp.width - Math.max(0, box.x - padding)),
+           height: box.height + padding * 2
+         };
+         await page.screenshot({ path: `/tmp/screenshot-gist/<nom-composant>/haml-usage1-component-${i+1}.png`, clip });
        }
      }
    }
@@ -215,7 +194,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 %div{ class: my_class }  →  <div class="<%= my_class %>">
                             (⚠️ Si my_class est un Array → .join(' '))
 
-%div{ **options }        →  <div <%= tag.attributes(**options) %>>
+%div{ **options }        →  <div <%= tag.attributes(options) %>>
 ```
 
 **⚠️ Règles critiques :**
@@ -306,12 +285,12 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
 1. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright (mêmes points d'entrée, même ordre)
 
-2. **Capturer les screenshots ERB** avec le même script, path `/tmp/haml-migration/<nom-composant>/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
+2. **Capturer les screenshots ERB** avec le même script, path `/tmp/screenshot-gist/<nom-composant>/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
 
 ### Étape 5 : Comparaison
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
-   - Pour chaque fichier `erb-*.png` dans `/tmp/haml-migration/<nom-composant>/`, comparer sa taille avec le fichier `haml-*.png` correspondant
+   - Pour chaque fichier `erb-*.png` dans `/tmp/screenshot-gist/<nom-composant>/`, comparer sa taille avec le fichier `haml-*.png` correspondant
    - Utiliser `stat -f%z` sur chaque fichier (1 appel Bash par fichier)
    - Identique au byte = ✅, différence = ❌
 
@@ -327,7 +306,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
      1. Corriger le fichier `.html.erb`
      2. Valider (linter + tests)
      3. `touch` le `.rb` du composant
-     4. Reprendre les screenshots ERB (dans `/tmp/haml-migration/<nom-composant>/erb-*.png`)
+     4. Reprendre les screenshots ERB (dans `/tmp/screenshot-gist/<nom-composant>/erb-*.png`)
      5. Commit le fix :
         ```bash
         git add <fichier.html.erb>
@@ -339,16 +318,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 
 1. **Construire le résultat de comparaison** : reprendre les résultats de l'étape 5 (✅/❌ par fichier)
 
-2. **Pousser les screenshots sur le gist** (créé à l'Étape 0) :
-   ```bash
-   git -C /tmp/haml-migration/<nom-composant> add .
-   ```
-   ```bash
-   git -C /tmp/haml-migration/<nom-composant> -c commit.gpgsign=false commit -m "Add screenshots HAML + ERB"
-   ```
-   ```bash
-   git -C /tmp/haml-migration/<nom-composant> push
-   ```
+2. **Pousser les screenshots sur le gist** : lancer la Phase 2 du skill `/screenshot-gist` (add, commit, push depuis `/tmp/screenshot-gist/<nom-composant>/`).
 
 3. **Créer ou mettre à jour la PR** :
 
@@ -402,7 +372,7 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-5. **Fermer Playwright** (libère Chrome pour ne pas bloquer un autre skill) :
+4. **Fermer Playwright** (libère Chrome pour ne pas bloquer un autre skill) :
    Appeler `mcp__playwright__browser_close`
 
 ---
@@ -410,19 +380,21 @@ Lister chaque point d'utilisation avec la page correspondante (URL `localhost:30
 ## Checklist
 
 - [ ] Serveur vérifié (.overmind.sock présent)
-- [ ] Patch auto-login appliqué
+- [ ] Routes disponibles (`data/routes-reference.txt`, sinon `/rails-routes`)
+- [ ] Auto-login dev en place (`/dev-auto-login`)
 - [ ] Playwright lancé + navigation localhost:3000 OK
-- [ ] Gist créé + cloné en HTTPS dans `/tmp/haml-migration/<nom-composant>/`
+- [ ] Viewport configuré (browser_resize 1280×800)
+- [ ] Gist créé via `/screenshot-gist` dans `/tmp/screenshot-gist/<nom-composant>/`
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Screenshot HAML capturé dans `/tmp/haml-migration/<nom-composant>/haml-*.png`
+- [ ] Screenshot HAML capturé dans `/tmp/screenshot-gist/<nom-composant>/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
 - [ ] Formatter herb passé
 - [ ] Linter apostrophes passé
 - [ ] Tests passés (si identifiés)
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
-- [ ] Screenshot ERB capturé dans `/tmp/haml-migration/<nom-composant>/erb-*.png`
+- [ ] Screenshot ERB capturé dans `/tmp/screenshot-gist/<nom-composant>/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
-- [ ] Screenshots pushés sur le gist (git clone/push via HTTPS)
+- [ ] Screenshots pushés sur le gist (via `/screenshot-gist` Phase 2)
 - [ ] PR créée/mise à jour avec comparaison visuelle dans la description
 - [ ] Playwright fermé
