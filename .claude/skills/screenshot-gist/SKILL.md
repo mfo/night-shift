@@ -1,64 +1,70 @@
 ---
 name: screenshot-gist
 description: Créer un gist GitHub pour stocker des screenshots (PNG) et les pousser via git clone/push HTTPS
-allowed-tools: Bash(echo:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git -C /tmp/screenshot-gist:*), Bash(git clone:*), Bash(stat:*), Bash(ls:*)
+allowed-tools: Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*)
 ---
 
 # Screenshot → Gist
 
-**Contexte :** `gh gist create` ne supporte PAS les fichiers binaires (PNG). Ce skill contourne la limitation en créant le gist avec un placeholder texte, puis en clonant via HTTPS pour y stocker les screenshots directement.
+**⚠️ RÈGLE ABSOLUE : utiliser UNIQUEMENT les scripts fournis. Ne JAMAIS appeler `gh`, `git clone`, `git push`, `mkdir` ou `echo >` directement — ces commandes ne sont PAS autorisées. Seuls `create-gist.sh` et `push-gist.sh` le sont.**
+
+**Contexte :** `gh gist create` ne supporte PAS les fichiers binaires (PNG). Ce skill contourne la limitation via deux scripts shell qui encapsulent toute la logique.
+
+**Répertoire de travail :** `tmp/<nom>/` — les screenshots ET le clone git du gist vivent dans le même répertoire.
 
 **Input :**
-- `$ARGUMENTS` : nom du gist (utilisé comme sous-dossier dans `/tmp/screenshot-gist/`)
+- `$ARGUMENTS` : `<nom> [fichier1.png fichier2.png ...]`
+  - 1er argument (obligatoire) : nom du gist (utilisé dans la description et comme nom de répertoire `tmp/<nom>/`)
+  - Arguments suivants (optionnels, 1..n) : chemins de screenshots à inclure (déjà dans `tmp/`)
 
-**Output :** gist ID + répertoire local `/tmp/screenshot-gist/<nom>/` prêt à recevoir des fichiers PNG.
+**Output :**
+- Si screenshots fournis → gist créé, screenshots poussés, URLs affichées
+- Si pas de screenshots → gist créé + `tmp/<nom>/` prêt (le skill appelant dépose ses fichiers après)
+
+**Usage autonome :**
+```bash
+claude -p "/screenshot-gist <nom> [fichier1.png ...]" --allowedTools "Bash(.claude/skills/screenshot-gist/*),Bash(cp:*),Bash(ls:*)"
+```
 
 ---
 
 ## Phase 1 : Créer le gist + cloner
 
+⚠️ **Appeler le script — ne PAS reproduire les commandes manuellement.**
+
 ```bash
-echo "Screenshots — <nom>" > /tmp/screenshot-gist-readme.md
-```
-```bash
-gh gist create --public --desc "Screenshots — <nom>" /tmp/screenshot-gist-readme.md
-```
-Récupérer le gist ID depuis l'URL en sortie (dernière partie du path).
-```bash
-gh auth setup-git
-```
-```bash
-git clone https://gist.github.com/<gist-id>.git /tmp/screenshot-gist/<nom>
+.claude/skills/screenshot-gist/create-gist.sh "<nom>"
 ```
 
-Le skill appelant dépose ses screenshots (PNG, etc.) dans `/tmp/screenshot-gist/<nom>/`.
+Le script fait tout : crée `tmp/`, le readme, le gist public, configure git auth, clone dans `tmp/<nom>/`.
+Il affiche en sortie `GIST_URL=<url>` et `GIST_ID=<id>`. Extraire le user et le gist ID depuis l'URL.
 
 ---
 
-## Phase 2 : Pousser les screenshots
+## Phase 2 : Copier les screenshots (si fournis)
 
-Appelé par le skill parent quand les screenshots sont prêts :
+Si des fichiers ont été passés en arguments :
 
 ```bash
-git -C /tmp/screenshot-gist/<nom> add .
+cp <fichier1.png> <fichier2.png> ... tmp/<nom>/
 ```
-```bash
-git -C /tmp/screenshot-gist/<nom> -c commit.gpgsign=false commit -m "Add screenshots"
-```
-```bash
-git -C /tmp/screenshot-gist/<nom> push
-```
+
+Puis pousser immédiatement (phase 3+4).
+
+Si aucun fichier passé → s'arrêter ici. Le skill appelant dépose ses screenshots directement dans `tmp/<nom>/` quand il est prêt, puis rappelle la phase 3+4.
 
 ---
 
-## URLs des images
+## Phase 3+4 : Pousser et afficher les URLs
 
-Pour référencer les images dans une PR ou un commentaire :
-```
-https://gist.githubusercontent.com/<user>/<gist-id>/raw/<filename>
+⚠️ **Appeler le script — ne PAS reproduire les commandes manuellement.**
+
+```bash
+.claude/skills/screenshot-gist/push-gist.sh <nom> <user> <gist-id> <fichier1.png> [fichier2.png ...]
 ```
 
-Le gist public est visible à :
+Le script fait `git add` uniquement sur les fichiers listés, commit (--no-gpg-sign), push, puis affiche les URLs raw en markdown :
+
 ```
-https://gist.github.com/<user>/<gist-id>
+![capture.png](https://gist.githubusercontent.com/<user>/<gist-id>/raw/capture.png)
 ```
