@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: Migrate HAML templates to ERB with validation and visual comparison
-allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr list:*), Bash(gh pr view:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git -c commit.gpgsign=false rebase:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**)
 ---
 
 # Migration HAML → ERB
@@ -21,6 +21,7 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - 1 commande simple = 1 appel Bash
 - **Repo cible** : ne JAMAIS utiliser `git -C` — le working directory est déjà le repo cible, exécuter `git mv`, `git add`, `git commit`, etc. directement.
 - **Ne JAMAIS utiliser `rm`** — aucune suppression de fichier n'est nécessaire dans ce workflow.
+- **GPG signing** : toujours désactiver. `git commit --no-gpg-sign`, et pour les rebase : `git -c commit.gpgsign=false rebase --continue`.
 
 ---
 
@@ -51,7 +52,7 @@ Utiliser le skill [`/dev-auto-login`](../dev-auto-login/SKILL.md) qui crée `con
 
 **1 commit par fichier migré** : `refactor(haml): migrate NomDuComposant to ERB` — inclut le `.html.erb`, les fichiers i18n et le preview si créé.
 
-Les screenshots ne sont JAMAIS commités dans le repo cible. Ils vivent dans `/tmp/screenshot-gist/<nom-composant>/` et sont uploadés sur un gist GitHub.
+Les screenshots ne sont JAMAIS commités dans le repo cible. Ils vivent dans `tmp/<nom-composant>/` et sont uploadés sur un gist GitHub.
 
 ---
 
@@ -77,18 +78,13 @@ Si absent → lancer le skill `/rails-routes` pour le générer. Ce fichier est 
 ```bash
 grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 ```
-Si absent → appliquer le skill `/dev-auto-login` (crée `config/initializers/dev_auto_login.rb` avec auto-login + reload ViewComponent).
-
-Redémarrer le serveur pour charger l'initializer :
-```bash
-touch tmp/restart.txt
-```
+Si absent → appliquer le skill `/dev-auto-login` (crée l'initializer + redémarre le serveur).
 
 **4. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
 
 **5. Configurer le viewport** — le viewport Playwright est `null` par défaut, ce qui fait crasher `page.viewportSize()`. Toujours appeler `browser_resize` (1280×800) juste après le premier `browser_navigate`.
 
-Lancer le skill `/screenshot-gist NomDuComposant` pour créer le gist et cloner dans `/tmp/screenshot-gist/<nom-composant>/`. Les screenshots sont stockés à plat dedans (`haml-*.png`, `erb-*.png`).
+Lancer le skill `/screenshot-gist NomDuComposant` pour créer le gist et cloner dans `tmp/<nom-composant>/`. Les screenshots sont stockés à plat dedans (ex: `usage1-component-1.png`).
 
 ### Étape 1 : Analyse
 
@@ -117,7 +113,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 **2. Sélectionner jusqu'à 3 points d'entrée** pour les screenshots :
 - **Préférer les pages réelles** = preuve plus forte qu'une page de démo
 - Choisir des usages variés (contextes différents, paramètres différents)
-- Nommer les screenshots par point d'entrée : `haml-usage1-component-1.png`, `haml-usage2-component-1.png`, etc.
+- Nommer les screenshots par point d'entrée : `usage1-component-1.png`, `usage2-component-1.png`, etc.
 
 **3. Évaluer la faisabilité de chaque point** (dans cet ordre de préférence) :
 
@@ -168,7 +164,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
            width: Math.min(box.width + padding * 2, vp.width - Math.max(0, box.x - padding)),
            height: box.height + padding * 2
          };
-         await page.screenshot({ path: `/tmp/screenshot-gist/<nom-composant>/haml-usage1-component-${i+1}.png`, clip });
+         await page.screenshot({ path: `tmp/<nom-composant>/usage1-component-${i+1}.png`, clip });
        }
      }
    }
@@ -285,12 +281,12 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 
 1. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright (mêmes points d'entrée, même ordre)
 
-2. **Capturer les screenshots ERB** avec le même script, path `/tmp/screenshot-gist/<nom-composant>/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
+2. **Capturer les screenshots ERB** avec le même script, path `tmp/<nom-composant>/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
 
 ### Étape 5 : Comparaison
 
 1. **Comparer les screenshots** (identique au byte = preuve forte) :
-   - Pour chaque fichier `erb-*.png` dans `/tmp/screenshot-gist/<nom-composant>/`, comparer sa taille avec le fichier `haml-*.png` correspondant
+   - Pour chaque fichier `erb-*.png` dans `tmp/<nom-composant>/`, comparer sa taille avec le fichier `haml-*.png` correspondant
    - Utiliser `stat -f%z` sur chaque fichier (1 appel Bash par fichier)
    - Identique au byte = ✅, différence = ❌
 
@@ -306,7 +302,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
      1. Corriger le fichier `.html.erb`
      2. Valider (linter + tests)
      3. `touch` le `.rb` du composant
-     4. Reprendre les screenshots ERB (dans `/tmp/screenshot-gist/<nom-composant>/erb-*.png`)
+     4. Reprendre les screenshots ERB (dans `tmp/<nom-composant>/erb-*.png`)
      5. Commit le fix :
         ```bash
         git add <fichier.html.erb>
@@ -318,7 +314,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 
 1. **Construire le résultat de comparaison** : reprendre les résultats de l'étape 5 (✅/❌ par fichier)
 
-2. **Pousser les screenshots sur le gist** : lancer la Phase 2 du skill `/screenshot-gist` (add, commit, push depuis `/tmp/screenshot-gist/<nom-composant>/`).
+2. **Pousser les screenshots sur le gist** : lancer la Phase 3+4 du skill `/screenshot-gist` via `push-gist.sh` (add, commit, push depuis `tmp/<nom-composant>/`).
 
 3. **Créer ou mettre à jour la PR** :
 
@@ -384,16 +380,16 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 - [ ] Auto-login dev en place (`/dev-auto-login`)
 - [ ] Playwright lancé + navigation localhost:3000 OK
 - [ ] Viewport configuré (browser_resize 1280×800)
-- [ ] Gist créé via `/screenshot-gist` dans `/tmp/screenshot-gist/<nom-composant>/`
+- [ ] Gist créé via `/screenshot-gist` dans `tmp/<nom-composant>/`
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
-- [ ] Screenshot HAML capturé dans `/tmp/screenshot-gist/<nom-composant>/haml-*.png`
+- [ ] Screenshot HAML capturé dans `tmp/<nom-composant>/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
 - [ ] Formatter herb passé
 - [ ] Linter apostrophes passé
 - [ ] Tests passés (si identifiés)
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
-- [ ] Screenshot ERB capturé dans `/tmp/screenshot-gist/<nom-composant>/erb-*.png`
+- [ ] Screenshot ERB capturé dans `tmp/<nom-composant>/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
 - [ ] Screenshots pushés sur le gist (via `/screenshot-gist` Phase 2)
 - [ ] PR créée/mise à jour avec comparaison visuelle dans la description

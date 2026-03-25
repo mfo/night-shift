@@ -1,7 +1,7 @@
 ---
 name: dev-auto-login
 description: Configure auto-login dev + reload ViewComponent via un initializer git-ignoré (réouvre ApplicationController sans le modifier)
-allowed-tools: Bash(grep:*), Edit(config/*), Write(config/*)
+allowed-tools: Bash(grep:*), Bash(touch:*), Edit(config/*), Write(config/*)
 ---
 
 # Auto-login dev
@@ -33,11 +33,7 @@ Rails.application.config.to_prepare do
     def auto_sign_in_dev_user
       return if user_signed_in?
       user = User.find_by(email: 'martin.fourcade@beta.gouv.fr')
-      if user
-        sign_in(user, scope: :user)
-        # Bypass trusted_device_token — redirect_if_untrusted bloque l'accès sans ce cookie
-        cookies[:trusted_device_token] = user.trusted_device_token if user.respond_to?(:trusted_device_token)
-      end
+      sign_in(user, scope: :user) if user
     end
   end
 
@@ -53,7 +49,14 @@ Rails.application.config.to_prepare do
 end
 ```
 
-**3. Vérifier que le fichier est git-ignoré** dans le repo cible (`.gitignore` doit contenir `config/initializers/dev_auto_login.rb`). Si ce n'est pas le cas → prévenir l'utilisateur.
+**3. Bypass `trusted_device_token`** : après le auto-login, `redirect_if_untrusted` bloque l'accès aux pages. Aller sur `localhost:3000/letter_opener`, ouvrir le dernier email et cliquer le lien de connexion sécurisé. Ceci pose le cookie `trusted_device_token` correctement (le setter par cookie programmatiquement ne fonctionne pas).
+
+**4. Redémarrer le serveur** pour charger l'initializer :
+```bash
+touch tmp/restart.txt
+```
+
+**5. Vérifier que le fichier est git-ignoré** dans le repo cible (`.gitignore` doit contenir `config/initializers/dev_auto_login.rb`). Si ce n'est pas le cas → prévenir l'utilisateur.
 
 ## Désactivation
 
