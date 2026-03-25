@@ -167,6 +167,13 @@ Testé sur dossier_spec (setup léger) — gain marginal. Mais sur tags_substitu
 
 **Règle :** prioriser T09 quand le `before`/setup fait des transitions d'état (`accepter!`, `passer_en_instruction!`, `passer_en_construction!`) ou des opérations lourdes. Déprioritiser si le setup est léger (<0.3s).
 
+### Smart quotes de l'outil Edit
+
+L'outil Edit de Claude remplace parfois les apostrophes ASCII (`'`) par des smart quotes unicode (U+2018 `'` / U+2019 `'`). Casse les assertions de texte et les strings Ruby.
+
+**Détection :** test rouge avec diff invisible (le texte "semble" identique).
+**Fix :** utiliser des double quotes `"` dans le code édité, ou passer par un script Ruby/Bash via l'outil Bash au lieu de Edit.
+
 ## Convention de nommage
 
 - **Branche :** `perf/<nom-fichier-spec>` (ex: `perf/dossier-spec`)
