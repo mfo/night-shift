@@ -72,6 +72,8 @@ Output OBLIGATOIRE :
 
 Identifier point d'erreur → remonter la call stack → 5 Whys → root cause.
 
+**Réflexe historique git :** Si le code "marchait avant" (`NoMethodError` sur nil, `UrlGenerationError` sur id: nil), remonter 2-3 générations de refactoring pour retrouver les guards défensifs perdus (`.persisted?`, `.blank?`, `&.`). Ne pas s'arrêter au commit précédent.
+
 ### Stratégie Interactive
 
 **Quand :** L'user veut piloter l'investigation en pair.
@@ -100,11 +102,6 @@ Identifier point d'erreur → remonter la call stack → 5 Whys → root cause.
 
 **Pattern TDD Bugfix :** `test(scope): spec reproducing bug` (RED) → `fix(scope): description` (GREEN) → `db/cleanup` (optionnel). Squasher RED/GREEN si trivial.
 
-**Checkpoints avant implémentation :**
-- [ ] Dépendances système installées ? (`vips`, `imagemagick`…)
-- [ ] Migrations nécessaires créées ? (Strong Migrations = 2 fichiers)
-- [ ] Bug reproductible localement ? Si NON → test de non-régression pragmatique
-
 **Valider le plan avec le user AVANT de coder.**
 
 ---
@@ -113,7 +110,6 @@ Identifier point d'erreur → remonter la call stack → 5 Whys → root cause.
 
 1. **Explorer** — Lire fichiers impactés, dépendances, tests existants
 2. **Implémenter** — Solution EXACTEMENT comme validée. Pivot → validation user AVANT
-3. **Screenshots Playwright** (si PR) — `clip` avec padding 50-100px autour du `boundingBox()`, jamais de padding CSS sur le composant
 4. **Tests** — unitaires + non-régression + linters (rubocop). Si échec → corriger AVANT de continuer
 5. **Commit** — `fix(scope): [titre]` avec Root cause + Solution + Changements dans le body
 
@@ -147,7 +143,7 @@ Identifier point d'erreur → remonter la call stack → 5 Whys → root cause.
 
 ## Patterns & Règles d'Investigation
 
-→ Voir [`patterns.md`](patterns.md) — Patterns 1-8 + règles de remontée historique git.
+→ Voir [`patterns.md`](patterns.md) — 4 patterns critiques (rate limiting, rescue global, STI polymorphic, suppression vs désactivation).
 
 ---
 
