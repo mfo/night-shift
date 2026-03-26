@@ -38,9 +38,7 @@ Demande à l'utilisateur de décrire le bug. Selon ses inputs, détermine le mod
 
 **Quand :** L'utilisateur a un bug report textuel sans stack trace ni rapport technique.
 
-**Temps estimé :** 2-4h (investigation + fix)
-
-### Étape 1.1 : Recueillir le Contexte (5min)
+### Étape 1.1 : Recueillir le Contexte
 
 **Demande à l'utilisateur :**
 - Description du comportement observé vs attendu
@@ -55,109 +53,47 @@ Demande à l'utilisateur de décrire le bug. Selon ses inputs, détermine le mod
 
 **Crée un Agent Team avec 3 investigateurs en parallèle.**
 
+> **Fallback :** Si tu ne peux pas lancer d'agents en parallèle, exécute les 3 hypothèses séquentiellement en commençant par la plus probable.
+
 Chaque investigateur reçoit la description du bug + le contexte recueilli et explore une hypothèse différente.
 
-**Investigateur 1 — Hypothèse Code/Logique :**
+**Template commun — chaque investigateur :**
 ```
-Tu es un développeur senior Ruby on Rails (10+ ans).
-Investigue ce bug en explorant l'hypothèse que la cause est dans la LOGIQUE MÉTIER ou le CODE applicatif.
-
 Actions :
-1. Identifie les fichiers potentiellement impliqués (grep, lecture code)
-2. Trace le flow d'exécution complet (point d'entrée → erreur probable)
-3. Cherche les edge cases non gérés, conditions de course, validations manquantes
-4. Applique les 5 Whys sur ton hypothèse
-
-Tu NE cherches PAS : problèmes d'infra, configuration, données corrompues.
+1. Identifie les fichiers/composants potentiellement impliqués
+2. Trace le flow d'exécution (point d'entrée → erreur probable)
+3. Applique les 5 Whys sur ton hypothèse
 
 Output OBLIGATOIRE :
-## Hypothèse Code/Logique
+## Hypothèse [Nom]
 ### Confidence : [haute/moyenne/basse]
 ### Root cause probable
 [Description + preuves (fichier:ligne)]
 ### 5 Whys
-1. Pourquoi ? → ...
-2. Pourquoi ? → ...
-3. Pourquoi ? → ...
-4. Pourquoi ? → ...
-5. Pourquoi ? → ...
+1. Pourquoi ? → ...  2. → ...  3. → ...  4. → ...  5. → ...
 ### Fichiers impactés
 - [fichier] (raison)
 ### Solution proposée
 [Description + code esquissé]
 ```
 
-**Investigateur 2 — Hypothèse Data/Configuration :**
-```
-Tu es un DBA / DevOps senior.
-Investigue ce bug en explorant l'hypothèse que la cause est dans les DONNÉES ou la CONFIGURATION.
+**Deltas par investigateur :**
 
-Actions :
-1. Vérifie les migrations récentes, le schema DB
-2. Cherche les données corrompues ou incohérentes possibles
-3. Vérifie la configuration (env vars, initializers, cron jobs)
-4. Vérifie les dépendances externes (APIs, services tiers)
-5. Applique les 5 Whys sur ton hypothèse
-
-Tu NE cherches PAS : bugs de logique applicative, problèmes UX.
-
-Output OBLIGATOIRE :
-## Hypothèse Data/Configuration
-### Confidence : [haute/moyenne/basse]
-### Root cause probable
-[Description + preuves]
-### 5 Whys
-1. Pourquoi ? → ...
-2. Pourquoi ? → ...
-3. Pourquoi ? → ...
-4. Pourquoi ? → ...
-5. Pourquoi ? → ...
-### Fichiers/tables impactés
-- [fichier/table] (raison)
-### Solution proposée
-[Description + code esquissé]
-```
-
-**Investigateur 3 — Hypothèse Intégration/Timing :**
-```
-Tu es un architecte senior spécialisé systèmes distribués.
-Investigue ce bug en explorant l'hypothèse que la cause est un problème d'INTÉGRATION, TIMING ou CONCURRENCE.
-
-Actions :
-1. Cherche les race conditions, problèmes d'ordre d'exécution
-2. Vérifie les jobs async (Sidekiq), callbacks, webhooks
-3. Cherche les problèmes de cache (stale data, invalidation)
-4. Vérifie les timeouts, retries, rate limiting
-5. Applique les 5 Whys sur ton hypothèse
-
-Tu NE cherches PAS : bugs de logique simple, problèmes de données statiques.
-
-Output OBLIGATOIRE :
-## Hypothèse Intégration/Timing
-### Confidence : [haute/moyenne/basse]
-### Root cause probable
-[Description + preuves]
-### 5 Whys
-1. Pourquoi ? → ...
-2. Pourquoi ? → ...
-3. Pourquoi ? → ...
-4. Pourquoi ? → ...
-5. Pourquoi ? → ...
-### Fichiers/composants impactés
-- [fichier/composant] (raison)
-### Solution proposée
-[Description + code esquissé]
-```
+| # | Hypothèse | Scope | Exclusions |
+|---|---|---|---|
+| 1 | **Code/Logique** — edge cases, validations manquantes, conditions de course | Logique métier, code applicatif | Infra, configuration, données corrompues |
+| 2 | **Data/Configuration** — données corrompues, migrations, env vars, dépendances externes | Schema DB, config, services tiers | Bugs de logique applicative, UX |
+| 3 | **Intégration/Timing** — race conditions, jobs async, cache stale, timeouts | Sidekiq, callbacks, webhooks, cache | Bugs de logique simple, données statiques |
 
 ---
 
-### Étape 1.3 : Convergence (10min)
+### Étape 1.3 : Convergence
 
 1. **Collecter** les 3 hypothèses
 2. **Comparer** les niveaux de confidence
 3. **Identifier** les convergences (2+ investigateurs pointent vers la même zone)
 4. **Synthétiser** la root cause la plus probable
-5. **Proposer 3 solutions** (format ci-dessous)
+5. **Proposer 1 à 3 solutions** selon la complexité (format ci-dessous)
 
 → Continue à **Étape Commune : Solutions & Review**
 
@@ -167,29 +103,13 @@ Output OBLIGATOIRE :
 
 **Quand :** L'utilisateur a un rapport d'investigation, une stack trace Sentry, ou un rapport technique.
 
-**Temps estimé :** 1-2h (review + fix)
+### Étape 2.1 : Lecture Rapport
 
-### Étape 2.1 : Lecture Rapport (10min)
+Demande chemin vers le rapport/stack trace + solution déjà choisie ?
 
-**Demande à l'utilisateur :**
-- Chemin vers le rapport ou stack trace
-- Solution déjà choisie ? (si rapport d'investigation avec solutions)
+**Si rapport avec solutions :** → directement à **Étape Commune : Review Solutions**
 
-**Actions :**
-- Lire le rapport complet
-- Comprendre la root cause documentée
-- Identifier les fichiers impactés
-
-**Si rapport d'investigation avec solutions déjà documentées :**
-→ Passer directement à **Étape Commune : Review Solutions**
-
-**Si stack trace Sentry sans investigation :**
-
-1. **Identifier le point d'erreur exact** (fichier:ligne)
-2. **Lire le fichier à la ligne indiquée**
-3. **Remonter la call stack** (point d'entrée → erreur)
-4. **Appliquer 5 Whys** sur la root cause
-5. **Proposer 3 solutions** (format ci-dessous)
+**Si stack trace Sentry :** Identifier point d'erreur (fichier:ligne) → remonter la call stack → 5 Whys → proposer 1 à 3 solutions
 
 → Continue à **Étape Commune : Solutions & Review**
 
@@ -199,27 +119,12 @@ Output OBLIGATOIRE :
 
 **Quand :** L'utilisateur veut investiguer en pair avec toi, pas d'équipe autonome.
 
-**Temps estimé :** 1-3h (investigation + fix)
-
 ### Étape 3.1 : Investigation Guidée
 
-**Workflow interactif :**
-
-1. **Hypothèse initiale** — Propose 2-3 hypothèses basées sur la description
-2. **Validation** — Demande au user laquelle explorer d'abord
-3. **Exploration** — Lis le code, grep, trace le flow
-4. **Checkpoint** — Partage tes findings, demande direction
-5. **Itérer** — Jusqu'à root cause identifiée
-
-**Questions à poser régulièrement :**
-- "J'ai trouvé [X], est-ce que ça correspond à ce que tu observes ?"
-- "Le code fait [Y] à la ligne Z, est-ce le comportement attendu ?"
-- "Je vois 2 pistes : [A] ou [B], laquelle privilégier ?"
-
-**Appliquer 5 Whys** au fur et à mesure de l'investigation.
+**Boucle :** Hypothèses → User choisit → Explorer → Checkpoint findings → Itérer jusqu'à root cause. Appliquer 5 Whys au fil de l'investigation.
 
 **Une fois la root cause identifiée :**
-→ Proposer 3 solutions → Continue à **Étape Commune : Solutions & Review**
+→ Proposer 1 à 3 solutions → Continue à **Étape Commune : Solutions & Review**
 
 ---
 
@@ -227,76 +132,26 @@ Output OBLIGATOIRE :
 
 ## Étape Commune : Solutions & Review
 
-### Format des 3 Solutions
+**Avant de proposer des solutions ad-hoc**, rechercher le pattern standard Rails / communautaire.
 
-Pour chaque solution, documenter :
+**Format par solution :** Approche technique, implémentation (code exact), avantages, inconvénients, effort (🟢 Simple / 🟡 Moyen / 🔴 Complexe). Ordre : 1=quick win, 2=recommandée, 3=robuste long terme.
 
-1. **Approche technique** (quoi, où)
-2. **Implémentation détaillée** (code exact)
-3. **Avantages** (ce qui est amélioré)
-4. **Inconvénients** (complexité, risques, coût)
-5. **Effort** : 🟢 Simple < 1h / 🟡 Moyen 2-4h / 🔴 Complexe > 1 jour
+**Review :** Invoque `/review-3-amigos` avec les solutions + root cause (review libre). Ajuster si nécessaire.
 
-**Ordre :**
-- **Solution 1 :** La plus simple (quick win)
-- **Solution 2 :** Le bon équilibre (recommandée)
-- **Solution 3 :** La plus robuste (long terme)
-
-### Review Solutions
-
-**Lance `/review-3-amigos` avec :**
-- **Input :** les 3 solutions proposées + root cause documentée
-- **Checklist :** aucune (review libre)
-
-**Après la review :** ajuster les solutions si nécessaire.
-
-### Recommandation
-
-**Présente au user :**
-- Root cause (1 phrase)
-- 3 solutions avec findings de la review
-- Recommandation justifiée
-- Plan d'action
-
-**Le user choisit la solution à implémenter.**
+**Présente au user :** root cause (1 phrase), solutions avec findings, recommandation justifiée, plan d'action. **Le user choisit.**
 
 ---
 
-## Étape Commune : Plan de Commits (OBLIGATOIRE)
+## Étape Commune : Plan de Commits
 
-**❌ Ne jamais commencer à coder sans plan de commits.**
+**Proposer un plan de commits au user.** Si le fix est simple (1-2 fichiers), le user peut refuser — ne pas bloquer.
 
-**Pattern TDD Bugfix (Red → Green → Refactor) :**
+**Pattern TDD Bugfix :** `test(scope): spec reproducing bug` (RED) → `fix(scope): description` (GREEN) → `db/cleanup` (optionnel). Squasher RED/GREEN si trivial.
 
-```
-Commit 1: test(scope): add spec reproducing [bug description]
-  → Écrire le test qui reproduit le bug
-  → Vérifier que le test ÉCHOUE avant de committer
-  → Message : test(scope): add spec reproducing [description]
-
-Commit 2: fix(scope): [description du fix]
-  → Corriger le code → tests verts
-  → Message : fix(scope): [description du fix]
-
-Commit 3: db/cleanup: [hygiène] (optionnel)
-  → Migrations, cleanup
-  → Message : db: ... ou cleanup: ...
-```
-
-**Stratégie de squash :**
-- Si les commits RED/GREEN intermédiaires sont évidents (test trivial + fix petit), prévoir de les regrouper dès le plan
-- Documenter dans le plan : "Commits 1-2 squashés en 1" si applicable
-
-**Checkpoint dépendances système :**
-- [ ] Les dépendances système nécessaires sont-elles installées ? (ex: `vips`, `imagemagick`, `ffmpeg`)
-- [ ] Si worktree dédié : vérifier que l'environnement est fonctionnel avant de coder
-
-**Checkpoint migrations :**
-- [ ] Toutes les migrations nécessaires sont-elles créées ?
-- [ ] Strong Migrations pattern respecté ? (add constraint + validate = 2 fichiers)
-
-**Checkpoint tests non-reproductibles :**
-- [ ] Le bug est-il reproductible localement ? Si NON (version lib différente, env prod spécifique) → écrire un **test de non-régression pragmatique** qui valide le fix même si le bug original n'est pas visible
+**Checkpoints avant implémentation :**
+- [ ] Dépendances système installées ? (`vips`, `imagemagick`…)
+- [ ] Migrations nécessaires créées ? (Strong Migrations = 2 fichiers)
+- [ ] Bug reproductible localement ? Si NON → test de non-régression pragmatique
 
 **Valider le plan avec le user AVANT de coder.**
 
@@ -304,217 +159,50 @@ Commit 3: db/cleanup: [hygiène] (optionnel)
 
 ## Étape Commune : Implémentation
 
-### Exploration Code (5-10min)
-
-- Lire les fichiers impactés
-- Vérifier les dépendances
-- Identifier les tests existants
-
-### Implémentation (10-30min)
-
-- Implémenter la solution EXACTEMENT comme validée
-- Si pivot nécessaire : demander validation utilisateur AVANT
-- Pas de sur-engineering
-
-### Tests et Validation (10-15min)
-
-1. **Tests unitaires concernés**
-2. **Tests de non-régression** (features impactées)
-3. **Linters** (rubocop sur fichiers modifiés)
-4. **Validation grep** (si suppression : vérifier qu'aucune référence reste)
-
-**Checkpoint :**
-- [ ] Tous les tests passent ?
-- [ ] Linters OK ?
-- [ ] Non-régression vérifiée ?
-
-Si NON → Analyser l'erreur et corriger AVANT de continuer
-
-### Commit
-
-**Format :**
-
-```bash
-git add [fichiers spécifiques]
-git commit --no-gpg-sign -m "$(cat <<'EOF'
-fix(scope): [titre court du bug]
-
-Root cause: [1 phrase]
-Solution: [Nom de la solution]
-
-Changements:
-- [Changement 1]
-- [Changement 2]
-
-Tests: [X] exemples, [Y] échecs
-
-Co-Authored-By: Claude <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Étape Commune : Kaizen
-
-**Créer :** `kaizen/3-bugs/iteration-N/YYYY-MM-DD-bug-[id].md`
-
-**Sections minimum :**
-
-1. **Contexte** — Mode utilisé, solution implémentée, temps total
-2. **Ce qui a bien marché** — Clarté investigation, facilité fix, tests
-3. **Ce qui a mal marché** — Blocages, pivots, points d'amélioration
-4. **Learnings transférables** — Patterns découverts, best practices
-5. **Métriques** — Temps, tests exécutés, score (/5)
-
----
-
-## Patterns Critiques Découverts
-
-### Pattern 1 : Rate Limiting API Externes
-
-**Symptômes :** Faraday::TooManyRequestsError, erreurs en vagues
-
-**Root cause typique :** Job cron enqueue des centaines de jobs → Sidekiq traite en parallèle → API externe a des quotas stricts
-
-**Solutions classiques :**
-1. Désactiver le job cron (si non critique)
-2. Queue dédiée + throttling + retry avec backoff
-3. Circuit breaker + Redis rate limiter
-
-### Pattern 2 : Jobs Cron avec Enqueue Massif
-
-**Anti-pattern :**
-```ruby
-Procedure.find_each do |procedure|
-  MyJob.perform_later(procedure)  # Enqueue immédiat
-end
-```
-
-**Solution :**
-```ruby
-Procedure.find_each.with_index do |procedure, idx|
-  MyJob.set(wait: idx * 15.seconds).perform_later(procedure)
-end
-```
-
-### Pattern 3 : Rescue Global dans un Job = Piège
-
-**Symptômes :** Job qui échoue silencieusement, pas de retry, erreur avalée
-
-**Anti-pattern :**
-```ruby
-def perform(blob)
-  process(blob)
-rescue Vips::Error => e  # Attrape TOUTES les erreurs vips, même celles qu'on veut retry
-  log_error(e)
-end
-```
-
-**Solution :** Exception custom qui hérite de `StandardError` (pas de la lib error) :
-```ruby
-class MyService::Error < StandardError; end
-
-# Dans le service : raise MyService::Error wrapping l'erreur originale
-# Dans le job : retry_on MyService::Error, attempts: 3
-# Le rescue Vips::Error ne catch pas MyService::Error → retry fonctionne
-```
-
-**Applicable à :** Tout job avec `rescue LibError` global qui risque d'avaler des erreurs spécifiques.
-
-### Pattern 4 : Rails STI et polymorphic_name
-
-**Symptômes :** Query sur `record_type` qui ne retourne rien
-
-**Piège :** `active_storage_attachments.record_type` stocke le **polymorphic_name** (base class STI), pas la sous-classe.
-```ruby
-# ❌ Ne trouve rien
-ActiveStorage::Attachment.where(record_type: "Champs::TitreIdentiteChamp")
-
-# ✅ Correct
-ActiveStorage::Attachment
-  .joins("JOIN champs ON champs.id = active_storage_attachments.record_id")
-  .where(record_type: "Champ")
-  .where(champs: { type: "Champs::TitreIdentiteChamp" })
-```
-
-**Applicable à :** Toute query sur `active_storage_attachments` ou tables polymorphiques avec STI.
-
-### Pattern 5 : Factories pour modèles Rails internes
-
-**Piège :** `create(:blob)` → `KeyError: Factory not registered`. Pas de factory FactoryBot pour `ActiveStorage::Blob`, `ActiveStorage::Attachment`, etc.
-
-**Solution :** Utiliser les associations réelles :
-```ruby
-# ❌ create(:blob)
-# ✅ Créer un objet parent avec pièce jointe → accéder au blob via l'association
-dossier = create(:dossier, :with_titre_identite)
-blob = dossier.champs.first.piece_justificative_file.blob
-```
-
-### Pattern 6 : Suppression > Désactivation
-
-**SUPPRIMER si :** Business confirme non-critique + probabilité réactivation < 10%
-**DÉSACTIVER si :** Feature flag A/B testing + rollback potentiel < 1 mois
-
-→ Demander à l'utilisateur en cas de doute.
-
----
-
-## Contraintes
-
-**✅ AUTORISÉ (fais-le sans demander) :**
-- Lire code, stack traces, rapports
-- Grep patterns dans le codebase
-- Lancer les investigateurs (Mode 1)
-- Proposer solutions avec code
-- Implémenter après validation user
-- Lancer tests
-- Créer commits (avec --no-gpg-sign)
-- Documenter kaizen
-
-**❌ INTERDIT :**
-- Sur-engineer la solution
-- Refactorer au-delà du fix
-- Commit sans tests passés
-- Toucher à la DB production
-- Implémenter sans plan de commits validé
-
-**⚠️ DEMANDER VALIDATION si :**
-- Pivot nécessaire vs solution choisie
-- Suppression complète vs désactivation
-- Tests échouent de manière inattendue
-- Dépendances non documentées découvertes
+1. **Explorer** — Lire fichiers impactés, dépendances, tests existants
+2. **Implémenter** — Solution EXACTEMENT comme validée. Pivot → validation user AVANT
+3. **Screenshots Playwright** (si PR) — `clip` avec padding 50-100px autour du `boundingBox()`, jamais de padding CSS sur le composant
+4. **Tests** — unitaires + non-régression + linters (rubocop). Si échec → corriger AVANT de continuer
+5. **Commit** — `fix(scope): [titre]` avec Root cause + Solution + Changements dans le body
 
 ---
 
 ## Checkpoints Jidoka
 
-**À 30min :**
+**Après l'investigation :**
 - [ ] Root cause identifiée (ou hypothèses claires) ?
 - Si NON → STOP et demande aide
 
-**À 1h :**
+**Après validation solution :**
 - [ ] Solution choisie et validée par user ?
 - Si NON → STOP et propose options
 
-**À 2h :**
+**Après implémentation :**
 - [ ] Fix implémenté et tests verts ?
 - Si NON → STOP et explique blocage
+
+---
+
+## Contraintes
+
+**✅ AUTORISÉ :** Lire code/rapports, grep, lancer investigateurs, proposer solutions, implémenter après validation user, tests, commits (--no-gpg-sign), kaizen.
+
+**❌ INTERDIT :** Sur-engineering, commit sans tests verts, implémenter sans validation du user. Refactoring au-delà du fix uniquement si justifié métier ou architecturalement.
+
+**⚠️ DEMANDER VALIDATION :** Pivot vs solution choisie, suppression vs désactivation, tests échouent de manière inattendue, dépendances non documentées.
+
+---
+
+## Patterns & Règles d'Investigation
+
+→ Voir [`patterns.md`](patterns.md) — Patterns 1-8 + règles de remontée historique git.
 
 ---
 
 ## Livrable Final
 
 1. **Root cause documentée** (5 Whys)
-2. **Code fixé** (pattern TDD : test KC → fix → hygiene)
+2. **Code fixé** (TDD : test RED → fix GREEN → hygiene)
 3. **Commits structurés** (messages conventionnels)
-4. **Kaizen** : `kaizen/3-bugs/iteration-N/YYYY-MM-DD-bug-[id].md`
-
-**Résumé à fournir :**
-- Mode utilisé (1, 2, ou 3)
-- Root cause (1 phrase)
-- Solution implémentée
-- Tests (X exemples, Y échecs)
-- Temps total
-- Prochaines étapes (PR, deploy, monitoring)
+4. **Kaizen** : `kaizen/3-bugs/iteration-N/YYYY-MM-DD-bug-[id].md` — Contexte, bien marché, mal marché, learnings, métriques (/5)
+5. **Résumé** : mode utilisé, root cause, solution, tests (X exemples), prochaines étapes
