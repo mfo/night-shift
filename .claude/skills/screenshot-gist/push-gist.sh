@@ -4,10 +4,21 @@
 # Travaille dans tmp/<nom>/ (le clone du gist)
 set -euo pipefail
 
+if [ $# -lt 4 ]; then
+  echo "Usage: push-gist.sh <nom> <user> <gist-id> [fichier1.png fichier2.png ...]" >&2
+  exit 1
+fi
+
 nom="$1"
 user="$2"
 gist_id="$3"
 shift 3
+
+# Guard path traversal
+if [[ "$nom" == */* || "$nom" == *..* ]]; then
+  echo "Erreur: le nom ne doit pas contenir '/' ni '..'" >&2
+  exit 1
+fi
 
 # Add uniquement les fichiers passés en arguments
 for f in "$@"; do
