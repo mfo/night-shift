@@ -38,3 +38,10 @@ ActiveStorage::Attachment
 ### Pattern 4 : Suppression > Désactivation
 
 **Supprimer** si business confirme non-critique + probabilité réactivation < 10%. **Désactiver** si rollback potentiel < 1 mois. En cas de doute → demander.
+
+### Pattern 5 : Régression par perte de guard (migration composant)
+
+**Symptôme :** `NoMethodError` sur nil ou `UrlGenerationError` après migration/réécriture de composant.
+**Piège :** Un guard défensif (`.persisted?`, `.blank?`, `&.`) existait dans l'ancien composant mais a été perdu lors de la réécriture.
+**Solution :** Lors de l'investigation, remonter l'historique git jusqu'au composant d'origine pour retrouver les guards perdus.
+**Ref :** kaizen 2026-03-26 (unpersisted-attachments, V1→V2→V3)

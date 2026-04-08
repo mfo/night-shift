@@ -110,6 +110,7 @@ Identifier point d'erreur → remonter la call stack → 5 Whys → root cause.
 
 1. **Explorer** — Lire fichiers impactés, dépendances, tests existants
 2. **Implémenter** — Solution EXACTEMENT comme validée. Pivot → validation user AVANT
+3. **Choix du niveau de test** — Pour un bug de rendu (composant affiche un crash), préférer un test composant direct plutôt qu'un test controller — plus rapide, plus ciblé, évite les pièges (`fixture_file_upload` ≠ direct upload, `render_views` oublié)
 4. **Tests** — unitaires + non-régression + linters (rubocop). Si échec → corriger AVANT de continuer
 5. **Commit** — `fix(scope): [titre]` avec Root cause + Solution + Changements dans le body
 
