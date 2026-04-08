@@ -159,7 +159,7 @@ Commits 15-16: Fix all tests
 
 - [ ] **Utiliser `.state&.in?([...])`** au lieu de boolean combinations
 
-**❌ ÉVITER :**
+**❌ ÉVITER :** Fragile — nouveaux états cassent la logique, intention pas claire
 ```ruby
 return if record&.persisted? && !record&.failed?
 ```
@@ -219,7 +219,7 @@ end
 
 ### Pattern 4 : Tests Isolation (Score 8/10)
 
-- [ ] **Setup context** pour before_actions
+- [ ] **Setup context** pour before_actions — sans ça, 18+ tests failures mystérieuses (before_action redirige)
 
 **✅ Tests controller avec before_action :**
 ```ruby
@@ -246,7 +246,7 @@ end
 
 - [ ] **Vérifier cohérence** validation Rails ↔ Index DB
 
-**Quand tu ajoutes/modifies :**
+**Quand tu ajoutes/modifies :** (tests passent en SQLite permissive, prod crashe en PostgreSQL strict)
 ```ruby
 validates :field, uniqueness: { scope: [:field_a, :field_b] }
 ```
@@ -338,172 +338,9 @@ validates :field, uniqueness: { scope: [:field_a, :field_b] }
 
 ---
 
-## ⚠️ Pièges Critiques à Éviter
+## Note : Screenshots ambigus
 
-**Learnings sessions 1-6 (voir `checklist.md`) :**
-
-### 1. Tests Cassés Commits 4-15 ❌
-
-**Problème :** Approche "code first, tests later"
-- Commits 4-14 : Code changes (⚠️ tests rouges)
-- Commits 15-16 : Fix all tests
-
-**Impact :**
-- Git bisect cassé
-- Historique illisible
-- Reviewers confus
-
-**Solution :** ✅ Interleave code + specs chaque commit
-
----
-
-### 2. Boolean Combinations pour State ❌
-
-**Problème :**
-```ruby
-return if record&.persisted? && !record&.failed?
-```
-
-**Impact :**
-- Fragile (nouveaux états cassent logique)
-- Intention pas claire
-- Bugs edge cases
-
-**Solution :** ✅ State checks explicites
-```ruby
-return if record&.state&.in?(['queued', 'running'])
-```
-
----
-
-### 3. Memoization dans Actions Changeant État ❌
-
-**Problème :**
-```ruby
-def current_schema_hash
-  @current_schema_hash ||= calculate(draft.schema)
-  # ⚠️ Stale après draft.update!
-end
-```
-
-**Impact :**
-- Valeurs stales
-- Bugs subtils
-- Tests passent mais prod crash
-
-**Solution :** ✅ Recalculer à chaque appel
-
----
-
-### 4. Tests Sans Setup Context ❌
-
-**Problème :**
-```ruby
-it 'renders view' do
-  get :action, params: { tunnel_id: 'abc123' }
-  # ❌ Échoue : before_action redirige (pas de context)
-end
-```
-
-**Impact :** 18+ tests failures mystérieuses
-
-**Solution :** ✅ Setup context complet (Pattern 4)
-
----
-
-### 6. Screenshots ambigus ❌
-
-**Problème :** Le user demande des "captures" sans préciser le type
-**Impact :** Temps perdu sur la mauvaise approche (ex: Capybara alors que Vite build cassé)
-**Solution :** Toujours clarifier : screenshots Capybara (specs système) vs screenshots manuels (navigateur) vs screenshots Playwright (MCP)
-
----
-
-### 5. Validation Rails Sans Index DB ❌
-
-**Problème :**
-```ruby
-validates :x, uniqueness: { scope: [:a, :b] }
-# Mais pas d'index unique en DB
-```
-
-**Impact :**
-- Tests passent (SQLite permissive)
-- Prod crashe (PostgreSQL strict)
-
-**Solution :** ✅ Checkpoint validation uniqueness (Pattern 5)
-
----
-
-## Commandes Utiles
-
-### Exécuter Tests
-```bash
-# Suite complète
-bundle exec rspec
-
-# Tests spécifiques
-bundle exec rspec spec/models/
-bundle exec rspec spec/controllers/
-bundle exec rspec spec/system/
-
-# Fichier spécifique
-bundle exec rspec spec/models/model_spec.rb
-
-# Test spécifique
-bundle exec rspec spec/models/model_spec.rb:42
-```
-
-### Vérifier Qualité Code
-```bash
-# Rubocop
-bundle exec rubocop
-bundle exec rubocop -a  # Auto-correct
-
-# Coverage
-COVERAGE=true bundle exec rspec
-
-# Strong Migrations
-bundle exec rails db:migrate
-# Vérifie safe migrations
-```
-
-### Debug
-```bash
-# Rails console
-rails console
-
-# Logs
-tail -f log/development.log
-
-# DB console
-rails dbconsole
-```
-
----
-
-## Métriques de Succès
-
-**Phase 2 réussie si :**
-- [ ] Tous commits tests verts (sauf exception documentée)
-- [ ] State checks explicites appliqués
-- [ ] Pas memoization inappropriée
-- [ ] Tests isolation correcte
-- [ ] Validation uniqueness cohérente
-- [ ] Self-documenting variables (nesting < 2)
-- [ ] Rubocop clean (0 offenses)
-- [ ] Coverage ≥ 80%
-
-**Temps total Phase 2 :** 8-20h (selon complexité)
-- Phase 1 (DB) : 1-2h
-- Phase 2 (Infra) : 1-2h
-- Phase 3 (Features) : 2-4h
-- Phase 4 (UI) : 1-2h
-- Phase 5 (Tests) : 2-4h
-- Phase 6 (Cleanup) : 0.5-1h
-- Phase 7 (UX optionnel) : 0.5-1h
-
-**Score autonomie :** 7/10
+Si le user demande des "captures" sans préciser le type → toujours clarifier : screenshots Capybara (specs système) vs screenshots manuels (navigateur) vs screenshots Playwright (MCP).
 
 ---
 
