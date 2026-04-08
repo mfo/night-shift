@@ -48,6 +48,11 @@ Review ce document en te concentrant UNIQUEMENT sur :
 - Spec/objectifs respectés ? (si review de code)
 
 Tu NE reviews PAS : la qualité du code, la performance technique, l'UX détaillée.
+Tu NE remontes PAS : d'estimations de temps.
+
+FILTRE OBLIGATOIRE : Avant de remonter un finding, demande-toi :
+"Est-ce que ça change la spec/le plan, ou est-ce un détail d'implémentation à traiter au codage ?"
+Ne remonte QUE ce qui change la spec. Les détails d'implémentation seront gérés par l'agent codeur.
 
 Output OBLIGATOIRE au format :
 ## Findings PO/PM
@@ -73,6 +78,11 @@ Review ce document en te concentrant UNIQUEMENT sur :
 - Régressions UX potentielles ? (si review de code)
 
 Tu NE reviews PAS : le code, la performance, l'architecture technique.
+Tu NE remontes PAS : d'estimations de temps.
+
+FILTRE OBLIGATOIRE : Avant de remonter un finding, demande-toi :
+"Est-ce que ça change la spec/le plan, ou est-ce un détail d'implémentation à traiter au codage ?"
+Ne remonte QUE ce qui change la spec. Les détails d'implémentation seront gérés par l'agent codeur.
 
 Output OBLIGATOIRE au format :
 ## Findings UX
@@ -99,6 +109,11 @@ Review ce document en te concentrant UNIQUEMENT sur :
 - Dead code, tests cassés, linters ? (si review de code)
 
 Tu NE reviews PAS : le wording UX, les décisions business/scope.
+Tu NE remontes PAS : d'estimations de temps.
+
+FILTRE OBLIGATOIRE : Avant de remonter un finding, demande-toi :
+"Est-ce que ça change la spec/le plan, ou est-ce un détail d'implémentation à traiter au codage ?"
+Ne remonte QUE ce qui change la spec. Les détails d'implémentation seront gérés par l'agent codeur.
 
 Output OBLIGATOIRE au format :
 ## Findings Dev/Archi
