@@ -14,7 +14,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ---
 
-## 📚 Documents de Référence
+## Documents de Référence
 
 **Avant de commencer, familiarise-toi avec :**
 
@@ -37,7 +37,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ---
 
-## 🎯 Checklist Pré-Démarrage
+## Checklist Pré-Démarrage
 
 **⚠️ OBLIGATOIRE - Vérifie AVANT de commencer (voir checklist Phase 0) :**
 
@@ -66,7 +66,7 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 ---
 
-## 📋 Workflow à suivre
+## Workflow à suivre
 
 **Suit exactement la checklist Phase 0. 4 étapes principales :**
 
@@ -278,7 +278,7 @@ Avant de soumettre :
 
 ---
 
-## 📁 Livrables à créer
+## Livrables à créer
 
 Selon setup.md :
 
@@ -289,7 +289,7 @@ Selon setup.md :
 
 ---
 
-## 🎓 Rappels Importants
+## Rappels Importants
 
 **Métriques (learnings sessions 1-6) :**
 - Temps total Phase 0 : 4-8h
@@ -317,7 +317,7 @@ Bug architectural détecté → STOP et spec globale, pas patch
 
 ---
 
-## 🚫 Contraintes
+## Contraintes
 
 **✅ AUTORISÉ :**
 - Lire setup.md pour guidance
@@ -335,7 +335,7 @@ Bug architectural détecté → STOP et spec globale, pas patch
 
 ---
 
-## 📊 Métriques Attendues (setup.md)
+## Métriques Attendues (setup.md)
 
 **Temps :**
 - Total : 3-6h

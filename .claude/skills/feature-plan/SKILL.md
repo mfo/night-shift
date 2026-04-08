@@ -14,7 +14,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 
 ---
 
-## 📚 Documents de Référence
+## Documents de Référence
 
 **Avant de commencer, familiarise-toi avec :**
 
@@ -37,7 +37,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 
 ---
 
-## 🎯 Avant de commencer
+## Avant de commencer
 
 **1. Vérifie que tu as la bonne input :**
 - [ ] Spec technique validée (Phase 0 terminée) ? → ✅ Ce prompt
@@ -51,7 +51,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 
 ---
 
-## 📋 Workflow à suivre
+## Workflow à suivre
 
 **Suit exactement la checklist Phase 1. 3 étapes principales :**
 
@@ -262,7 +262,7 @@ Avant de soumettre le plan au user :
 
 ---
 
-## 📁 Structure du Plan Final
+## Structure du Plan Final
 
 ```markdown
 # TODO : Implémentation [Feature Name]
@@ -273,7 +273,7 @@ Avant de soumettre le plan au user :
 
 ---
 
-## 📋 Phase 1 : [Nom] (Commits 1-N)
+## Phase 1 : [Nom] (Commits 1-N)
 
 ### ✅ Commit 1: `scope: description`
 [Structure complète du commit avec template]
@@ -283,7 +283,7 @@ Avant de soumettre le plan au user :
 
 ---
 
-## 📋 Phase 2 : [Nom] (Commits N+1-M)
+## Phase 2 : [Nom] (Commits N+1-M)
 ...
 
 ---
@@ -309,7 +309,7 @@ Avant de soumettre le plan au user :
 
 ---
 
-## 📊 Résumé des Commits
+## Résumé des Commits
 
 [Tableau récapitulatif]
 
@@ -318,7 +318,7 @@ Avant de soumettre le plan au user :
 
 ---
 
-## 🎓 Rappels Importants
+## Rappels Importants
 
 **Métriques (learnings sessions 1-6) :**
 - Temps total Phase 1 : 1-2h
@@ -360,7 +360,7 @@ DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionne
 
 ---
 
-## 🚫 Contraintes
+## Contraintes
 
 **✅ AUTORISÉ :**
 - Lire setup.md Phase 4 pour guidance
@@ -378,7 +378,7 @@ DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionne
 
 ---
 
-## 📊 Métriques Attendues (setup.md)
+## Métriques Attendues (setup.md)
 
 **Temps :**
 - Total : 1-2h
@@ -394,7 +394,7 @@ DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionne
 
 ---
 
-## 📦 Livrables à créer
+## Livrables à créer
 
 Selon setup.md Phase 4 :
 

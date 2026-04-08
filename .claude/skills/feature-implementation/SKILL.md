@@ -14,7 +14,7 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 
 ---
 
-## 📚 Documents de Référence
+## Documents de Référence
 
 **Avant de commencer, familiarise-toi avec :**
 
@@ -37,7 +37,7 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 
 ---
 
-## 🎯 Avant de commencer
+## Avant de commencer
 
 **Vérifie que tu as la bonne input :**
 - [ ] Plan d'implémentation validé (Phase 1 terminée) ? → ✅ Ce prompt
@@ -52,7 +52,7 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 
 ---
 
-## 🚀 Étape 0 : Plan de Commits (OBLIGATOIRE AVANT TOUT CODE)
+## Étape 0 : Plan de Commits (OBLIGATOIRE AVANT TOUT CODE)
 
 **❌ Ne jamais commencer à coder sans plan de commits validé.**
 
@@ -70,7 +70,7 @@ DB → model+specs → controller+specs → views → cleanup
 
 ---
 
-## ⚡ Fast-path : Tâches Simples (< 5 commits)
+## Fast-path : Tâches Simples (< 5 commits)
 
 Pour les tâches avec ≤ 5 fichiers et un plan évident :
 
@@ -151,7 +151,7 @@ Commits 15-16: Fix all tests
 
 ---
 
-## 🎯 Patterns Critiques à Appliquer SYSTÉMATIQUEMENT
+## Patterns Critiques à Appliquer SYSTÉMATIQUEMENT
 
 **Pendant implémentation (voir `patterns.md`) :**
 
@@ -266,7 +266,7 @@ validates :field, uniqueness: { scope: [:field_a, :field_b] }
 
 ---
 
-## 📊 Checkpoint Mi-Phase (Après ~50% commits)
+## Checkpoint Mi-Phase (Après ~50% commits)
 
 **Checkpoint intermédiaire (~4-10h après début) :**
 
@@ -435,7 +435,7 @@ validates :x, uniqueness: { scope: [:a, :b] }
 
 ---
 
-## 🔧 Commandes Utiles
+## Commandes Utiles
 
 ### Exécuter Tests
 ```bash
@@ -482,7 +482,7 @@ rails dbconsole
 
 ---
 
-## 📊 Métriques de Succès
+## Métriques de Succès
 
 **Phase 2 réussie si :**
 - [ ] Tous commits tests verts (sauf exception documentée)
@@ -507,7 +507,7 @@ rails dbconsole
 
 ---
 
-## 🚫 Contraintes
+## Contraintes
 
 **✅ AUTORISÉ :**
 - Lire plan d'implémentation

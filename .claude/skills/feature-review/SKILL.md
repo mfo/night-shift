@@ -14,7 +14,7 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 
 ---
 
-## 📚 Documents de Référence
+## Documents de Référence
 
 **Avant de commencer, familiarise-toi avec :**
 
@@ -36,7 +36,7 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 
 ---
 
-## 🎯 Vue d'Ensemble Phase 3
+## Vue d'Ensemble Phase 3
 
 **Objectif :** Review structurée post-implémentation pour identifier dead code, tests cassés, logique mal placée
 
@@ -54,7 +54,7 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 
 ---
 
-## 🎯 Avant de commencer
+## Avant de commencer
 
 **Vérifie que tu as la bonne input :**
 - [ ] Feature implémentée (Phase 2 terminée) ? → ✅ Ce prompt
@@ -357,7 +357,7 @@ end
 
 ---
 
-## 🔧 Checklist Git Absorb (15min)
+## Checklist Git Absorb (15min)
 
 **Après tous fixes appliqués :**
 
@@ -449,7 +449,7 @@ end
 
 ---
 
-## 📊 Métriques de Succès
+## Métriques de Succès
 
 **Phase 3 réussie si :**
 - [ ] Document review créé
@@ -468,7 +468,7 @@ end
 
 ---
 
-## 🚫 Contraintes
+## Contraintes
 
 **✅ AUTORISÉ :**
 - Lire tous commits de la PR
@@ -486,7 +486,7 @@ end
 
 ---
 
-## 📁 Livrables à créer
+## Livrables à créer
 
 1. **`review-<feature>.md`** (document review structuré)
 2. **Git history clean** (via absorb/autosquash)
