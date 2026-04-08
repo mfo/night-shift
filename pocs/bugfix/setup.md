@@ -14,7 +14,7 @@ cd ../demarche.numerique.gouv.fr
 git worktree add -b poc-bug-fix ../demarche.numerique.gouv.fr-poc-bug main
 ```
 
-**Localisation :** `/Users/mfo/dev/demarche.numerique.gouv.fr-poc-bug`
+**Localisation :** `~/dev/demarche.numerique.gouv.fr-poc-bug`
 **Branche :** `poc-bug-fix`
 
 ### Choix du Bug
@@ -97,7 +97,7 @@ Dossiers sans user associé (user supprimé ?)
 # Tâche : Investiguer et Fixer Bug Sentry
 
 ## Contexte
-Tu es dans le worktree : /Users/mfo/dev/demarche.numerique.gouv.fr-poc-bug
+Tu es dans le worktree : ~/dev/demarche.numerique.gouv.fr-poc-bug
 
 Lis d'abord : .claude/context/essentials.md
 

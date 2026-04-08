@@ -9,14 +9,14 @@
 ## Créer un worktree
 
 ```bash
-cd /Users/mfo/dev/demarches-simplifiees.fr
+cd ~/dev/demarches-simplifiees.fr
 git worktree add -b perf/<nom-fichier-spec> ../demarches-simplifiees.fr-perf-<nom> main
 ```
 
 ## Installer le hook DB
 
 ```bash
-/Users/mfo/dev/night-shift/hooks/worktree/install.sh /Users/mfo/dev/demarches-simplifiees.fr-perf-<nom>
+~/dev/night-shift/hooks/worktree/install.sh ~/dev/demarches-simplifiees.fr-perf-<nom>
 ```
 
 Le hook crée automatiquement une DB PostgreSQL isolée pour le worktree.
@@ -24,7 +24,7 @@ Le hook crée automatiquement une DB PostgreSQL isolée pour le worktree.
 ## Lancer l'agent
 
 ```bash
-cd /Users/mfo/dev/demarches-simplifiees.fr-perf-<nom>
+cd ~/dev/demarches-simplifiees.fr-perf-<nom>
 # Lancer Claude Code avec le skill test-optimization
 # Input : chemin du fichier spec à optimiser
 ```
@@ -32,7 +32,7 @@ cd /Users/mfo/dev/demarches-simplifiees.fr-perf-<nom>
 ## Cleanup
 
 ```bash
-cd /Users/mfo/dev/demarches-simplifiees.fr
+cd ~/dev/demarches-simplifiees.fr
 git worktree remove ../demarches-simplifiees.fr-perf-<nom>
 # La DB est supprimable avec : dropdb -U tps_test -h localhost tps_test_perf_<nom>
 ```

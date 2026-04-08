@@ -14,7 +14,7 @@ cd ../demarche.numerique.gouv.fr
 git worktree add -b poc-haml-migration ../demarche.numerique.gouv.fr-poc-haml main
 ```
 
-**Localisation :** `/Users/mfo/dev/demarche.numerique.gouv.fr-poc-haml`
+**Localisation :** `~/dev/demarche.numerique.gouv.fr-poc-haml`
 **Branche :** `poc-haml-migration`
 
 ### Fichier Choisi
@@ -54,7 +54,7 @@ git worktree add -b poc-haml-migration ../demarche.numerique.gouv.fr-poc-haml ma
 # Tâche : Migrer 1 fichier HAML → ERB
 
 ## Contexte
-Tu es dans le worktree : /Users/mfo/dev/demarche.numerique.gouv.fr-poc-haml
+Tu es dans le worktree : ~/dev/demarche.numerique.gouv.fr-poc-haml
 
 ## Fichier à migrer
 app/views/release_notes/_announce.html.haml (10 lignes)
