@@ -1,26 +1,62 @@
-# Epic 2 : Du POC à la série
+# Epic 2 : Du POC à la série — Orchestrateur
 
-**Status :** À venir — en attente d'un skill mature
+**Status :** En conception
 
 ---
 
 ## Objectif
 
-Documenter l'approche pour passer d'un skill validé en POC (N=1) à une exécution en série (N=10, N=100).
+Automatiser l'exécution des skills matures sur leur stock de fichiers, avec un suivi visuel.
+
+## Décisions prises (2026-04-08)
+
+- **Queue unique** : un `queue.json` qui dépile des fichiers un par un, séquentiellement
+- **Deux inventaires** : HAML (758 fichiers), test-optim (52 fichiers)
+- **Pas de parallélisme** pour le moment
+- **Scheduling** : launchd sur macOS — HAML 3x/jour (09h, 13h, 17h), test-optim 1x/nuit (02h)
+- **Suivi visuel** : menu bar app Swift (même pattern que `claude-accept-dismiss-with-context`)
+- **Isolation** : Docker pour contraindre Claude Code (filesystem, réseau, CPU/RAM)
+- **Exécution** : `claude -p` headless avec `--allowedTools` restreint
+
+## Concepts sous-jacents
+
+- **Harness engineering** : un skill = un harness (guide feedforward + sensor feedback + boucle kaizen)
+- **Split inference** : Ollama/Gemma local pour le triage (gratuit, ~100ms), Claude Code pour l'exécution (raisonnement long)
+
+## Architecture cible
+
+```
+launchd (scheduling)
+  → worker.py (pick → exec → validate → PR → next)
+    → queue.json (état des tâches)
+    → inventory/{haml.txt, test-optim.txt} (stock)
+    → Ollama/Gemma (triage léger)
+    → Docker (jail)
+      → Claude Code headless (exécution du skill)
+    → gh CLI (création PR)
+  → nightshift-app.swift (menu bar, suivi visuel)
+```
+
+## Flow d'une tâche
+
+```
+1. Pick    — prochain fichier de l'inventaire pas encore traité
+2. Lock    — status = running dans queue.json
+3. Exec    — claude -p dans Docker + worktree isolé
+4. Check   — tests verts ?
+5. PR      — gh pr create
+6. Update  — status = done | failed, résultat logué
+7. Notify  — menu bar mis à jour, HUD si échec
+```
+
+## Gestion des échecs
+
+Pas de retry automatique. Un échec = probablement un problème de skill → kaizen.
+L'humain review les failed dans le menu bar et peut retrigger manuellement.
 
 ## Questions ouvertes
 
-- Comment lancer un skill sur un batch de fichiers/tâches ?
-- Comment paralléliser (worktrees multiples) ?
-- Comment agréger les résultats et décider quoi merger ?
-- Comment détecter la dégradation de qualité à l'échelle ?
-
-## Prérequis
-
-Un skill ayant atteint le niveau **production-ready** (adoption équipe, pas seulement applicable par le créateur). Aucun skill n'est encore à ce stade.
-
-## Pistes
-
-- `haml-migration` est le candidat le plus avancé : skill le plus itéré (v6), 4 itérations kaizen, workflow validé sur plusieurs fichiers
-- `test-optimization` a un inventaire de 52 fichiers et un workflow worktree isolé, mais n'a été testé que sur 1 fichier
-- L'architecture batch (séparation orchestration / per-item) n'est pas encore implémentée
+- Format exact du Dockerfile
+- Gestion des tokens/coûts (budget journalier ?)
+- Comment remonter les comments de PR review dans la boucle kaizen
+- Quand introduire le parallélisme (worktrees multiples)
