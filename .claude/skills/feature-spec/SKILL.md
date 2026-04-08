@@ -12,6 +12,9 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 **Temps estimé :** 4-8h
 **Score autonomie cible (cible) :** 7/10 seul, 9/10 avec review PM
 
+**Principe fondamental : Investigation Code d'abord (20min)**
+AVANT d'analyser le problème, prouver les hypothèses par le code. Tracer les appels, documenter les preuves ("ligne 23 confirme que..."). Toujours proposer la solution minimale — laisser le user complexifier si besoin.
+
 ---
 
 ## Documents de Référence
@@ -231,39 +234,13 @@ Consolider et présenter au user comme une review unique.
 
 ---
 
-## ⚠️ Pièges Critiques à Éviter
+## ⚠️ Pièges Spec-Spécifiques
 
-**Learnings sessions 1-6 (voir `checklist.md`) :**
+### Patch au lieu de Spec Globale ❌
+Bug architectural découvert → STOP et proposer spec globale, pas patcher.
 
-### 1. Patch au lieu de Spec Globale ❌
-**Symptôme :** Bug architectural découvert → tentation de patcher
-**Impact :** Débordements futurs, architecture fragmentée
-**Solution :** STOP et proposer spec globale
-
-### 2. Validation Rails Sans Index DB ❌
-**Symptôme :** `validates :x, uniqueness: { scope: [...] }`
-**Vérification OBLIGATOIRE :**
-```bash
-grep -r "add_index.*unique: true" db/migrate/
-cat db/schema.rb | grep -A3 "unique: true"
-```
-**Impact si raté :** Tests passent (SQLite permissive), prod crashe (PG::UniqueViolation)
-
-### 3. Trade-Offs Non Documentés ❌
-**Symptôme :** N+1 query détectée mais pas de rationale
-**Solution :** Documenter : Contexte + Options + Choix + Rationale
-
-### 4. Breaking Changes Non Grep ❌
-**Symptôme :** Change signature job mais call-sites non listés
-**Solution :** Toujours grep pour trouver tous call-sites
-```bash
-grep -r "JobName.perform\|ServiceName.new" app/ lib/ spec/
-```
-
-### 5. Spec trop prescriptive sur le "comment" ❌
-**Symptôme :** La spec impose un choix technique (ex: Flipper) au lieu de décrire le besoin
-**Impact :** Pivots en cours d'implémentation, commits éliminés/simplifiés
-**Solution :** La spec doit être précise sur le *quoi*, floue sur le *comment*
+### Spec trop prescriptive sur le "comment" ❌
+La spec impose un choix technique (ex: Flipper) au lieu de décrire le besoin → pivots en cours d'implémentation. La spec doit être précise sur le *quoi*, floue sur le *comment*.
 
 ---
 
@@ -295,34 +272,6 @@ Selon setup.md :
 
 ---
 
-## Rappels Importants
-
-**Métriques (learnings sessions 1-6) :**
-- Temps total Phase 0 : 4-8h
-  - Analyse : 30min
-  - Conception : 1-2h
-  - Rédaction v1 : 1-2h
-  - Review PM : 45min-1h
-  - Itérations user : 1-2h
-- Review PM obligatoire si > 500 lignes
-- 10-20 findings attendus en review
-- Max 8 rounds user attendus
-- Score cible : 7/10 seul, 9/10 avec review PM
-
-**Patterns Critiques (`.claude/skills/feature-implementation/patterns.md`) :**
-1. **Tests Verts à Chaque Commit** (10/10) - Interleave code + specs
-2. **Migration DB Safe** (10/10) - Add nullable → Backfill → Add constraints
-3. **Query Object pour DRY** (10/10) - Si logique répétée 3+ fois
-4. **State Checks Explicites** (9/10) - `.state&.in?([...])` au lieu de boolean combinations
-5. **Breaking Change Bloc** (9/10) - Change + Fix tous call-sites en bloc
-6. **Self-Documenting Variables** (9/10) - Si nesting > 2 niveaux
-7. **Checkpoint Validation Uniqueness** (9/10) - Rails validation DOIT matcher index DB
-
-**Règle Critique :**
-Bug architectural détecté → STOP et spec globale, pas patch
-
----
-
 ## Contraintes
 
 **✅ AUTORISÉ :**
@@ -338,23 +287,6 @@ Bug architectural détecté → STOP et spec globale, pas patch
 - Lancer tests (spec seulement)
 - Créer commits (spec seulement)
 - Ignorer le setup.md
-
----
-
-## Métriques Attendues (setup.md)
-
-**Temps :**
-- Total : 3-6h
-- Analyse : 30min
-- Conception : 1h
-- Rédaction v1 : 1-1h30
-- Review PM : 45min
-- Itérations : 1-2h
-
-**Qualité :**
-- Sections : 15 minimum
-- Findings review : 10-20
-- Score : 7/10 → 9/10
 
 ---
 
