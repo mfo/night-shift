@@ -17,7 +17,7 @@ NOM="dossier-spec"
 git worktree add ../demarches-simplifiees.fr-perf-$NOM main
 
 # 3. Installer le hook DB
-/Users/mfo/dev/night-shift/hooks/worktree/install.sh ../demarches-simplifiees.fr-perf-$NOM
+~/dev/night-shift/hooks/worktree/install.sh ../demarches-simplifiees.fr-perf-$NOM
 
 # 4. Créer la branche dans le worktree (déclenche le hook → crée la DB)
 git -C ../demarches-simplifiees.fr-perf-$NOM checkout -b perf/$NOM
@@ -103,6 +103,6 @@ L'agent ne fait **jamais** le cleanup du worktree — c'est l'humain qui décide
 
 ```bash
 # Depuis le repo principal :
-cd /Users/mfo/dev/demarches-simplifiees.fr
+cd ~/dev/demarches-simplifiees.fr
 git worktree remove ../demarches-simplifiees.fr-perf-$NOM
 ```

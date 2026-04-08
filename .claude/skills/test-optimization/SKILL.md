@@ -99,7 +99,7 @@ perf(tests): [technique] — fichier_spec.rb
 
 **Toujours écrire un kaizen** — même en cas d'échec (aucune technique n'a fonctionné).
 
-Écrire dans `/Users/mfo/dev/night-shift/kaizen/2-test-optimization/<agent-id>/kaizen.md` basé sur le template `.claude/skills/test-optimization/template.md`.
+Écrire dans `~/dev/night-shift/kaizen/2-test-optimization/<agent-id>/kaizen.md` basé sur le template `.claude/skills/test-optimization/template.md`.
 
 Remplir les champs obligatoires :
 - `agent-id` : nom du fichier spec (ex: `dossier-spec`)
