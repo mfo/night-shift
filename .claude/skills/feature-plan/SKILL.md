@@ -171,6 +171,12 @@ Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi) pour valider 
 - **PM** : priorisation phases, scope aligné avec spec
 - **UX** : impacts utilisateur dans l'ordre de livraison
 
+**Fallback :** Si `/review-3-amigos` échoue (timeout, contexte trop gros), exécuter la review manuellement :
+1. Lister les questions PM (scope, edge cases, métriques)
+2. Lister les questions UX (flows utilisateur, erreurs)
+3. Lister les questions Dev/Archi (performance, sécurité, maintenabilité)
+Consolider et présenter au user comme une review unique.
+
 **Après la review :** intégrer les corrections dans le plan avant de le présenter au user.
 
 ---

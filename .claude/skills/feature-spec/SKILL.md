@@ -193,6 +193,12 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 
 Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi), consolide les findings, et les présente au user point par point.
 
+**Fallback :** Si `/review-3-amigos` échoue (timeout, contexte trop gros), exécuter la review manuellement :
+1. Lister les questions PM (scope, edge cases, métriques)
+2. Lister les questions UX (flows utilisateur, erreurs)
+3. Lister les questions Dev/Archi (performance, sécurité, maintenabilité)
+Consolider et présenter au user comme une review unique.
+
 **Après la review :**
 1. Corriger les findings 🔴 dans la spec
 2. Créer `specs/YYYY-MM-DD-[nom]-review-v1.md` avec les findings consolidés

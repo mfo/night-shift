@@ -89,6 +89,12 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 - **Input :** le diff complet de la PR (`git diff [base-branch]...HEAD`)
 - **Checklist :** `checklist.md` de ce skill
 
+**Fallback :** Si `/review-3-amigos` échoue (timeout, contexte trop gros), exécuter la review manuellement :
+1. Lister les questions PM (scope, edge cases, métriques)
+2. Lister les questions UX (flows utilisateur, erreurs)
+3. Lister les questions Dev/Archi (performance, sécurité, maintenabilité)
+Consolider et présenter au user comme une review unique.
+
 ### Créer Document Review
 
 Après la review 3 Amigos, **créer `review-<feature>.md`** avec :
