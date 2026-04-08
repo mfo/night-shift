@@ -22,6 +22,7 @@ Basé sur le contexte de la session, proposer où ranger le kaizen :
 - `kaizen/2-test-optimization/` si tests
 - `kaizen/3-bugs/` si bugfix
 - `kaizen/4-features/` si feature
+- `kaizen/5-harden/` si sécurité/pentest/audit
 - Le dev confirme ou corrige (2 secondes).
 
 #### 2. Pré-remplir le Post-it
@@ -52,6 +53,7 @@ Le matin, pour consommer les kaizen produits par les agents et améliorer les sk
 
 #### 1. Scanner les kaizen
 Lister tous les fichiers dans `~/dev/night-shift/kaizen/*/`, triés par date (plus récents d'abord).
+**Filtrer les kaizen avec `status: traité` dans le frontmatter** — ne pas les re-proposer.
 
 ```bash
 find ~/dev/night-shift/kaizen -name "*.md" -not -name "README.md" | xargs ls -t
@@ -76,5 +78,12 @@ Présenter la liste à l'utilisateur : date, catégorie, titre.
 
 **Rien n'est écrit sans validation.** Proposer, attendre le go, puis appliquer.
 
-#### 5. Itérer
+#### 5. Marquer comme traité
+Après validation user, ajouter dans le frontmatter du kaizen traité :
+```yaml
+status: traité
+date_synth: YYYY-MM-DD
+```
+
+#### 6. Itérer
 Passer au kaizen suivant ou terminer.
