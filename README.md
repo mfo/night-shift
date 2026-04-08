@@ -28,6 +28,7 @@ Application Rails, ~30 000 commits, contraintes fortes (RGAA, sécurité, GraphQ
 | 2 | `test-optimization` | Optimisation tests lents |
 | 3 | `bugfix` | Investigation + correction bugs |
 | 4 | `feature-*` | Workflow features en 4 phases (spec → plan → impl → review) |
+| 5 | `harden-*` | Sécurité applicative (pentest → audit → fix) |
 
 ## Utiliser un skill
 
@@ -38,6 +39,7 @@ Les skills sont des slash commands. Lancer Claude Code dans le projet cible :
 /test-optimization spec/models/dossier_spec.rb
 /bugfix <description ou lien Sentry>
 /feature-spec → /feature-plan → /feature-implementation → /feature-review
+/harden-pentest <surface d'attaque> → /harden-audit → /harden-fix audits/YYYY-MM-DD-slug-audit.md
 ```
 
 Après une session : `/kaizen write`. Pour améliorer les skills : `/kaizen synth`.
@@ -56,10 +58,14 @@ night-shift/
 │   ├── feature-plan/                  # POC 4 — Phase 1
 │   ├── feature-implementation/        # POC 4 — Phase 2
 │   ├── feature-review/                # POC 4 — Phase 3
+│   ├── harden-pentest/                 # POC 5 — Explorer une surface d'attaque
+│   ├── harden-audit/                  # POC 5 — Qualifier une faille
+│   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
 │   ├── kaizen/                        # Transversal — write + synth
 │   └── review-3-amigos/              # Transversal — Review PM+UX+Dev
 │
 ├── pocs/                              # Data projet par POC (setup, specs, inventaires)
+├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix)
 ├── kaizen/                            # Learnings par itération
 ├── specs/                             # Specs techniques ponctuelles
 └── hooks/                             # Hooks git (worktree DB)

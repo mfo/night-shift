@@ -18,6 +18,9 @@
 | `feature-implementation` | 4 | Testé sur 1 feature (simpliscore tunnel_id) |
 | `feature-review` | 4 | Testé sur 1 feature (simpliscore tunnel_id) |
 | `kaizen` | — | 2 modes : write (post-it) + synth (amélioration skills) |
+| `harden-pentest` | 5 | Explorer une surface d'attaque (white-box), découvrir des failles |
+| `harden-audit` | 5 | Qualifier une faille (DREAD, OWASP, parcours explicatif) |
+| `harden-fix` | 5 | Corriger une faille (TDD sécurité, PR pédagogique) |
 | `review-3-amigos` | — | Review PM + UX + Dev sur n'importe quel input |
 
 ### PRs ouvertes sur demarches-simplifiees.fr
@@ -81,12 +84,17 @@ Spec v4 prête, skill prêt, inventaire 52 fichiers. PR #12788 ouverte en WIP po
 ### POC 4 — Features
 - #12764 en review — envisager un meilleur découpage des PRs (trop gros d'un bloc)
 
+### POC 5 — Harden (Sécurité)
+- Skills `harden-pentest` + `harden-audit` + `harden-fix` créés, pipeline pentest → audit → fix en place
+- Prochaine action : tester sur une première faille réelle (YesWeHack ou audit) ou lancer un pentest exploratoire
+- Fichiers d'audit dans `audits/`, kaizen dans `kaizen/5-harden/`
+
 ### Transverse
 - Séparation batch / per-item : extraire l'orchestration batch dans un skill générique
 - Suivi de PRs et relance : pour les tâches répétitives (HAML, tests), mécanisme pour suivre les PRs ouvertes et relancer du batch dès qu'une PR est mergée
 - MCP Sentry : connecter Sentry pour consommer le stock de bugs directement depuis l'agent
 - Review → 3 Amigos : tirer automatiquement les commentaires de review d'une PR et les piper dans `/review-3-amigos` pour boucler plus vite
-- Yes We Hack : récupérer les rapports de vulnérabilité, générer un test qui prouve la faille. Quasi-synchrone — besoin d'un workflow ultra-rapide (réactivité = crédibilité auprès des chercheurs)
+- ~~Yes We Hack~~ → intégré dans POC 5 (harden-audit + harden-fix)
 
 ---
 
