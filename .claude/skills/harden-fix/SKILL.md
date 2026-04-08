@@ -204,7 +204,7 @@ Commit 3: refactor(security): [durcissement optionnel] (optionnel)
 5. **Commit** :
    ```bash
    git add <fichiers_test>
-   git commit --no-gpg-sign -m "test(security): add spec proving [description faille]"
+   git commit -m "test(security): add spec proving [description faille]"
    ```
 
 ---
@@ -237,7 +237,7 @@ Commit 3: refactor(security): [durcissement optionnel] (optionnel)
 5. **Commit** :
    ```bash
    git add <fichiers_modifiés>
-   git commit --no-gpg-sign -m "fix(security): [description du fix]"
+   git commit -m "fix(security): [description du fix]"
    ```
 
 ---
@@ -327,7 +327,7 @@ Utiliser `/screenshot-gist` pour uploader les screenshots sur un gist.
 - Lire le fichier d'audit et le code
 - Écrire des tests de sécurité
 - Implémenter le fix après validation user
-- Créer commits (avec --no-gpg-sign) et PR
+- Créer commits et PR
 - Mettre à jour le statut du fichier d'audit
 
 **❌ INTERDIT :**

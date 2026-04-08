@@ -134,7 +134,7 @@ Identifier point d'erreur → remonter la call stack → 5 Whys → root cause.
 
 ## Contraintes
 
-**✅ AUTORISÉ :** Lire code/rapports, grep, lancer investigateurs, proposer solutions, implémenter après validation user, tests, commits (--no-gpg-sign), kaizen.
+**✅ AUTORISÉ :** Lire code/rapports, grep, lancer investigateurs, proposer solutions, implémenter après validation user, tests, commits, kaizen.
 
 **❌ INTERDIT :** Sur-engineering, commit sans tests verts, implémenter sans validation du user. Refactoring au-delà du fix uniquement si justifié métier ou architecturalement.
 

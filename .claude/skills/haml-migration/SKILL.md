@@ -21,7 +21,7 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - 1 commande simple = 1 appel Bash
 - **Repo cible** : ne JAMAIS utiliser `git -C` — le working directory est déjà le repo cible, exécuter `git mv`, `git add`, `git commit`, etc. directement.
 - **Ne JAMAIS utiliser `rm`** — aucune suppression de fichier n'est nécessaire dans ce workflow.
-- **GPG signing** : toujours désactiver. `git commit --no-gpg-sign`, et pour les rebase : `git -c commit.gpgsign=false rebase --continue`.
+- **Rebase** : pour les rebase interactifs : `git -c commit.gpgsign=false rebase --continue`.
 
 ---
 
@@ -274,7 +274,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 3. **Commit** (inclure les fichiers i18n si créés) :
    ```bash
    git add <fichier.html.erb>
-   git commit --no-gpg-sign -m "refactor(haml): migrate NomDuComposant to ERB"
+   git commit -m "refactor(haml): migrate NomDuComposant to ERB"
    ```
 
 ### Étape 4 : Screenshot ERB (local uniquement — PAS de commit)
@@ -306,7 +306,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
      5. Commit le fix :
         ```bash
         git add <fichier.html.erb>
-        git commit --no-gpg-sign -m "fix(haml): fix conversion NomDuComposant — <description du problème>"
+        git commit -m "fix(haml): fix conversion NomDuComposant — <description du problème>"
         ```
      6. Relancer la comparaison (retour au point 1)
 

@@ -63,7 +63,7 @@ Si aucun fichier passé → s'arrêter ici. Le skill appelant dépose ses screen
 .claude/skills/screenshot-gist/push-gist.sh <nom> <user> <gist-id> <fichier1.png> [fichier2.png ...]
 ```
 
-Le script fait `git add` uniquement sur les fichiers listés, commit (--no-gpg-sign), push, puis affiche les URLs raw en markdown :
+Le script fait `git add` uniquement sur les fichiers listés, commit, push, puis affiche les URLs raw en markdown :
 
 ```
 ![capture.png](https://gist.githubusercontent.com/<user>/<gist-id>/raw/capture.png)
