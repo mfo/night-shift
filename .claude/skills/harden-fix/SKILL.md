@@ -133,22 +133,11 @@ En s'appuyant sur la section "Analyse technique" de l'audit :
 
 ### Comment re-vérifier :
 
-1. **Tracer la chaîne d'appels** depuis le point d'entrée :
-   ```
-   Route → Controller action → before_action (héritées incluses !) → Service → Model → DB
-   ```
-   Lister chaque maillon avec `fichier:ligne`.
+Appliquer la méthode de traçage de chaîne de `harden-audit/SKILL.md` étape 2b (Route → Controller → before_action héritées → Service → Model → DB). Lister chaque maillon avec `fichier:ligne`.
 
-2. **Vérifier les protections à chaque niveau** :
-   - Scope user (`current_user.dossiers.find(id)`) ?
-   - Policy/authorize ?
-   - before_action héritée du parent (`ApplicationController`) ?
-   - default_scope ou STI sur le modèle ?
-   - Contrainte DB (NOT NULL, CHECK) ?
-
-3. **Verdict** :
-   - **Faille toujours présente** (aucune protection à aucun niveau) → continuer vers l'étape 3
-   - **Faille déjà protégée** à un niveau → **STOP — challenger l'audit**. Informer l'utilisateur : "L'audit dit X, mais le code montre une protection au niveau Y. Confirmer avant de coder ?"
+**Verdict** :
+- **Faille toujours présente** (aucune protection à aucun niveau) → continuer vers l'étape 3
+- **Faille déjà protégée** à un niveau → **STOP — challenger l'audit**. Informer l'utilisateur : "L'audit dit X, mais le code montre une protection au niveau Y. Confirmer avant de coder ?"
 
 ---
 
