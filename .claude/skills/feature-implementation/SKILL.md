@@ -147,6 +147,8 @@ Commits 15-16: Fix all tests
   - Si code change → specs aussi (même commit)
   - Pattern : Interleave code + specs
 
+- [ ] **Plan à jour ?** Marquer le commit comme fait dans le fichier plan après chaque commit réussi
+
 ---
 
 ## 🎯 Patterns Critiques à Appliquer SYSTÉMATIQUEMENT
@@ -406,6 +408,14 @@ end
 **Impact :** 18+ tests failures mystérieuses
 
 **Solution :** ✅ Setup context complet (Pattern 4)
+
+---
+
+### 6. Screenshots ambigus ❌
+
+**Problème :** Le user demande des "captures" sans préciser le type
+**Impact :** Temps perdu sur la mauvaise approche (ex: Capybara alors que Vite build cassé)
+**Solution :** Toujours clarifier : screenshots Capybara (specs système) vs screenshots manuels (navigateur) vs screenshots Playwright (MCP)
 
 ---
 

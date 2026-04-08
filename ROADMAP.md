@@ -1,6 +1,6 @@
 # ROADMAP — État réel et prochaines étapes
 
-**Dernière mise à jour :** 2026-03-17
+**Dernière mise à jour :** 2026-03-20
 
 ---
 

@@ -90,6 +90,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    - Chaque commit DOIT avoir tests verts (exception: breaking change documenté)
    - Max 5 fichiers par commit (idéal : 1-3)
    - Max 20 commits total (si > 20 → revoir découpage)
+   - Si 2-3 commits touchent les mêmes fichiers et sont interdépendants → fusionner en 1 (signe : un commit ne compile/teste pas sans le suivant)
 
 2. **7 Phases Standards (ordre OBLIGATOIRE) :**
    - **Phase 1** : Database (migrations → backfill → constraints)

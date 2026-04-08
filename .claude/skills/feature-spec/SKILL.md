@@ -123,6 +123,8 @@ Tu es un agent spécialisé dans la **rédaction de specs techniques d'architect
 - Auto-lancement ou contrôle user ?
 - Validation stricte ou permissive ?
 
+**⚠️ Avant de concevoir, scanner `pitfalls/` (dans ce dossier) pour les fiches qui matchent le contexte technique.**
+
 **⚠️ Patterns à Détecter Proactivement (voir `.claude/skills/feature-implementation/patterns.md`) :**
 
 1. **Logique répétée 3+ fois** → Query Object proposé ?
@@ -251,6 +253,11 @@ cat db/schema.rb | grep -A3 "unique: true"
 ```bash
 grep -r "JobName.perform\|ServiceName.new" app/ lib/ spec/
 ```
+
+### 5. Spec trop prescriptive sur le "comment" ❌
+**Symptôme :** La spec impose un choix technique (ex: Flipper) au lieu de décrire le besoin
+**Impact :** Pivots en cours d'implémentation, commits éliminés/simplifiés
+**Solution :** La spec doit être précise sur le *quoi*, floue sur le *comment*
 
 ---
 
