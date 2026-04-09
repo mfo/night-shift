@@ -1,6 +1,7 @@
 ---
 name: kaizen
-description: Deux modes — write (post-it post-session) et synth (synthèse interactive des kaizen)
+description: "Capture session learnings (write) or synthesize kaizen (synth). Use when user says 'kaizen', 'retour', or after a work session."
+user_invocable: true
 allowed-tools:
   - Read
   - Glob

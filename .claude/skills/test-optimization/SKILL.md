@@ -1,6 +1,7 @@
 ---
 name: test-optimization
-description: Optimiser un fichier spec — profiler, explorer, optimiser, vérifier, documenter
+description: "Optimize slow RSpec test file. Use when user says 'optimize tests', 'speed up specs', or provides a slow spec file."
+user_invocable: true
 allowed-tools:
   - Read
   - Glob

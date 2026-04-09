@@ -1,6 +1,6 @@
 ---
 name: til
-description: Poster un commentaire TIL (Today I Learned) sur une PR pour partager un apprentissage / clarification avec l'equipe
+description: "Post a TIL (Today I Learned) comment on a PR. Use when user says 'TIL' or wants to share a learning."
 user_invocable: true
 allowed-tools:
   - Read

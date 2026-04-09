@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Creer une PR sur GitHub en respectant le format d'equipe (nature, persona, probleme/solution)
+description: "Create a GitHub pull request. Use when user says 'crée la PR', 'push', or work is ready for review."
 user_invocable: true
 allowed-tools:
   - Read

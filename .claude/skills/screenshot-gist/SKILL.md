@@ -1,6 +1,6 @@
 ---
 name: screenshot-gist
-description: Créer un gist GitHub pour stocker des screenshots (PNG) et les pousser via git clone/push HTTPS
+description: "Create GitHub gist for screenshots. Internal agent called by haml-migration and harden-fix."
 allowed-tools: Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*)
 ---
 
