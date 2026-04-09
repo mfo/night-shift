@@ -1,6 +1,14 @@
 ---
 name: feature-plan
 description: Create implementation plan with atomic commits from validated spec
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Write(specs/*)
+  - Edit(specs/*)
+  - Agent
+  - Skill(review-3-amigos)
 ---
 
 # Création de Plan d'Implémentation Atomique (Phase 1)

@@ -1,6 +1,11 @@
 ---
 name: review-3-amigos
 description: Launch a 3 Amigos review team (PM + UX + Dev/Archi) on any input (spec, plan, PR diff)
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Agent
 ---
 
 # Review 3 Amigos (Agent Team)

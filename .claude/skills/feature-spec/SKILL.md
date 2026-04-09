@@ -1,6 +1,14 @@
 ---
 name: feature-spec
 description: Create technical architecture specification with 3 Amigos review
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Write(specs/*)
+  - Edit(specs/*)
+  - Agent
+  - Skill(review-3-amigos)
 ---
 
 # Création de Spécification Technique d'Architecture (Phase 0)
