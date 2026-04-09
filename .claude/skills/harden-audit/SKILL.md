@@ -171,6 +171,16 @@ Mettre à jour `audits/INDEX.md` : Date, Slug, Status, DREAD, Category, Verdict.
 
 ---
 
+## Mode batch (appelé depuis un orchestrateur)
+
+Quand harden-audit est lancé en masse via des agents parallèles :
+- L'orchestrateur embarque les instructions complètes dans le prompt agent (les subagents n'ont pas accès au Skill tool)
+- Chaque agent écrit directement son fichier `audits/YYYY-MM-DD-[slug]-audit.md` (Write est dans les allowed-tools)
+- Limiter à **15-20 agents simultanés** pour éviter le rate limiting
+- L'orchestrateur met à jour `audits/INDEX.md` après consolidation
+
+---
+
 ## Livrable
 
 1. **Fichier d'audit** : `audits/YYYY-MM-DD-[slug]-audit.md` (consommable par `/harden-fix`)
