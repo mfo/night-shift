@@ -1,6 +1,23 @@
 ---
 name: feature-review
 description: Review post-implementation for dead code, broken tests, and misplaced logic
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - Bash(bundle exec rspec:*)
+  - Bash(bundle exec rubocop:*)
+  - Bash(git add:*)
+  - Bash(git commit:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git status)
+  - Bash(git absorb:*)
+  - Bash(git rebase:*)
+  - Agent
+  - Skill(review-3-amigos)
 ---
 
 # Review Feature Post-Implémentation (Phase 3)

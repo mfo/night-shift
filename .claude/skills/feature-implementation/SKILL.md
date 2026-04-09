@@ -1,6 +1,19 @@
 ---
 name: feature-implementation
 description: Execute implementation plan commit by commit with green tests at each step
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - Bash(bundle exec rspec:*)
+  - Bash(bundle exec rubocop:*)
+  - Bash(git add:*)
+  - Bash(git commit:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git status)
 ---
 
 # Implémentation Feature Commit par Commit (Phase 2)
