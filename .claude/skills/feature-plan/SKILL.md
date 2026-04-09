@@ -1,6 +1,7 @@
 ---
 name: feature-plan
-description: Create implementation plan with atomic commits from validated spec
+description: "Create atomic commit plan from spec (Phase 1). Use when user has a validated spec and needs an implementation plan."
+user_invocable: true
 allowed-tools:
   - Read
   - Glob
@@ -11,260 +12,88 @@ allowed-tools:
   - Skill(review-3-amigos)
 ---
 
-# Création de Plan d'Implémentation Atomique (Phase 1)
+# Plan d'Implémentation Atomique (Phase 1)
 
-Tu es un agent spécialisé dans la **création de plans d'implémentation** à partir de specs techniques validées.
+Agent spécialisé dans la création de plans d'implémentation à partir de specs techniques validées.
 
-**Ta mission :** Transformer une spec technique en plan exécutable avec commits atomiques.
-
-**Temps estimé :** 1-2h
-**Score autonomie cible (cible) :** 8/10
+**Mission :** Transformer une spec technique en plan exécutable avec commits atomiques.
 
 ---
 
 ## Documents de Référence
 
-**Avant de commencer, familiarise-toi avec :**
-
-1. **`checklist.md`** (dans ce dossier) ⭐ CRITICAL
-   - Checklist complète Phase 1
-   - Principes découpage commits
-   - 7 phases standards
-   - Pièges critiques à éviter
-
-2. **`template.md`** (dans ce dossier)
-   - Template commits atomiques
-   - Patterns validés (Migration Safe, Breaking Bloc, etc.)
-
-3. **`.claude/skills/feature-implementation/patterns.md`**
-   - 10 patterns à appliquer dans le plan
-   - Scores 8-10/10
+1. **`checklist.md`** — Principes découpage, 7 phases standards, pièges
+2. **`template.md`** — Template commits atomiques, patterns validés
+3. **`.claude/skills/feature-implementation/patterns.md`** — 10 patterns à appliquer
 
 ---
 
 ## Avant de commencer
 
-**1. Vérifie que tu as la bonne input :**
-- [ ] Spec technique validée (Phase 0 terminée) ? → ✅ Ce prompt
-- [ ] Spec non validée ? → ❌ Retour à Phase 0
-- [ ] Feature simple (< 3 fichiers) ? → ❌ Implémentation directe
+**Vérifie l'input :**
+- Spec technique validée (Phase 0 terminée) ? → Continuer
+- Spec non validée ? → Retour à Phase 0
+- Feature simple (< 3 fichiers) ? → Implémentation directe
 
-**2. Demande input au user :**
-- Chemin vers la spec validée ?
-- Estimation temps par commit souhaitée ? (défaut : 30-60min)
-- Contraintes spécifiques ? (ex: pas plus de 15 commits)
+**Demande au user :** chemin spec, contraintes spécifiques.
 
 ---
 
-## Workflow à suivre
+## Workflow
 
-**Suit exactement la checklist Phase 1. 3 étapes principales :**
+### Étape 1 : Lecture Spec
 
-### Étape 1 : Lecture Spec (20-30min)
+1. Lire la spec complète (15 sections)
+2. Lister composants impactés : DB, Models, Controllers, Jobs, Services, Components, Views, Tests
+3. Identifier dépendances (migration DB avant models, backfill avant constraints)
+4. Repérer breaking changes (section 10)
 
-**Actions :**
-1. Lis la spec complète (toutes les 15 sections)
-2. Liste tous les composants impactés :
-   - Database (migrations, backfill, constraints)
-   - Models (validations, scopes, methods)
-   - Controllers (routes, actions, before_actions)
-   - Jobs (signature changes, new jobs)
-   - Services/Query Objects (extractions DRY)
-   - Components (ViewComponents à modifier)
-   - Views (ERB/HAML templates)
-   - Tests (system, controller, component, model)
-3. Identifie les dépendances :
-   - Migration DB avant models
-   - Backfill avant constraints
-   - Breaking changes avec call-sites
-4. Repère breaking changes (section 10 de la spec)
+### Étape 2 : Découpage en Commits
 
-**Checkpoint :**
-- Spec comprise ?
-- Composants listés ?
-- Dépendances identifiées ?
+**Principes (détail dans `checklist.md`) :**
+- 1 commit = 1 concept isolé et testable, tests verts
+- Max 5 fichiers/commit (idéal 1-3), max 20 commits total
+- Commits interdépendants sur mêmes fichiers → fusionner
 
----
+**7 Phases Standards (ordre obligatoire) :**
+DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionnel)
 
-### Étape 2 : Découpage en Commits (1h)
+**Patterns :**
+- **Migration DB Safe** : add column (nullable) → backfill → add constraints
+- **Breaking Change Bloc** : change signature → fix call-sites (merge en bloc)
+- **Tests Séparés** : system specs → unit specs
+- **Query Object DRY** : créer avant d'utiliser
 
-**Principes CRITIQUES Appliqués (voir `checklist.md`) :**
-
-1. **1 commit = 1 concept isolé et testable**
-   - Chaque commit DOIT compiler
-   - Chaque commit DOIT avoir tests verts (exception: breaking change documenté)
-   - Max 5 fichiers par commit (idéal : 1-3)
-   - Max 20 commits total (si > 20 → revoir découpage)
-   - Si 2-3 commits touchent les mêmes fichiers et sont interdépendants → fusionner en 1 (signe : un commit ne compile/teste pas sans le suivant)
-
-2. **7 Phases Standards (ordre OBLIGATOIRE) :**
-   - **Phase 1** : Database (migrations → backfill → constraints)
-   - **Phase 2** : Infrastructure (models, validations, query objects)
-   - **Phase 3** : Features (routes, controllers, jobs)
-   - **Phase 4** : UI (components, views)
-   - **Phase 5** : Tests (system puis unit)
-   - **Phase 6** : Cleanup (suppression code mort)
-   - **Phase 7** : UX (optionnel - améliorations cosmétiques)
-
-3. **Patterns :**
-
-   **Pattern 1 : Migration DB Safe (3 commits)**
-   ```
-   Commit 1: db: add column (nullable)
-   Commit 2: maintenance: backfill data
-   Commit 3: db: add constraints (NOT NULL, UNIQUE)
-   ```
-
-   **Pattern 2 : Breaking Change Bloc**
-   ```
-   Commit N: scope: change signature (BREAKING) ⚠️
-   Commit N+1: scope: fix first call-site
-   Commit N+2: scope: fix second call-site
-   ```
-   → Documenter : "Code cassé entre N et N+2, merge en bloc"
-
-   **Pattern 3 : Tests Séparés**
-   ```
-   Commit N-1: tests: update system specs
-   Commit N: tests: update unit specs
-   ```
-
-   **Pattern 4 : Query Object DRY**
-   ```
-   Commit (tôt): refactor: create QueryObject for DRY
-   → Créé avant d'être utilisé
-   → Utilisé dans commits features suivants
-   ```
-
-4. **Structure commit (voir template.md) :**
-   ```markdown
-   ### ✅ Commit X: `scope: one-line description`
-
-   **Objectif :** [1 phrase explicite]
-
-   **Fichiers à modifier :**
-   - [ ] `path/to/file.rb` (add/modify/delete)
-
-   **Actions :**
-   [Code exact ou instructions précises]
-
-   **Tests à exécuter :**
-   - [ ] `bundle exec rspec path/spec.rb`
-   - [ ] Vérifier que [condition]
-
-   **Notes :**
-   - [Warnings, breaking changes, dépendances]
-   ```
-
-**Checkpoint :**
-- Commits atomiques définis ?
-- Max 20 commits ?
-- Phases logiques respectées ?
-- Breaking changes isolés ?
-- Tests exécutables après chaque commit ?
-
----
+**Structure commit** (voir `template.md`) : Objectif / Fichiers / Actions / Tests / Notes
 
 ### Étape 2.5 : Review 3 Amigos du plan
 
-**Lance `/review-3-amigos` avec :**
-- **Input :** le plan de commits rédigé à l'étape 2
-- **Checklist :** `checklist.md` de ce skill
+Lancer `/review-3-amigos` avec le plan + `checklist.md`.
 
-Le skill `review-3-amigos` lance 3 teammates (PM + UX + Dev/Archi) pour valider :
-- **Dev/Archi** : ordre dépendances, breaking changes groupés, tests interleaved, estimation réaliste
-- **PM** : priorisation phases, scope aligné avec spec
-- **UX** : impacts utilisateur dans l'ordre de livraison
+**Fallback :** Si échoue, review manuelle PM + UX + Dev/Archi.
 
-**Fallback :** Si `/review-3-amigos` échoue (timeout, contexte trop gros), exécuter la review manuellement :
-1. Lister les questions PM (scope, edge cases, métriques)
-2. Lister les questions UX (flows utilisateur, erreurs)
-3. Lister les questions Dev/Archi (performance, sécurité, maintenabilité)
-Consolider et présenter au user comme une review unique.
+### Étape 3 : Validation & Présentation
 
-**Après la review :** intégrer les corrections dans le plan avant de le présenter au user.
-
----
-
-### Étape 3 : Validation & Présentation (10-20min)
-
-**Présenter au user :**
-
-1. **Tableau récapitulatif** (vue d'ensemble)
-   ```markdown
-   | # | Phase | Titre | Breaking | Fichiers | Temps estimé |
-   |---|-------|-------|----------|----------|--------------|
-   | 1 | DB | add column | Non | 1 migration | 15 min |
-   ...
-
-   **Total : X commits • Y phases • Z breaking changes • ~N fichiers • A-Bh**
-   ```
-
+Présenter au user :
+1. **Tableau récapitulatif** (# / Phase / Titre / Breaking / Fichiers)
 2. **Résumé par phase**
-   ```markdown
-   ## Phase 1 : Database (Commits 1-3)
-   - Commit 1: Add column (nullable)
-   - Commit 2: Backfill data
-   - Commit 3: Add constraints
-   ```
-
-3. **Breaking changes**
-   ```markdown
-   ⚠️ **Commits 9-11 : Bloc breaking change**
-   Code cassé entre ces commits, merge en bloc obligatoire.
-   ```
-
-4. **Estimation temps**
-   ```markdown
-   Estimation : X commits × 30-60min = A-Bh total
-   ```
-
-**Checkpoint :**
-- Plan complet ?
-- Exécutable par agent codeur ?
-- Breaking changes clarifiés ?
-- User approuve structure ?
+3. **Breaking changes** (plage commits, merge en bloc)
 
 ---
 
-## ✅ Checklist Plan Validé
+## Checklist Plan Validé
 
-Avant de soumettre le plan au user :
-
-- [ ] Nombre de commits < 20 (sinon revoir découpage)
-- [ ] Phases logiques définies (DB → Infra → Features → Tests → Cleanup)
-- [ ] Breaking changes isolés dans blocs documentés
-- [ ] Tests exécutables après chaque commit
-- [ ] Chaque commit a : Objectif / Fichiers / Actions / Tests / Notes
-- [ ] Tableau récapitulatif créé
-- [ ] Estimation temps totale (commits × 30-60min)
-- [ ] Checklist finale pour agent codeur
+- Commits < 20, phases logiques, breaking changes isolés
+- Tests exécutables après chaque commit
+- Chaque commit : Objectif / Fichiers / Actions / Tests / Notes
+- Tableau récapitulatif créé
 
 ---
 
-## Contraintes
+## Livrables
 
-**✅ AUTORISÉ :**
-- Lire spec validée complète
-- Créer plan atomique détaillé
-- Poser questions clarifications découpage
-- Créer tableau récapitulatif
-
-**❌ INTERDIT :**
-- Implémenter du code (phase plan uniquement)
-- Créer migrations/tests (plan seulement)
-- Lancer tests (plan seulement)
-- Créer commits git (plan seulement)
-- Ignorer les documents de référence
-
----
-
-## Livrables à créer
-
-Selon le workflow ci-dessus :
-
-1. **`specs/YYYY-MM-DD-[nom]-implementation-plan.md`** (plan détaillé complet)
-2. **`template.md`** (dans ce dossier — mettre à jour si nouveau pattern découvert)
+1. **`specs/YYYY-MM-DD-[nom]-implementation-plan.md`**
+2. **`template.md`** (mettre à jour si nouveau pattern découvert)
 
 ---
 
