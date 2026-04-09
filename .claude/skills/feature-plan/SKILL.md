@@ -40,9 +40,6 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    - 10 patterns à appliquer dans le plan
    - Scores 8-10/10
 
-4. **`pocs/features/setup.md`**
-   - Vue d'ensemble workflow complet
-
 ---
 
 ## Avant de commencer
@@ -65,7 +62,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
 
 ### Étape 1 : Lecture Spec (20-30min)
 
-**Actions du setup.md :**
+**Actions :**
 1. Lis la spec complète (toutes les 15 sections)
 2. Liste tous les composants impactés :
    - Database (migrations, backfill, constraints)
@@ -82,7 +79,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    - Breaking changes avec call-sites
 4. Repère breaking changes (section 10 de la spec)
 
-**Checkpoint du setup.md :**
+**Checkpoint :**
 - Spec comprise ?
 - Composants listés ?
 - Dépendances identifiées ?
@@ -109,7 +106,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    - **Phase 6** : Cleanup (suppression code mort)
    - **Phase 7** : UX (optionnel - améliorations cosmétiques)
 
-3. **Patterns du setup.md :**
+3. **Patterns :**
 
    **Pattern 1 : Migration DB Safe (3 commits)**
    ```
@@ -139,7 +136,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    → Utilisé dans commits features suivants
    ```
 
-4. **Structure commit (template du setup.md) :**
+4. **Structure commit (voir template.md) :**
    ```markdown
    ### ✅ Commit X: `scope: one-line description`
 
@@ -159,7 +156,7 @@ Tu es un agent spécialisé dans la **création de plans d'implémentation** à 
    - [Warnings, breaking changes, dépendances]
    ```
 
-**Checkpoint du setup.md :**
+**Checkpoint :**
 - Commits atomiques définis ?
 - Max 20 commits ?
 - Phases logiques respectées ?
@@ -191,7 +188,7 @@ Consolider et présenter au user comme une review unique.
 
 ### Étape 3 : Validation & Présentation (10-20min)
 
-**Présenter au user (selon setup.md) :**
+**Présenter au user :**
 
 1. **Tableau récapitulatif** (vue d'ensemble)
    ```markdown
@@ -222,7 +219,7 @@ Consolider et présenter au user comme une review unique.
    Estimation : X commits × 30-60min = A-Bh total
    ```
 
-**Checkpoint du setup.md :**
+**Checkpoint :**
 - Plan complet ?
 - Exécutable par agent codeur ?
 - Breaking changes clarifiés ?
@@ -248,7 +245,6 @@ Avant de soumettre le plan au user :
 ## Contraintes
 
 **✅ AUTORISÉ :**
-- Lire setup.md Phase 4 pour guidance
 - Lire spec validée complète
 - Créer plan atomique détaillé
 - Poser questions clarifications découpage
@@ -259,13 +255,13 @@ Avant de soumettre le plan au user :
 - Créer migrations/tests (plan seulement)
 - Lancer tests (plan seulement)
 - Créer commits git (plan seulement)
-- Ignorer le setup.md Phase 4
+- Ignorer les documents de référence
 
 ---
 
 ## Livrables à créer
 
-Selon setup.md Phase 4 :
+Selon le workflow ci-dessus :
 
 1. **`specs/YYYY-MM-DD-[nom]-implementation-plan.md`** (plan détaillé complet)
 2. **`template.md`** (dans ce dossier — mettre à jour si nouveau pattern découvert)

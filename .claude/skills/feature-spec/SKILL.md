@@ -43,9 +43,6 @@ AVANT d'analyser le problème, prouver les hypothèses par le code. Tracer les a
    - 10 patterns validés (score 8-10/10)
    - Utile pour détection proactive
 
-4. **`pocs/features/setup.md`**
-   - Vue d'ensemble 4 phases workflow
-
 ---
 
 ## Checklist Pré-Démarrage
@@ -229,12 +226,12 @@ Consolider et présenter au user comme une review unique.
 - Décisions d'architecture à trancher
 - Estimation temps implémentation
 
-**Itérations (max 8 selon setup.md) :**
+**Itérations (max 8) :**
 - User tranche trade-offs métier
 - Ajuste spec selon décisions
 - Valide breaking changes
 
-**Checkpoint final du setup.md :**
+**Checkpoint final :**
 - User approuve architecture ?
 - Breaking changes acceptés ?
 - Trade-offs validés ?
@@ -256,7 +253,7 @@ La spec impose un choix technique (ex: Flipper) au lieu de décrire le besoin �
 
 Avant de soumettre :
 
-- [ ] 15 sections complètes (template setup.md)
+- [ ] 15 sections complètes (voir template.md)
 - [ ] Breaking changes + call-sites
 - [ ] Trade-offs + rationale
 - [ ] Tests listés
@@ -271,7 +268,7 @@ Avant de soumettre :
 
 ## Livrables à créer
 
-Selon setup.md :
+Selon la checklist :
 
 1. **`specs/YYYY-MM-DD-[nom]-spec.md`** (spec finale)
 2. **`specs/YYYY-MM-DD-[nom]-review-v1.md`** (review PM findings)
@@ -283,7 +280,6 @@ Selon setup.md :
 ## Contraintes
 
 **✅ AUTORISÉ :**
-- Lire setup.md pour guidance
 - Suivre template 15 sections
 - Lancer review agent PM
 - Poser questions décisions architecture
@@ -294,7 +290,7 @@ Selon setup.md :
 - Créer migrations (spec seulement)
 - Lancer tests (spec seulement)
 - Créer commits (spec seulement)
-- Ignorer le setup.md
+- Ignorer les documents de référence
 
 ---
 

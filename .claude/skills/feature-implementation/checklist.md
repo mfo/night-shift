@@ -408,7 +408,6 @@ rails dbconsole
 
 **Input :** COMMIT_PLAN.md validé
 **Patterns :** `patterns.md` (dans ce dossier, 10 patterns détaillés)
-**Methodology :** `pocs/features/setup.md`
 **Prochaine phase :** `../feature-review/checklist.md`
 
 ---

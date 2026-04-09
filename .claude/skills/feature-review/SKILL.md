@@ -48,9 +48,6 @@ Tu es un agent spécialisé dans la **review structurée post-implémentation**.
 3. **`.claude/skills/feature-implementation/patterns.md`**
    - Patterns pour identifier logique mal placée
 
-4. **`pocs/features/setup.md`**
-   - Vue d'ensemble workflow complet
-
 ---
 
 ## Vue d'Ensemble Phase 3
