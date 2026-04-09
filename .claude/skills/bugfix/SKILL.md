@@ -1,6 +1,21 @@
 ---
 name: bugfix
 description: Investigate and fix bugs — recueillir contexte, investiguer (large/ciblée/interactive), converger, implémenter
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Write
+  - Bash(bundle exec rspec:*)
+  - Bash(bundle exec rubocop:*)
+  - Bash(git add:*)
+  - Bash(git commit:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git status)
+  - Agent
+  - Skill(review-3-amigos)
 ---
 
 # Bugfix (Investigation + Implémentation)

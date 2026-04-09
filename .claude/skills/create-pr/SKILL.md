@@ -2,6 +2,16 @@
 name: create-pr
 description: Creer une PR sur GitHub en respectant le format d'equipe (nature, persona, probleme/solution)
 user_invocable: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git status)
+  - Bash(git push:*)
+  - Bash(gh pr create:*)
+  - Bash(gh pr edit:*)
 ---
 
 # Creation de Pull Request

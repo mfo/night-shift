@@ -1,6 +1,16 @@
 ---
 name: kaizen
 description: Deux modes — write (post-it post-session) et synth (synthèse interactive des kaizen)
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Write(kaizen/*)
+  - Edit(kaizen/*)
+  - Edit(.claude/skills/*)
+  - Write(.claude/skills/*)
+  - Bash(find:*)
+  - Bash(ls:*)
 ---
 
 # Kaizen

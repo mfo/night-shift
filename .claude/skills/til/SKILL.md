@@ -2,6 +2,14 @@
 name: til
 description: Poster un commentaire TIL (Today I Learned) sur une PR pour partager un apprentissage / clarification avec l'equipe
 user_invocable: true
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(gh pr comment:*)
+  - Bash(gh pr view:*)
 ---
 
 # TIL (Today I Learned)

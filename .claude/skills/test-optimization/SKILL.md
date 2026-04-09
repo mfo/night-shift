@@ -1,6 +1,25 @@
 ---
 name: test-optimization
 description: Optimiser un fichier spec — profiler, explorer, optimiser, vérifier, documenter
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit
+  - Bash(bundle exec:*)
+  - Bash(git add:*)
+  - Bash(git commit:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git status)
+  - Bash(git worktree:*)
+  - Bash(git checkout -b:*)
+  - Bash(bin/rails:*)
+  - Bash(bundle install)
+  - Bash(bundle check)
+  - Bash(cat coverage/:*)
+  - Bash(rm -f coverage/:*)
+  - Agent
 ---
 
 # Test Optimization
