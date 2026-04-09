@@ -64,12 +64,11 @@ Ce fichier est produit par `/harden-audit` et contient :
 ### 1a. Vérification du fichier d'audit
 
 1. **Lire le fichier d'audit** fourni en argument (`$ARGUMENTS`)
-2. **Vérifier les champs obligatoires du frontmatter** :
+2. **Vérifier les champs obligatoires selon `../harden-audit/contract.md`.**
+   Gates spécifiques :
    - [ ] `status: qualified` ? → ✅ Continuer
-   - [ ] `chain_verified: true` ? → Si `false` ou absent → ⚠️ Re-vérification obligatoire à l'étape 2b
-   - [ ] `affected_files` listés ? → Si absent → les identifier soi-même
-   - [ ] `confidence` renseigné ? → Si `low` → re-vérification obligatoire à l'étape 2b
-   - [ ] `test_vector` renseigné ? → Facilite l'écriture du test RED
+   - [ ] `chain_verified: false` ou absent → ⚠️ Re-vérification obligatoire à l'étape 2b
+   - [ ] `confidence: low` → re-vérification obligatoire à l'étape 2b
 
 3. **Gates bloquants** :
    - [ ] Fichier d'audit **absent** ? → ❌ Voir mode fast-track ci-dessous
@@ -91,21 +90,7 @@ Ce fichier est produit par `/harden-audit` et contient :
 Créer un **audit minimal inline** avant de continuer. Ne pas skipper l'audit — le minimum de traçabilité est obligatoire.
 
 1. Demander à l'utilisateur : type de faille, endpoint, root cause suspectée
-2. Créer `audits/YYYY-MM-DD-[slug]-audit.md` avec les champs minimaux :
-   ```yaml
-   title: [Titre court]
-   source: interne
-   date: YYYY-MM-DD
-   owasp: [A01-A10]
-   dread_score: [estimation rapide /15]
-   verdict: [fix immédiat / sprint courant]
-   status: qualified
-   category: security
-   confidence: low
-   chain_verified: false
-   test_vector: "[à remplir]"
-   affected_files: []
-   ```
+2. Créer `audits/YYYY-MM-DD-[slug]-audit.md` avec les champs minimaux définis dans `../harden-audit/contract.md` (mettre `confidence: low`, `chain_verified: false`).
 3. Remplir les sections minimales : Contexte, Root cause, Fichiers impactés
 4. Continuer avec l'étape 2 — la re-vérification est obligatoire (confidence: low)
 

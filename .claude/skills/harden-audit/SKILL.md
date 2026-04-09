@@ -219,22 +219,11 @@ Ce fichier est le **contrat entre `/harden-audit` et `/harden-fix`**. Il contien
 
 ### Template du fichier d'audit
 
+Générer le frontmatter selon le contrat défini dans `contract.md` (dans ce dossier).
+
 ```markdown
 ---
-title: [Titre court de la faille]
-source: [YesWeHack / audit / CVE / interne / harden-pentest]
-date: YYYY-MM-DD
-owasp: [A01-A10]
-cwe: [CWE-XXX]
-dread_score: [X/15]
-verdict: [fix immédiat / sprint courant / backlog / accepter le risque / faux positif]
-status: [qualified / false-positive / not-reproducible / wont-fix / fixed]
-category: [security / hardening]
-confidence: [high / medium / low]
-chain_verified: [true / false]
-test_vector: "[méthode HTTP + URL + payload minimal pour reproduire]"
-affected_files:
-  - [chemin/fichier.rb:ligne]
+[frontmatter selon contract.md]
 ---
 
 # [Titre court de la faille]
@@ -303,26 +292,9 @@ affected_files:
 
 **Présenter aussi le parcours explicatif dans la conversation** pour discussion immédiate avec l'utilisateur.
 
-### Règles pour le champ `confidence`
+### Règles pour `confidence` et `category`
 
-Le champ `confidence` est calculé mécaniquement, pas subjectivement :
-
-| Confidence | Conditions |
-|---|---|
-| `high` | Chaîne tracée intégralement (chaque maillon avec `fichier:ligne`) ET reproduction locale confirmée |
-| `medium` | Chaîne tracée mais reproduction non confirmée, OU 1 maillon non lu |
-| `low` | Analyse statique seule, chaîne partiellement tracée |
-
-**Impact en aval :** `confidence: low` → harden-fix DOIT re-vérifier la chaîne avant de coder.
-
-### Règle pour le champ `category`
-
-| Category | Quand l'utiliser |
-|---|---|
-| `security` | Faille exploitable → pipeline normal (audit → fix) |
-| `hardening` | Hygiène / défense en profondeur (headers, source maps, CSP) → batch trimestriel |
-
-Les findings `hardening` ne génèrent pas de ticket immédiat.
+Voir les règles de calcul dans `contract.md` (dans ce dossier).
 
 ---
 
