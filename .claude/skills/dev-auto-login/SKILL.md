@@ -1,7 +1,6 @@
 ---
 name: dev-auto-login
 description: "Setup dev auto-login and ViewComponent reload. Use for localhost authentication setup."
-user_invocable: true
 allowed-tools: Bash(grep:*), Bash(touch:*), Edit(config/*), Write(config/*)
 ---
 

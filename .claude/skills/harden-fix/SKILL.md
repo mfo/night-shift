@@ -1,7 +1,6 @@
 ---
 name: harden-fix
 description: "Fix a qualified security vulnerability with TDD. Use when user has an audit file to fix."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

@@ -1,7 +1,6 @@
 ---
 name: feature-spec
 description: "Create technical architecture spec (Phase 0). Use when user says 'spec', 'architecture', or needs a technical plan."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

@@ -1,7 +1,6 @@
 ---
 name: feature-implementation
 description: "Execute commit-by-commit implementation (Phase 2). Use when user has a validated plan and wants to start coding."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

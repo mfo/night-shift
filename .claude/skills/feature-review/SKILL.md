@@ -1,7 +1,6 @@
 ---
 name: feature-review
 description: "Post-implementation review and cleanup (Phase 3). Use when implementation is done, before merge."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

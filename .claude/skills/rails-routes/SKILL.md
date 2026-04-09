@@ -1,7 +1,6 @@
 ---
 name: rails-routes
 description: "Generate and maintain Rails routes reference file. Use when routes-reference.txt is missing or outdated."
-user_invocable: true
 allowed-tools: Bash(bundle exec rails routes:*), Bash(echo:*), Bash(chmod:*), Bash(grep:*)
 ---
 

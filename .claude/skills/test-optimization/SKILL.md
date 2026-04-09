@@ -1,7 +1,6 @@
 ---
 name: test-optimization
 description: "Optimize slow RSpec test file. Use when user says 'optimize tests', 'speed up specs', or provides a slow spec file."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

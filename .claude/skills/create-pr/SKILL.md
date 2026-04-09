@@ -1,7 +1,6 @@
 ---
 name: create-pr
 description: "Create a GitHub pull request. Use when user says 'crée la PR', 'push', or work is ready for review."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

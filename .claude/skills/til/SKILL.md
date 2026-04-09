@@ -1,7 +1,6 @@
 ---
 name: til
 description: "Post a TIL (Today I Learned) comment on a PR. Use when user says 'TIL' or wants to share a learning."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

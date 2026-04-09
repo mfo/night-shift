@@ -1,7 +1,6 @@
 ---
 name: harden-audit
 description: "Qualify and score a security vulnerability (DREAD). Use when user has a security report, CVE, or vulnerability to analyze."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

@@ -1,7 +1,6 @@
 ---
 name: bugfix
 description: "Investigate and fix bugs, errors, crashes. Use when user reports a bug, Sentry error, stack trace, or unexpected behavior."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob

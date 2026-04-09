@@ -1,7 +1,6 @@
 ---
 name: feature-plan
 description: "Create atomic commit plan from spec (Phase 1). Use when user has a validated spec and needs an implementation plan."
-user_invocable: true
 allowed-tools:
   - Read
   - Glob
