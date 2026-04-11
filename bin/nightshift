@@ -7,6 +7,7 @@
 #   nightshift status [repo-path]    — print status table to stdout
 #   nightshift watch [repo-path]     — continuous refresh loop (every 2 min)
 #   nightshift diagnose [pr-number]  — fetch CI logs and display diagnostic for a 🔴 PR
+#   nightshift autofix [repo-path] [pr-number] — unblock CI: fix linters, fix specs (claude), retry system tests
 #
 # Window naming convention:
 #   🔨 branche                — no PR yet
@@ -31,6 +32,11 @@ SESSION="${NIGHTSHIFT_SESSION:-nightshift}"
 DEFAULT_REPO="${NIGHTSHIFT_REPO:-$HOME/dev/demarches-simplifiees.fr}"
 WATCH_INTERVAL="${NIGHTSHIFT_WATCH_INTERVAL:-120}"
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+DEBUG="${NIGHTSHIFT_DEBUG:-0}"
+
+debug() {
+  [ "$DEBUG" = "1" ] && echo "  [debug] $*" >&2 || true
+}
 
 # Cache for gh_repo (computed once)
 _GH_REPO=""
@@ -55,6 +61,29 @@ gh_repo() {
   fi
   _GH_REPO=$(git -C "$rpath" remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\.git$||')
   echo "$_GH_REPO"
+}
+
+# Resolve PR number from branch name (handles fork contributions)
+# Args: repo, branch
+# Output: PR number or empty
+resolve_pr_number() {
+  local repo="$1" branch="$2"
+  local pr_num
+  debug "resolve_pr_number repo=$repo branch=$branch"
+  # Try direct branch first
+  pr_num=$(gh pr list --repo "$repo" --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null) || true
+  debug "try --head '$branch' → '${pr_num:-empty}'"
+  if [ -n "$pr_num" ]; then
+    echo "$pr_num"
+    return
+  fi
+  # Try with fork prefix (user:branch)
+  local gh_user
+  gh_user=$(gh api user --jq .login 2>/dev/null) || gh_user="mfo"
+  debug "try --head '$gh_user:$branch'"
+  pr_num=$(gh pr list --repo "$repo" --head "$gh_user:$branch" --state open --json number --jq '.[0].number' 2>/dev/null) || true
+  debug "result → '${pr_num:-empty}'"
+  echo "$pr_num"
 }
 
 slug() {
@@ -262,7 +291,7 @@ cmd_attach() {
       local _num _state _ci
       IFS='|' read -r _num _state _ci _ _ <<< "$info"
       if [ "$_ci" = "red" ] && [ "$_state" = "OPEN" ]; then
-        tmux send-keys -t "$SESSION:$win_idx" "$SELF diagnose '' $_num" Enter
+        tmux send-keys -t "$SESSION:$win_idx" "$SELF autofix '' $_num" Enter
       fi
     fi
 
@@ -319,7 +348,7 @@ cmd_refresh() {
         local pr_num
         pr_num=$(echo "$new_name" | grep -o '#[0-9]*' | tr -d '#' || true)
         if [ -n "$pr_num" ]; then
-          tmux send-keys -t "$target_session:$window_index" "$SELF diagnose '' $pr_num" Enter
+          tmux send-keys -t "$target_session:$window_index" "$SELF autofix '' $pr_num" Enter
         fi
       fi
     fi
@@ -388,21 +417,17 @@ cmd_diagnose() {
   local repo
   repo=$(gh_repo "$rpath")
 
-  # Resolve PR number: argument, or tmux @branch, or current git branch
+  # Resolve PR number: argument, or current git branch
   local pr_number="$2"
   if [ -z "$pr_number" ]; then
     local branch
-    if [ -n "${TMUX:-}" ]; then
-      branch=$(tmux show-option -v @branch 2>/dev/null) || true
-    fi
-    if [ -z "$branch" ]; then
-      branch=$(git branch --show-current 2>/dev/null) || true
-    fi
+    branch=$(git branch --show-current 2>/dev/null) || true
+    debug "diagnose: git branch → '${branch:-empty}'"
     if [ -z "$branch" ]; then
       echo "error: could not determine branch. Pass PR number: nightshift diagnose <pr-number>" >&2
       return 1
     fi
-    pr_number=$(gh pr list --repo "$repo" --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null) || true
+    pr_number=$(resolve_pr_number "$repo" "$branch")
     if [ -z "$pr_number" ]; then
       echo "error: no open PR found for branch '$branch'" >&2
       return 1
@@ -519,6 +544,298 @@ cmd_diagnose() {
 
     echo ""
   done
+
+  # Suggest autofix if linter-only
+  if [ -n "$run_id" ] && ci_has_linter_failure "$repo" "$run_id" 2>/dev/null; then
+    echo "  💡 Linter failures detected — run: nightshift autofix"
+    echo ""
+  fi
+}
+
+# Check if any failed job is a linter
+# Returns 0 if at least one linter failure, 1 otherwise
+ci_has_linter_failure() {
+  local repo="$1" run_id="$2"
+
+  local failed_jobs
+  failed_jobs=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
+    --jq '.jobs[] | select(.conclusion == "failure") | .name' 2>/dev/null) || return 1
+
+  [ -z "$failed_jobs" ] && return 1
+
+  while IFS= read -r job_name; do
+    case "$job_name" in
+      *Lint*|*lint*) return 0 ;;
+    esac
+  done <<< "$failed_jobs"
+
+  return 1
+}
+
+# Extract failed spec lines from CI logs
+# Args: repo, run_id
+# Output: rspec ./spec/... lines (one per line)
+extract_failed_specs() {
+  local repo="$1" run_id="$2"
+
+  local failed_jobs
+  failed_jobs=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
+    --jq '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"' 2>/dev/null) || return 1
+
+  echo "$failed_jobs" | while IFS='|' read -r job_id job_name; do
+    case "$job_name" in
+      *Unit*|*unit*|*System*|*system*)
+        local logs
+        logs=$(gh api "repos/$repo/actions/jobs/$job_id/logs" 2>/dev/null) || continue
+        echo "$logs" | strip_ansi | grep -oE "rspec \./spec/[^ ]+" || true
+        ;;
+    esac
+  done
+}
+
+cmd_autofix() {
+  local rpath
+  rpath=$(repo_path "${1:-}")
+  local repo
+  repo=$(gh_repo "$rpath")
+
+  local pr_number="${2:-}"
+  local wt_path branch
+
+  wt_path=$(pwd)
+  branch=$(git -C "$wt_path" branch --show-current 2>/dev/null) || true
+  debug "cmd_autofix wt_path=$wt_path branch='${branch:-empty}'"
+
+  if [ -z "$pr_number" ]; then
+    if [ -z "$branch" ]; then
+      echo "error: could not determine branch" >&2
+      return 1
+    fi
+    pr_number=$(resolve_pr_number "$repo" "$branch")
+    if [ -z "$pr_number" ]; then
+      echo "error: no open PR for branch '$branch'" >&2
+      return 1
+    fi
+  fi
+
+  # Status dashboard
+  local st_linter="⚫" st_unit="⚫" st_codeql="⚫" st_system="⚫"
+
+  dashboard() {
+    echo ""
+    echo "  $st_linter linter   $st_unit unit   $st_codeql codeql   $st_system system"
+    echo "  ──────────────────────────────────────────────"
+  }
+
+  echo "── AUTOFIX — PR #$pr_number ──────────────────────"
+
+  # Circuit breaker: max 2 autofix per PR per hour (via tmux options)
+  if [ -n "${TMUX:-}" ]; then
+    local count last_ts now
+    count=$(tmux show-option -v @autofix_count 2>/dev/null) || count=0
+    last_ts=$(tmux show-option -v @autofix_ts 2>/dev/null) || last_ts=0
+    now=$(date +%s)
+    if [ $((now - last_ts)) -gt 3600 ]; then
+      count=0
+    fi
+    if [ "$count" -ge 2 ] && [ "$DEBUG" != "1" ]; then
+      echo "  ⛔ circuit breaker: 2 autofix attempts in the last hour, skipping"
+      return 1
+    fi
+    [ "$count" -ge 2 ] && debug "circuit breaker bypassed (debug mode)"
+  fi
+
+  # Get latest CI run + categorize failures
+  local run_id
+  run_id=$(gh pr checks "$pr_number" --repo "$repo" --json link --jq '.[0].link' 2>/dev/null \
+    | grep -o 'runs/[0-9]*' | head -1 | cut -d/ -f2) || true
+
+  if [ -z "$run_id" ]; then
+    echo "  no CI run found"
+    return 1
+  fi
+
+  # Categorize failures
+  local has_linter=false has_specs=false
+  local failed_specs="" system_test_jobs=""
+
+  ci_has_linter_failure "$repo" "$run_id" && has_linter=true
+  failed_specs=$(extract_failed_specs "$repo" "$run_id")
+  [ -n "$failed_specs" ] && has_specs=true
+
+  # Detect system test failures for retry
+  system_test_jobs=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
+    --jq '.jobs[] | select(.conclusion == "failure") | select(.name | test("System|system")) | "\(.id)|\(.name)"' 2>/dev/null) || true
+
+  # Detect CodeQL failures
+  local has_codeql=false
+  gh api "repos/$repo/actions/runs/$run_id/jobs" \
+    --jq '.jobs[] | select(.conclusion == "failure") | .name' 2>/dev/null \
+    | grep -qi "codeql" && has_codeql=true
+
+  if ! $has_linter && ! $has_specs && [ -z "$system_test_jobs" ] && ! $has_codeql; then
+    echo "  ✋ nothing to autofix"
+    echo "  use 'nightshift diagnose' for full diagnostic"
+    return 1
+  fi
+
+  # Init dashboard
+  $has_linter && st_linter="🔴" || st_linter="⚫"
+  $has_specs && st_unit="🔴" || st_unit="⚫"
+  $has_codeql && st_codeql="🔴" || st_codeql="⚫"
+  [ -n "$system_test_jobs" ] && st_system="🔴" || st_system="⚫"
+
+  dashboard
+
+  cd "$wt_path"
+  local _logdir="$wt_path/tmp"
+  mkdir -p "$_logdir"
+
+  # ── Step 1: System test retry (fast API call) ──
+
+  if [ -n "$system_test_jobs" ]; then
+    echo ""
+    echo "  → retrying system tests ..."
+    local retry_count
+    retry_count=$(tmux show-option -v @retry_count 2>/dev/null) || retry_count=0
+
+    if [ "$retry_count" -ge 1 ]; then
+      echo "  ⛔ already retried once — likely a real failure"
+    else
+      echo "$system_test_jobs" | while IFS='|' read -r job_id job_name; do
+        echo "  → gh run rerun --job $job_id ($job_name)"
+        gh run rerun --repo "$repo" --job "$job_id" 2>&1 || true
+      done
+      [ -n "${TMUX:-}" ] && tmux set-option @retry_count 1
+      st_system="⏳"
+    fi
+    dashboard
+  fi
+
+  if $has_codeql; then
+    echo ""
+    echo "  → 🔒 CodeQL findings — requires manual review on GitHub Security tab"
+  fi
+
+  # ── Step 2: Specs fix (claude -p) ──
+
+  if $has_specs; then
+    echo ""
+    echo "  failed specs:"
+    echo "$failed_specs" | sed 's/^/    /'
+    echo ""
+
+    local claude_prompt="CI detected failing specs in this project. Here are the failed specs:
+
+$failed_specs
+
+Investigate each failure: read the spec file, read the implementation code, understand why it fails, and fix the code (not the spec, unless the spec itself is wrong). Run the failing specs to verify your fix. Do NOT commit. Do NOT push."
+
+    echo "  → claude prompt:"
+    echo "$claude_prompt" | sed 's/^/    /'
+    echo ""
+    echo "  → delegating to claude (logs: $_logdir/claude.log)"
+
+    claude -p "$claude_prompt" \
+      --allowedTools "Read,Edit,Glob,Grep,Bash(bundle exec rspec:*),Bash(git diff:*),Bash(git status)" \
+      --output-format stream-json --verbose --max-turns 20 \
+      > "$_logdir/claude.log" 2>&1 || true
+
+    st_unit="🟡"
+    dashboard
+  fi
+
+  # ── Step 3: Linters — last, cleans up what claude may have broken ──
+
+  if $has_linter; then
+    echo ""
+    echo "  → fixing linters ..."
+
+    local rb_files
+    rb_files=$(git -C "$wt_path" diff main --name-only | grep '\.rb$' || true)
+    if [ -n "$rb_files" ]; then
+      echo "  → rubocop -A ($(echo "$rb_files" | wc -l | tr -d ' ') files)"
+      echo "$rb_files" | xargs bundle exec rubocop -A 2>&1 | tail -5 || true
+    fi
+
+    bun lint:herb --fix 2>&1 | tail -3 || true
+    bundle exec rake lint:apostrophe:fix 2>&1 | tail -3 || true
+    bundle exec rake lint:yaml_newline:fix 2>&1 | tail -3 || true
+
+    st_linter="🟡"
+    dashboard
+  fi
+
+  echo ""
+  echo "  → verifying ..."
+
+  if $has_linter; then
+    local rb_files_check
+    rb_files_check=$(git -C "$wt_path" diff main --name-only | grep '\.rb$' || true)
+    if [ -n "$rb_files_check" ]; then
+      local lint_result
+      lint_result=$(echo "$rb_files_check" | xargs bundle exec rubocop 2>&1) || true
+      local lint_summary
+      lint_summary=$(echo "$lint_result" | tail -1)
+      if echo "$lint_summary" | grep -q "no offenses"; then
+        st_linter="🟢"
+        echo "  rubocop: $lint_summary"
+      else
+        st_linter="🔴"
+        echo "  rubocop: $lint_summary"
+        echo "$lint_result" | grep -E "^[^ ].*:[0-9]+:" | head -5 | sed 's/^/    /'
+      fi
+    fi
+  fi
+
+  if $has_specs; then
+    local spec_files
+    spec_files=$(echo "$failed_specs" | sed 's/^rspec //' | tr '\n' ' ')
+    echo "  rspec $spec_files"
+    local spec_result
+    spec_result=$(bundle exec rspec $spec_files 2>&1) || true
+    local spec_summary
+    spec_summary=$(echo "$spec_result" | grep -E "[0-9]+ examples?" | tail -1)
+    if echo "$spec_summary" | grep -q "0 failures"; then
+      st_unit="🟢"
+      echo "  specs: $spec_summary"
+    else
+      st_unit="🔴"
+      echo "  specs: $spec_summary"
+      echo "$spec_result" | grep -E "(Failure/Error:|rspec \./spec/)" | head -10 | sed 's/^/    /'
+    fi
+  fi
+
+  if [ -n "$system_test_jobs" ]; then
+    local run_url="https://github.com/$repo/actions/runs/$run_id"
+    echo "  system tests: $run_url"
+  fi
+
+  dashboard
+
+  echo ""
+  local changed_files
+  changed_files=$(git -C "$wt_path" diff --name-only)
+  if [ -n "$changed_files" ]; then
+    local file_count
+    file_count=$(echo "$changed_files" | wc -l | tr -d ' ')
+    echo "  $file_count file(s) modified:"
+    echo ""
+    git -C "$wt_path" diff --color --stat
+    echo ""
+    git -C "$wt_path" diff --color
+    echo ""
+    echo "  next: git add -u && git commit && git push mfo HEAD"
+  else
+    echo "  ✅ done (no local changes)"
+  fi
+
+  # Update circuit breaker
+  if [ -n "${TMUX:-}" ]; then
+    local new_count=$((count + 1))
+    tmux set-option @autofix_count "$new_count"
+    tmux set-option @autofix_ts "$(date +%s)"
+  fi
 }
 
 cmd_watch() {
@@ -543,8 +860,9 @@ case "$cmd" in
   status)  cmd_status "$@" ;;
   watch)    cmd_watch "$@" ;;
   diagnose) cmd_diagnose "${1:-}" "${2:-}" ;;
+  autofix)  cmd_autofix "${1:-}" "${2:-}" ;;
   *)
-    echo "Usage: nightshift {attach|refresh|status|watch|diagnose} [repo-path] [pr-number]"
+    echo "Usage: nightshift {attach|refresh|status|watch|diagnose|autofix} [repo-path] [pr-number]"
     exit 1
     ;;
 esac
