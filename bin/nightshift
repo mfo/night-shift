@@ -6,6 +6,7 @@
 #   nightshift refresh [repo-path]   — refresh PR status on all windows
 #   nightshift status [repo-path]    — print status table to stdout
 #   nightshift watch [repo-path]     — continuous refresh loop (every 2 min)
+#   nightshift diagnose [pr-number]  — fetch CI logs and display diagnostic for a 🔴 PR
 #
 # Window naming convention:
 #   🔨 branche                — no PR yet
@@ -29,6 +30,7 @@ export LC_ALL=en_US.UTF-8
 SESSION="${NIGHTSHIFT_SESSION:-nightshift}"
 DEFAULT_REPO="${NIGHTSHIFT_REPO:-$HOME/dev/demarches-simplifiees.fr}"
 WATCH_INTERVAL="${NIGHTSHIFT_WATCH_INTERVAL:-120}"
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 
 # Cache for gh_repo (computed once)
 _GH_REPO=""
@@ -255,6 +257,15 @@ cmd_attach() {
     tmux set-option -t "$SESSION:$win_idx" @worktree_path "$wt_path"
     tmux set-option -t "$SESSION:$win_idx" @branch "$wt_branch"
 
+    # Auto-diagnose if CI is red
+    if [ -n "$info" ]; then
+      local _num _state _ci
+      IFS='|' read -r _num _state _ci _ _ <<< "$info"
+      if [ "$_ci" = "red" ] && [ "$_state" = "OPEN" ]; then
+        tmux send-keys -t "$SESSION:$win_idx" "$SELF diagnose '' $_num" Enter
+      fi
+    fi
+
     echo "  $name"
   done < <(list_worktrees "$rpath")
 
@@ -302,6 +313,15 @@ cmd_refresh() {
       tmux rename-window -t "$target_session:$window_index" "$new_name"
       echo "  $current_name → $new_name"
       changes=$((changes + 1))
+
+      # Auto-diagnose on transition to 🔴
+      if [[ "$new_name" == 🔴* ]] && [[ "$current_name" != 🔴* ]]; then
+        local pr_num
+        pr_num=$(echo "$new_name" | grep -o '#[0-9]*' | tr -d '#' || true)
+        if [ -n "$pr_num" ]; then
+          tmux send-keys -t "$target_session:$window_index" "$SELF diagnose '' $pr_num" Enter
+        fi
+      fi
     fi
   done < <(tmux list-windows -t "$target_session" -F "#{window_index}	#{window_name}")
 
@@ -357,6 +377,150 @@ cmd_status() {
   echo ""
 }
 
+# Strip ANSI color codes from input
+strip_ansi() {
+  sed 's/\x1b\[[0-9;]*m//g'
+}
+
+cmd_diagnose() {
+  local rpath
+  rpath=$(repo_path "${1:-}")
+  local repo
+  repo=$(gh_repo "$rpath")
+
+  # Resolve PR number: argument, or tmux @branch, or current git branch
+  local pr_number="$2"
+  if [ -z "$pr_number" ]; then
+    local branch
+    if [ -n "${TMUX:-}" ]; then
+      branch=$(tmux show-option -v @branch 2>/dev/null) || true
+    fi
+    if [ -z "$branch" ]; then
+      branch=$(git branch --show-current 2>/dev/null) || true
+    fi
+    if [ -z "$branch" ]; then
+      echo "error: could not determine branch. Pass PR number: nightshift diagnose <pr-number>" >&2
+      return 1
+    fi
+    pr_number=$(gh pr list --repo "$repo" --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null) || true
+    if [ -z "$pr_number" ]; then
+      echo "error: no open PR found for branch '$branch'" >&2
+      return 1
+    fi
+  fi
+
+  echo "── CI DIAGNOSTIC — PR #$pr_number ──────────────────────"
+  echo ""
+
+  # Get the latest CI run
+  local run_id
+  run_id=$(gh pr checks "$pr_number" --repo "$repo" --json link --jq '.[0].link' 2>/dev/null \
+    | grep -o 'runs/[0-9]*' | head -1 | cut -d/ -f2) || true
+
+  if [ -z "$run_id" ]; then
+    echo "  no CI run found"
+    return
+  fi
+
+  # Get all failed jobs
+  local failed_jobs
+  failed_jobs=$(gh api "repos/$repo/actions/runs/$run_id/jobs" \
+    --jq '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"' 2>/dev/null) || true
+
+  if [ -z "$failed_jobs" ]; then
+    echo "  ✅ no failed jobs"
+    return
+  fi
+
+  echo "$failed_jobs" | while IFS='|' read -r job_id job_name; do
+    [ -z "$job_id" ] && continue
+
+    # Categorize the job
+    local category action
+    case "$job_name" in
+      *CodeQL*|*codeql*)
+        category="🔒 SECURITY"
+        action="review manuelle requise"
+        ;;
+      *System*|*system*)
+        category="🧪 SYSTEM TEST"
+        action="retry recommandé: gh run rerun --job $job_id"
+        ;;
+      *Unit*|*unit*)
+        category="🧪 UNIT TEST"
+        action="specs à fixer"
+        ;;
+      *Lint*|*lint*)
+        category="🧹 LINTER"
+        action="autofix dispo"
+        ;;
+      *)
+        category="❓ OTHER"
+        action="voir logs"
+        ;;
+    esac
+
+    echo "  $category — $job_name"
+    echo "  → $action"
+
+    # Fetch relevant log lines
+    local logs
+    logs=$(gh api "repos/$repo/actions/jobs/$job_id/logs" 2>/dev/null) || {
+      echo "  ⚠ could not fetch logs"
+      echo ""
+      continue
+    }
+
+    case "$job_name" in
+      *Lint*|*lint*)
+        # Show offense lines + summary
+        local offenses
+        offenses=$(echo "$logs" | strip_ansi | grep -E "(\.rb:[0-9]+|\.erb:[0-9]+|\.haml:[0-9]+).*[CWEF]:" | sed 's/^.*Z /  /' | head -10)
+        local summary
+        summary=$(echo "$logs" | strip_ansi | grep -E "offenses? detected|autocorrectable" | sed 's/^.*Z /  /' | tail -1)
+        if [ -n "$offenses" ]; then
+          echo "$offenses"
+        fi
+        if [ -n "$summary" ]; then
+          echo "$summary"
+        fi
+        # Show fix commands
+        echo ""
+        echo "  FIX: bundle exec rubocop -a"
+        echo "       bun lint:herb --fix"
+        echo "       bundle exec rake lint:apostrophe:fix"
+        echo "       bundle exec rake lint:yaml_newline:fix"
+        ;;
+
+      *Unit*|*unit*|*System*|*system*)
+        # Show failed spec file:line + description
+        local failures
+        failures=$(echo "$logs" | strip_ansi | grep -E "rspec \./spec/" | sed 's/^.*rspec /  rspec /' | head -10 || true)
+        local summary
+        summary=$(echo "$logs" | strip_ansi | grep -E "[0-9]+ examples?, [0-9]+ failures?" | sed 's/^.*Z /  /' | tail -1 || true)
+        local fail_descriptions
+        fail_descriptions=$(echo "$logs" | strip_ansi | grep -E "(Failure/Error:|expected:.*got:)" | sed 's/^.*Z\s*/  /' | head -10 || true)
+
+        if [ -n "$failures" ]; then
+          echo "$failures"
+        fi
+        if [ -n "$fail_descriptions" ]; then
+          echo "$fail_descriptions"
+        fi
+        if [ -n "$summary" ]; then
+          echo "$summary"
+        fi
+        ;;
+
+      *CodeQL*|*codeql*)
+        echo "  ⚠ CodeQL findings — check GitHub Security tab"
+        ;;
+    esac
+
+    echo ""
+  done
+}
+
 cmd_watch() {
   local rpath
   rpath=$(repo_path "${1:-}")
@@ -377,9 +541,10 @@ case "$cmd" in
   attach)  cmd_attach "$@" ;;
   refresh) cmd_refresh "$@" ;;
   status)  cmd_status "$@" ;;
-  watch)   cmd_watch "$@" ;;
+  watch)    cmd_watch "$@" ;;
+  diagnose) cmd_diagnose "${1:-}" "${2:-}" ;;
   *)
-    echo "Usage: nightshift {attach|refresh|status|watch} [repo-path]"
+    echo "Usage: nightshift {attach|refresh|status|watch|diagnose} [repo-path] [pr-number]"
     exit 1
     ;;
 esac
