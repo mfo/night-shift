@@ -46,10 +46,75 @@ Après une session : `/kaizen write`. Pour améliorer les skills : `/kaizen synt
 
 Review transversale : `/review-3-amigos <spec, plan, ou PR diff>`.
 
+## `bin/nightshift` — Orchestrateur de PRs
+
+Suivre ses PRs depuis son terminal. Les faire avancer sans y penser.
+
+Chaque git worktree = une fenêtre tmux, nommée avec le statut PR en temps réel.
+
+```
+  📦 main
+  🟢 #12933 cleanup-old-referentiel
+  🔴 #12931 cleanup-nature-step3
+  ✅ #12930 cleanup-nature-step2
+  ⏳ #12929 fix-xss-service-links
+  💬 #12811 haml-migration (3)
+  🗑 #12173 homogenize-preview
+```
+
+### Commandes
+
+```bash
+nightshift attach              # Crée/rattache la session tmux depuis les worktrees
+nightshift refresh             # Met à jour les statuts PR sur toutes les fenêtres
+nightshift status              # Tableau stdout (sans tmux)
+nightshift watch               # Refresh continu (toutes les 2 min)
+nightshift diagnose            # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
+nightshift autofix             # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
+```
+
+### autofix
+
+Quand une PR est rouge, `autofix` prépare le déblocage :
+
+1. **System tests** — relance les jobs flaky (1 retry max)
+2. **Specs** — délègue le fix à `claude -p` (Read, Edit, rspec — max 20 turns)
+3. **Linters** — rubocop -A, herb, apostrophe, yaml (en dernier, nettoie ce que claude a pu casser)
+4. **Vérification** — relance les specs et linters pour confirmer
+5. **Résumé** — diff coloré des fichiers modifiés
+
+Le commit et le push restent manuels. Se lance automatiquement dans le pane tmux quand une PR passe au rouge.
+
+### Iconographie
+
+| Icône | Signification | Action |
+|---|---|---|
+| 🔨 | Pas de PR | En construction |
+| ⏳ | CI en cours | Attendre |
+| 🟢 | CI verte, en review | Attendre review |
+| 🔴 | CI rouge | Fixer (autofix) |
+| 💬 | Commentaires de review | Lire et adresser |
+| ⛔ | Changes requested | Corriger |
+| ✅ | Approved | Merger |
+| 🗑 | Mergée | Worktree supprimable |
+| ⊘ | Fermée | Worktree supprimable |
+
+### Configuration
+
+```bash
+export NIGHTSHIFT_REPO=~/dev/mon-projet       # Repo cible (défaut: ~/dev/demarches-simplifiees.fr)
+export NIGHTSHIFT_SESSION=nightshift           # Nom de session tmux
+export NIGHTSHIFT_WATCH_INTERVAL=120           # Intervalle de refresh en secondes
+export NIGHTSHIFT_DEBUG=1                      # Mode debug (verbose, bypass circuit breaker)
+```
+
+Dépendances : `tmux`, `gh`, `git`. Optionnel : `claude` (pour autofix specs).
+
 ## Structure
 
 ```
 night-shift/
+├── bin/nightshift                     # Orchestrateur tmux
 ├── .claude/skills/                    # Skills (le livrable principal)
 │   ├── haml-migration/                # POC 1
 │   ├── test-optimization/             # POC 2
@@ -58,12 +123,13 @@ night-shift/
 │   ├── feature-plan/                  # POC 4 — Phase 1
 │   ├── feature-implementation/        # POC 4 — Phase 2
 │   ├── feature-review/                # POC 4 — Phase 3
-│   ├── harden-pentest/                 # POC 5 — Explorer une surface d'attaque
+│   ├── harden-pentest/                # POC 5 — Explorer une surface d'attaque
 │   ├── harden-audit/                  # POC 5 — Qualifier une faille
 │   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
 │   ├── kaizen/                        # Transversal — write + synth
 │   └── review-3-amigos/              # Transversal — Review PM+UX+Dev
 │
+├── epics/                             # Vision et roadmap
 ├── pocs/                              # Data projet par POC (setup, specs, inventaires)
 ├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix)
 ├── kaizen/                            # Learnings par itération
