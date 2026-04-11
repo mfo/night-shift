@@ -1,0 +1,385 @@
+#!/usr/bin/env bash
+# nightshift — tmux launcher that syncs worktrees with their PR status
+#
+# Usage:
+#   nightshift attach [repo-path]    — create/attach tmux session from worktrees (idempotent)
+#   nightshift refresh [repo-path]   — refresh PR status on all windows
+#   nightshift status [repo-path]    — print status table to stdout
+#   nightshift watch [repo-path]     — continuous refresh loop (every 2 min)
+#
+# Window naming convention:
+#   🔨 branche                — no PR yet
+#   ⏳ #123 slug              — CI running
+#   🟢 #123 slug              — CI green, waiting review
+#   🔴 #123 slug              — CI failed
+#   💬 #123 slug (3)          — has review comments
+#   ✅ #123 slug              — approved
+#   🗑 #123 slug               — merged (worktree supprimable)
+#   ⊘ #123 slug               — closed
+#   ⛔ #123 slug              — changes requested
+#
+# Environment:
+#   NIGHTSHIFT_REPO            — repo path (default: ~/dev/demarches-simplifiees.fr)
+#   NIGHTSHIFT_SESSION         — tmux session name (default: nightshift)
+#   NIGHTSHIFT_WATCH_INTERVAL  — refresh interval in seconds (default: 120)
+
+set -euo pipefail
+export LC_ALL=en_US.UTF-8
+
+SESSION="${NIGHTSHIFT_SESSION:-nightshift}"
+DEFAULT_REPO="${NIGHTSHIFT_REPO:-$HOME/dev/demarches-simplifiees.fr}"
+WATCH_INTERVAL="${NIGHTSHIFT_WATCH_INTERVAL:-120}"
+
+# Cache for gh_repo (computed once)
+_GH_REPO=""
+_ERRORS=0
+
+# ---------- cleanup ----------
+
+trap 'kill 0 2>/dev/null || true' SIGTERM SIGINT
+
+# ---------- helpers ----------
+
+repo_path() {
+  echo "${1:-$DEFAULT_REPO}"
+}
+
+# Resolve owner/repo once, cache it
+gh_repo() {
+  local rpath="$1"
+  if [ -n "$_GH_REPO" ]; then
+    echo "$_GH_REPO"
+    return
+  fi
+  _GH_REPO=$(git -C "$rpath" remote get-url origin 2>/dev/null | sed 's|.*github.com[:/]||;s|\.git$||')
+  echo "$_GH_REPO"
+}
+
+slug() {
+  echo "$1" | sed 's|^US/||;s|^fix/||;s|^feat/||;s|^tech/||' | cut -c1-30
+}
+
+# Parse git worktree list into "path|branch" lines (skip first = main)
+# Handles ~ in paths and branches with slashes
+# Outputs lines to stdout: /absolute/path|branch-name
+list_worktrees() {
+  local rpath="$1"
+  local tmpfile
+  tmpfile=$(mktemp)
+
+  git -C "$rpath" worktree list | tail -n +2 > "$tmpfile"
+
+  while IFS= read -r line; do
+    local wt_path wt_branch
+    wt_path=$(echo "$line" | awk '{print $1}')
+    wt_path="${wt_path/#\~/$HOME}"
+    wt_branch=$(echo "$line" | sed -n 's/.*\[\(.*\)\]/\1/p')
+    [ -z "$wt_branch" ] && continue
+    [ -d "$wt_path" ] || continue
+    echo "${wt_path}|${wt_branch}"
+  done < "$tmpfile"
+
+  rm -f "$tmpfile"
+}
+
+# Fetch PR data in two passes:
+#   1. Lightweight: all user PRs (open+merged+closed) for branch→PR mapping
+#   2. Rich: open PRs only, with CI checks + reviews for detailed status
+# Output: branch|number|state|ci|review_count|review_decision
+fetch_all_prs() {
+  local rpath="$1"
+  local repo gh_user
+  repo=$(gh_repo "$rpath")
+  gh_user=$(gh api user --jq .login 2>/dev/null) || gh_user="mfo"
+
+  # Pass 1: all user PRs (lightweight, fast)
+  local all_prs
+  all_prs=$(gh pr list \
+    --repo "$repo" \
+    --state all \
+    --limit 200 \
+    --json number,headRefName,state,author \
+    --jq "[.[] | select(.author.login == \"$gh_user\")] | .[] | \"\(.headRefName)|\(.number)|\(.state)\"" 2>/dev/null) || {
+      echo "nightshift: gh API failed (network? auth? rate limit?)" >&2
+      return 1
+    }
+
+  # Pass 2: open PRs with CI + reviews (richer, only ~30-40 PRs)
+  local rich_jq='.[] | "\(.headRefName)|\(.number)|\(.state)|\(
+    if (.statusCheckRollup | length) == 0 then "none"
+    elif (.statusCheckRollup | all(.conclusion == "SUCCESS")) then "green"
+    elif (.statusCheckRollup | any(.status == "IN_PROGRESS" or .status == "QUEUED" or .status == "PENDING")) then "running"
+    elif (.statusCheckRollup | any(.conclusion == "FAILURE" or .conclusion == "ERROR" or .conclusion == "TIMED_OUT")) then "red"
+    else "unknown"
+    end
+  )|\([.reviews[] | select(.state == "COMMENTED" or .state == "CHANGES_REQUESTED" or .state == "APPROVED")] | length)|\(.reviewDecision // "")"'
+
+  local open_prs
+  open_prs=$(gh pr list \
+    --repo "$repo" \
+    --state open \
+    --limit 50 \
+    --json number,headRefName,state,statusCheckRollup,reviewDecision,reviews \
+    --jq "$rich_jq" 2>/dev/null) || open_prs=""
+
+  # Merge: for each user PR, use rich data if available, else lightweight
+  echo "$all_prs" | while IFS='|' read -r branch number state; do
+    [ -z "$branch" ] && continue
+    # Try to find rich version
+    local rich_line
+    rich_line=$(echo "$open_prs" | grep "^${branch}|" | head -1 || true)
+    if [ -n "$rich_line" ]; then
+      echo "$rich_line"
+    else
+      # Merged/closed: no CI or reviews needed
+      echo "${branch}|${number}|${state}|none|0|"
+    fi
+  done
+}
+
+# Lookup a branch in the cached PR data
+# Args: branch, pr_data (lines from fetch_all_prs)
+# Returns: number|state|ci|review_count|review_decision or empty
+lookup_pr() {
+  local branch="$1"
+  local pr_data="$2"
+
+  echo "$pr_data" | grep "^${branch}|" | head -1 | cut -d'|' -f2- || true
+}
+
+# Build window name from branch + PR info
+window_name() {
+  local branch="$1"
+  local info="$2"  # number|state|ci|review_count|review_decision
+  local short
+  short=$(slug "$branch")
+
+  if [ -z "$info" ]; then
+    echo "🔨 $short"
+    return
+  fi
+
+  IFS='|' read -r num state ci review_count review_decision <<< "$info"
+
+  case "$state" in
+    MERGED) echo "🗑 #$num $short"; return ;;
+    CLOSED) echo "⊘ #$num $short"; return ;;
+  esac
+
+  # CI red is always the most urgent signal
+  if [ "$ci" = "red" ]; then
+    echo "🔴 #$num $short"
+    return
+  fi
+
+  if [ "$review_decision" = "CHANGES_REQUESTED" ]; then
+    echo "⛔ #$num $short"
+    return
+  fi
+
+  if [ "$review_decision" = "APPROVED" ]; then
+    echo "✅ #$num $short"
+    return
+  fi
+
+  if [ "${review_count:-0}" -gt 0 ] 2>/dev/null; then
+    echo "💬 #$num $short ($review_count)"
+    return
+  fi
+
+  case "$ci" in
+    green)   echo "🟢 #$num $short" ;;
+    running) echo "⏳ #$num $short" ;;
+    *)       echo "◯ #$num $short" ;;
+  esac
+}
+
+# ---------- commands ----------
+
+cmd_attach() {
+  local rpath
+  rpath=$(repo_path "${1:-}")
+
+  if ! command -v tmux &>/dev/null; then
+    echo "error: tmux not installed" >&2
+    return 1
+  fi
+
+  if ! [ -d "$rpath/.git" ] && ! [ -f "$rpath/.git" ]; then
+    echo "error: $rpath is not a git repo" >&2
+    return 1
+  fi
+
+  # If session exists, just attach — don't destroy
+  if tmux has-session -t "$SESSION" 2>/dev/null; then
+    echo "nightshift: session exists, attaching (use 'refresh' to update)"
+    if [ -n "${TMUX:-}" ]; then
+      tmux switch-client -t "$SESSION"
+    else
+      tmux attach -t "$SESSION"
+    fi
+    return
+  fi
+
+  # Batch fetch all PRs (1 API call)
+  echo "  fetching PRs ..."
+  local pr_data
+  pr_data=$(fetch_all_prs "$rpath") || {
+    echo "warning: could not fetch PRs (network? auth?), continuing without status" >&2
+    pr_data=""
+  }
+
+  # Build session from worktrees
+  local first=true
+  local main_path
+  main_path=$(git -C "$rpath" worktree list | head -1 | awk '{print $1}')
+  main_path="${main_path/#\~/$HOME}"
+
+  # Main repo as first window
+  tmux new-session -d -s "$SESSION" -n "📦 main" -c "$main_path"
+  tmux set-option -t "$SESSION" allow-rename off
+  first=false
+
+  while IFS='|' read -r wt_path wt_branch; do
+    [ -n "$wt_path" ] || continue
+
+    local info
+    info=$(lookup_pr "$wt_branch" "$pr_data")
+    local name
+    name=$(window_name "$wt_branch" "$info")
+
+    tmux new-window -t "$SESSION" -n "$name" -c "$wt_path"
+    # Store worktree metadata in tmux user options
+    local win_idx
+    win_idx=$(tmux list-windows -t "$SESSION" -F '#{window_index}' | tail -1)
+    tmux set-option -t "$SESSION:$win_idx" @worktree_path "$wt_path"
+    tmux set-option -t "$SESSION:$win_idx" @branch "$wt_branch"
+
+    echo "  $name"
+  done < <(list_worktrees "$rpath")
+
+  local win_count
+  win_count=$(tmux list-windows -t "$SESSION" | wc -l | tr -d ' ')
+  echo ""
+  echo "nightshift: $win_count windows ready"
+
+  if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "$SESSION"
+  else
+    tmux attach -t "$SESSION"
+  fi
+}
+
+cmd_refresh() {
+  local rpath
+  rpath=$(repo_path "${1:-}")
+  local target_session="${2:-$SESSION}"
+
+  # Batch fetch all PRs (1 API call)
+  local pr_data
+  pr_data=$(fetch_all_prs "$rpath") || {
+    echo "nightshift: refresh failed (network? auth?)" >&2
+    return 1
+  }
+
+  local changes=0
+
+  while IFS=$'\t' read -r window_index current_name; do
+    # Skip main window
+    [[ "$current_name" == *"main"* ]] && continue
+
+    # Read branch from stored tmux user option
+    local branch
+    branch=$(tmux show-option -t "$target_session:$window_index" -v @branch 2>/dev/null) || continue
+    [ -z "$branch" ] && continue
+
+    local info
+    info=$(lookup_pr "$branch" "$pr_data")
+    local new_name
+    new_name=$(window_name "$branch" "$info")
+
+    if [ "$new_name" != "$current_name" ]; then
+      tmux rename-window -t "$target_session:$window_index" "$new_name"
+      echo "  $current_name → $new_name"
+      changes=$((changes + 1))
+    fi
+  done < <(tmux list-windows -t "$target_session" -F "#{window_index}	#{window_name}")
+
+  if [ "$changes" -eq 0 ]; then
+    echo "nightshift: no changes"
+  else
+    echo "nightshift: $changes windows updated"
+  fi
+
+  # Sync: add new worktrees not yet in tmux
+  local existing_branches
+  existing_branches=$(tmux list-windows -t "$target_session" -F '' 2>/dev/null | while read -r idx; do
+    tmux show-option -t "$target_session:$idx" -v @branch 2>/dev/null
+  done)
+
+  while IFS='|' read -r wt_path wt_branch; do
+    [ -n "$wt_path" ] || continue
+    if ! echo "$existing_branches" | grep -qx "$wt_branch"; then
+      local info
+      info=$(lookup_pr "$wt_branch" "$pr_data")
+      local name
+      name=$(window_name "$wt_branch" "$info")
+      tmux new-window -t "$target_session" -n "$name" -c "$wt_path"
+      local win_idx
+      win_idx=$(tmux list-windows -t "$target_session" -F '#{window_index}' | tail -1)
+      tmux set-option -t "$target_session:$win_idx" @worktree_path "$wt_path"
+      tmux set-option -t "$target_session:$win_idx" @branch "$wt_branch"
+      echo "  + $name (new worktree)"
+    fi
+  done < <(list_worktrees "$rpath")
+}
+
+cmd_status() {
+  local rpath
+  rpath=$(repo_path "${1:-}")
+
+  echo "  fetching PRs ..."
+  local pr_data
+  pr_data=$(fetch_all_prs "$rpath") || {
+    echo "error: could not fetch PRs" >&2
+    return 1
+  }
+
+  echo ""
+  while IFS='|' read -r wt_path wt_branch; do
+    [ -n "$wt_path" ] || continue
+    local info
+    info=$(lookup_pr "$wt_branch" "$pr_data")
+    local name
+    name=$(window_name "$wt_branch" "$info")
+    echo "  $name"
+  done < <(list_worktrees "$rpath")
+  echo ""
+}
+
+cmd_watch() {
+  local rpath
+  rpath=$(repo_path "${1:-}")
+
+  echo "nightshift: watching every ${WATCH_INTERVAL}s (ctrl-c to stop)"
+  while true; do
+    cmd_refresh "$rpath" 2>&1 | sed "s/^/  [$(date +%H:%M)] /"
+    sleep "$WATCH_INTERVAL"
+  done
+}
+
+# ---------- main ----------
+
+cmd="${1:-attach}"
+shift 2>/dev/null || true
+
+case "$cmd" in
+  attach)  cmd_attach "$@" ;;
+  refresh) cmd_refresh "$@" ;;
+  status)  cmd_status "$@" ;;
+  watch)   cmd_watch "$@" ;;
+  *)
+    echo "Usage: nightshift {attach|refresh|status|watch} [repo-path]"
+    exit 1
+    ;;
+esac
