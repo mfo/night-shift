@@ -38,6 +38,30 @@ debug() {
   [ "$DEBUG" = "1" ] && echo "  [debug] $*" >&2 || true
 }
 
+# Spinner: run a command in background, show spinner while waiting
+# Usage: spin "message" command arg1 arg2 ...
+# Output goes to $SPIN_LOG if set, otherwise /dev/null
+spin() {
+  local msg="$1"; shift
+  local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+  local log="${SPIN_LOG:-/dev/null}"
+
+  "$@" > "$log" 2>&1 &
+  local pid=$!
+  local i=0
+
+  while kill -0 "$pid" 2>/dev/null; do
+    printf "\r  %s %s" "${chars:i%${#chars}:1}" "$msg"
+    i=$((i + 1))
+    sleep 0.1
+  done
+
+  wait "$pid" 2>/dev/null
+  local rc=$?
+  printf "\r  %s %s\n" "$([ $rc -eq 0 ] && echo "✓" || echo "✗")" "$msg"
+  return $rc
+}
+
 # Cache for gh_repo (computed once)
 _GH_REPO=""
 _ERRORS=0
@@ -734,12 +758,16 @@ Investigate each failure: read the spec file, read the implementation code, unde
     echo "  → claude prompt:"
     echo "$claude_prompt" | sed 's/^/    /'
     echo ""
-    echo "  → delegating to claude (logs: $_logdir/claude.log)"
+    local claude_cmd="claude -p \"...\" --allowedTools \"Read,Edit,Glob,Grep,Bash(bundle exec rspec:*),Bash(git diff:*),Bash(git status)\" --output-format stream-json --verbose --max-turns 20"
+    echo "  → $claude_cmd"
+    echo "  → logs: $_logdir/claude.log"
+    echo ""
 
-    claude -p "$claude_prompt" \
-      --allowedTools "Read,Edit,Glob,Grep,Bash(bundle exec rspec:*),Bash(git diff:*),Bash(git status)" \
-      --output-format stream-json --verbose --max-turns 20 \
-      > "$_logdir/claude.log" 2>&1 || true
+    SPIN_LOG="$_logdir/claude.log" spin "claude fixing specs ..." \
+      claude -p "$claude_prompt" \
+        --allowedTools "Read,Edit,Glob,Grep,Bash(bundle exec rspec:*),Bash(git diff:*),Bash(git status)" \
+        --output-format stream-json --verbose --max-turns 20 \
+      || true
 
     st_unit="🟡"
     dashboard
@@ -754,13 +782,14 @@ Investigate each failure: read the spec file, read the implementation code, unde
     local rb_files
     rb_files=$(git -C "$wt_path" diff main --name-only | grep '\.rb$' || true)
     if [ -n "$rb_files" ]; then
-      echo "  → rubocop -A ($(echo "$rb_files" | wc -l | tr -d ' ') files)"
-      echo "$rb_files" | xargs bundle exec rubocop -A 2>&1 | tail -5 || true
+      local rb_count
+      rb_count=$(echo "$rb_files" | wc -l | tr -d ' ')
+      SPIN_LOG="$_logdir/rubocop.log" spin "rubocop -A ($rb_count files)" bash -c "echo '$rb_files' | xargs bundle exec rubocop -A" || true
     fi
 
-    bun lint:herb --fix 2>&1 | tail -3 || true
-    bundle exec rake lint:apostrophe:fix 2>&1 | tail -3 || true
-    bundle exec rake lint:yaml_newline:fix 2>&1 | tail -3 || true
+    SPIN_LOG="$_logdir/herb.log" spin "bun lint:herb --fix" bun lint:herb --fix || true
+    SPIN_LOG="$_logdir/apostrophe.log" spin "rake lint:apostrophe:fix" bundle exec rake lint:apostrophe:fix || true
+    SPIN_LOG="$_logdir/yaml.log" spin "rake lint:yaml_newline:fix" bundle exec rake lint:yaml_newline:fix || true
 
     st_linter="🟡"
     dashboard
@@ -773,17 +802,16 @@ Investigate each failure: read the spec file, read the implementation code, unde
     local rb_files_check
     rb_files_check=$(git -C "$wt_path" diff main --name-only | grep '\.rb$' || true)
     if [ -n "$rb_files_check" ]; then
-      local lint_result
-      lint_result=$(echo "$rb_files_check" | xargs bundle exec rubocop 2>&1) || true
+      SPIN_LOG="$_logdir/verify-rubocop.log" spin "verifying rubocop" bash -c "echo '$rb_files_check' | xargs bundle exec rubocop" || true
       local lint_summary
-      lint_summary=$(echo "$lint_result" | tail -1)
+      lint_summary=$(tail -1 "$_logdir/verify-rubocop.log")
       if echo "$lint_summary" | grep -q "no offenses"; then
         st_linter="🟢"
         echo "  rubocop: $lint_summary"
       else
         st_linter="🔴"
         echo "  rubocop: $lint_summary"
-        echo "$lint_result" | grep -E "^[^ ].*:[0-9]+:" | head -5 | sed 's/^/    /'
+        grep -E "^[^ ].*:[0-9]+:" "$_logdir/verify-rubocop.log" | head -5 | sed 's/^/    /'
       fi
     fi
   fi
@@ -791,18 +819,16 @@ Investigate each failure: read the spec file, read the implementation code, unde
   if $has_specs; then
     local spec_files
     spec_files=$(echo "$failed_specs" | sed 's/^rspec //' | tr '\n' ' ')
-    echo "  rspec $spec_files"
-    local spec_result
-    spec_result=$(bundle exec rspec $spec_files 2>&1) || true
+    SPIN_LOG="$_logdir/verify-rspec.log" spin "verifying rspec" bundle exec rspec $spec_files || true
     local spec_summary
-    spec_summary=$(echo "$spec_result" | grep -E "[0-9]+ examples?" | tail -1)
+    spec_summary=$(grep -E "[0-9]+ examples?" "$_logdir/verify-rspec.log" | tail -1)
     if echo "$spec_summary" | grep -q "0 failures"; then
       st_unit="🟢"
       echo "  specs: $spec_summary"
     else
       st_unit="🔴"
       echo "  specs: $spec_summary"
-      echo "$spec_result" | grep -E "(Failure/Error:|rspec \./spec/)" | head -10 | sed 's/^/    /'
+      grep -E "(Failure/Error:|rspec \./spec/)" "$_logdir/verify-rspec.log" | head -10 | sed 's/^/    /'
     fi
   fi
 
