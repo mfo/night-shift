@@ -351,7 +351,7 @@ cmd_attach() {
 
   # Main repo as first window
   tmux new-session -d -s "$SESSION" -n "📦 main" -c "$main_path"
-  tmux set-option -t "$SESSION" allow-rename off
+  tmux set-option -w -t "$SESSION" allow-rename off
   first=false
 
   local n_red=0 n_green=0 n_running=0
@@ -368,8 +368,8 @@ cmd_attach() {
     # Store worktree metadata in tmux user options
     local win_idx
     win_idx=$(tmux list-windows -t "$SESSION" -F '#{window_index}' | tail -1)
-    tmux set-option -t "$SESSION:$win_idx" @worktree_path "$wt_path"
-    tmux set-option -t "$SESSION:$win_idx" @branch "$wt_branch"
+    tmux set-option -w -t "$SESSION:$win_idx" @worktree_path "$wt_path"
+    tmux set-option -w -t "$SESSION:$win_idx" @branch "$wt_branch"
 
     # Count statuses for summary
     if [ -n "$info" ]; then
@@ -440,7 +440,7 @@ cmd_refresh() {
 
     # Read branch from stored tmux user option
     local branch
-    branch=$(tmux show-option -t "$target_session:$window_index" -v @branch 2>/dev/null) || continue
+    branch=$(tmux show-option -w -t "$target_session:$window_index" -v @branch 2>/dev/null) || continue
     [ -z "$branch" ] && continue
 
     local info
@@ -471,10 +471,13 @@ cmd_refresh() {
   fi
 
   # Sync: add new worktrees not yet in tmux
-  local existing_branches
-  existing_branches=$(tmux list-windows -t "$target_session" -F '' 2>/dev/null | while read -r idx; do
-    tmux show-option -t "$target_session:$idx" -v @branch 2>/dev/null
-  done)
+  local existing_branches=""
+  while read -r idx; do
+    local b
+    b=$(tmux show-option -w -t "$target_session:$idx" -v @branch 2>/dev/null) || true
+    [ -n "$b" ] && existing_branches="${existing_branches}${b}
+"
+  done < <(tmux list-windows -t "$target_session" -F '#{window_index}' 2>/dev/null)
 
   while IFS='|' read -r wt_path wt_branch; do
     [ -n "$wt_path" ] || continue
@@ -486,8 +489,8 @@ cmd_refresh() {
       tmux new-window -t "$target_session" -n "$name" -c "$wt_path"
       local win_idx
       win_idx=$(tmux list-windows -t "$target_session" -F '#{window_index}' | tail -1)
-      tmux set-option -t "$target_session:$win_idx" @worktree_path "$wt_path"
-      tmux set-option -t "$target_session:$win_idx" @branch "$wt_branch"
+      tmux set-option -w -t "$target_session:$win_idx" @worktree_path "$wt_path"
+      tmux set-option -w -t "$target_session:$win_idx" @branch "$wt_branch"
       echo "  + $name (new worktree)"
     fi
   done < <(list_worktrees "$rpath")
