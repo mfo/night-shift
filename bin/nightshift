@@ -410,8 +410,8 @@ cmd_attach() {
   echo "  ◎ launching morning brief ..."
   echo ""
 
-  # Launch brief in the main window (index 0)
-  tmux send-keys -t "$SESSION:0" "$SELF brief" Enter
+  # Launch brief then watch in the main window (index 0)
+  tmux send-keys -t "$SESSION:0" "$SELF brief && $SELF watch" Enter
 
   if [ -n "${TMUX:-}" ]; then
     tmux switch-client -t "$SESSION"
@@ -453,13 +453,43 @@ cmd_refresh() {
       echo "  $current_name → $new_name"
       changes=$((changes + 1))
 
-      # Auto-diagnose on transition to 🔴
+      # React to transitions with menu + actions
+      local pr_num
+      pr_num=$(echo "$new_name" | grep -o '#[0-9]*' | tr -d '#' || true)
+      local short
+      short=$(echo "$new_name" | sed 's/^[^ ]* #[0-9]* //')
+
       if [[ "$new_name" == 🔴* ]] && [[ "$current_name" != 🔴* ]]; then
-        local pr_num
-        pr_num=$(echo "$new_name" | grep -o '#[0-9]*' | tr -d '#' || true)
+        # CI rouge → autofix + menu
         if [ -n "$pr_num" ]; then
           tmux send-keys -t "$target_session:$window_index" "$SELF autofix '' $pr_num" Enter
+          tmux display-menu -T " 🔴 #${pr_num} ${short} " \
+            "voir le pane" v "select-window -t $target_session:$window_index" \
+            "ignorer" q ""
         fi
+      elif [[ "$new_name" == ✅* ]] && [[ "$current_name" != ✅* ]]; then
+        # Approved → menu merge
+        [ -n "$pr_num" ] && tmux display-menu -T " ✅ #${pr_num} ${short} " \
+          "merger (auto-merge)" m "run-shell '$SELF merge $pr_num'" \
+          "voir le pane" v "select-window -t $target_session:$window_index" \
+          "ignorer" q ""
+      elif [[ "$new_name" == 💬* ]] && [[ "$current_name" != 💬* ]]; then
+        # Review comments → menu
+        [ -n "$pr_num" ] && tmux display-menu -T " 💬 #${pr_num} ${short} " \
+          "voir le pane" v "select-window -t $target_session:$window_index" \
+          "ouvrir sur GitHub" g "run-shell 'gh pr view $pr_num --web'" \
+          "ignorer" q ""
+      elif [[ "$new_name" == ⛔* ]] && [[ "$current_name" != ⛔* ]]; then
+        # Changes requested → menu
+        [ -n "$pr_num" ] && tmux display-menu -T " ⛔ #${pr_num} ${short} " \
+          "voir le pane" v "select-window -t $target_session:$window_index" \
+          "ouvrir sur GitHub" g "run-shell 'gh pr view $pr_num --web'" \
+          "ignorer" q ""
+      elif [[ "$new_name" == 🟢* ]] && [[ "$current_name" == 🔴* ]]; then
+        # Rouge → vert → notification
+        [ -n "$pr_num" ] && tmux display-menu -T " 🟢 #${pr_num} ${short} — CI green! " \
+          "voir le pane" v "select-window -t $target_session:$window_index" \
+          "ignorer" q ""
       fi
     fi
   done < <(tmux list-windows -t "$target_session" -F "#{window_index}	#{window_name}")
@@ -1230,6 +1260,27 @@ cmd_watch() {
   done
 }
 
+cmd_merge() {
+  local pr_num="${1:-}"
+  if [ -z "$pr_num" ]; then
+    echo "Usage: nightshift merge <pr-number>" >&2
+    return 1
+  fi
+
+  local rpath
+  rpath=$(repo_path "${2:-}")
+  local repo
+  repo=$(gh_repo "$rpath")
+
+  echo "  ◎ activating auto-merge for #${pr_num} ..."
+  if gh pr merge "$pr_num" --repo "$repo" --auto --squash 2>&1; then
+    echo "  ✓ auto-merge enabled — GitHub will merge when conditions are met"
+  else
+    echo "  ✗ failed to enable auto-merge" >&2
+    return 1
+  fi
+}
+
 # ---------- main ----------
 
 cmd="${1:-attach}"
@@ -1243,8 +1294,9 @@ case "$cmd" in
   diagnose) cmd_diagnose "${1:-}" "${2:-}" ;;
   autofix)  cmd_autofix "${1:-}" "${2:-}" ;;
   brief)   cmd_brief "${1:-}" ;;
+  merge)   cmd_merge "${1:-}" "${2:-}" ;;
   *)
-    echo "Usage: nightshift {attach|refresh|status|watch|diagnose|autofix|brief} [repo-path] [pr-number]"
+    echo "Usage: nightshift {attach|refresh|status|watch|diagnose|autofix|brief|merge} [repo-path] [pr-number]"
     exit 1
     ;;
 esac
