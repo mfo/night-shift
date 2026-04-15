@@ -19,9 +19,28 @@
 
 ---
 
-## ✅ Checklist Pré-Démarrage
+## ✅ Checklist Interview de clarification (Étape -1)
 
-**Avant de commencer à rédiger spec :**
+**AVANT de lire le code :**
+
+- [ ] Demande du user reformulée avec clause d'inférence ? (inclut une implication non dite par le user)
+- [ ] Reformulation + question tient en 5 lignes max ?
+- [ ] User a confirmé la reformulation ?
+- [ ] Dimensions critiques clarifiées (1 question/round, max 5-6 rounds) :
+  - [ ] **Intent** : pourquoi on fait ça ?
+  - [ ] **Outcome** : quel état final ?
+  - [ ] **Scope** : jusqu'où ça va ?
+- [ ] Dimensions complémentaires (si pertinent) :
+  - [ ] **Non-goals** : ce qui est hors scope ?
+  - [ ] **Constraints** : limites techniques/métier ?
+  - [ ] **Success criteria** : comment on vérifie ?
+- [ ] Bloc structuré co-écrit avec le user (Intent/Outcome/Scope/Non-goals/Constraints/Criteria) ?
+- [ ] **Gate : bloc structuré validé par le user AVANT de passer à l'Étape 0**
+- [ ] Si user dit "débrouille-toi" → dimensions marquées `[hypothèse]`, signalé en début de spec ?
+
+---
+
+## ✅ Checklist Pré-Démarrage (après clarification)
 
 - [ ] **Bug architectural détecté ?**
   - Si oui → STOP patch, faire spec globale
@@ -30,10 +49,6 @@
 - [ ] **> 5 fichiers impactés estimés ?**
   - Si oui → Spec obligatoire
   - Si non → Considérer implémentation directe
-
-- [ ] **Décisions d'architecture nécessaires ?**
-  - Lister questions pour user
-  - Format identifiants, trade-offs perf, breaking changes, etc.
 
 - [ ] **Logique répétée 3+ fois identifiée ?**
   - Proposer Query Object proactif
@@ -54,15 +69,11 @@
   find spec -name "*nom_fichier*_spec.rb"
   ```
 
-**Checkpoint :**
-- Problème compris clairement ?
-- Si NON → Demander clarifications au user
-
 ---
 
 ## 🏗️ Checklist Conception Architecture (1-2h)
 
-### Questions Métier à Poser au User
+### Questions Techniques à Poser au User
 
 - [ ] Format des identifiants ? (UUID, hex, int)
 - [ ] Trade-off performance vs. simplicité ?

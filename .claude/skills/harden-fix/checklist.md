@@ -19,11 +19,16 @@
 - [ ] Points de correction identifiés (fichier:ligne exact) ?
 - [ ] Impact sur autres features évalué ?
 
-## Étape 2b : Re-vérification indépendante
-- [ ] **Obligatoire si** : IDOR/BAC (A01), OU confidence ≠ high, OU chain_verified = false ?
-- [ ] Chaîne tracée indépendamment (Route → Controller → before_action héritées → Service → Model → DB) ?
+## Étape 2b : Re-vérification indépendante (TOUJOURS exécutée)
+- [ ] **Fast-track** si `confidence: high` + `chain_verified: true` + type ≠ IDOR/BAC → résumé court au user ?
+- [ ] **Sinon** → chaîne complète tracée (Route → Controller → before_action → Service → Model → DB) ?
 - [ ] Chaque maillon vérifié avec fichier:ligne ?
-- [ ] Si protection trouvée → **STOP, challenger l'audit**, demander validation user ?
+- [ ] **authenticate ≠ authorize** vérifié ? (before_action :authenticate ≠ scope user/policy)
+- [ ] Preuves "faille réelle" listées ?
+- [ ] Preuves "faux positif" listées ? (AU MINIMUM un fait, sinon écrire "aucune protection trouvée")
+- [ ] Dimensions indéterminées (contexte métier) signalées au user ?
+- [ ] **User a tranché** avant de continuer ?
+- [ ] Si user dit "débrouille-toi" → hypothèses marquées, confidence: low ?
 
 ## Étape 3 : Plan de commits validé
 - [ ] Plan présenté à l'utilisateur ?

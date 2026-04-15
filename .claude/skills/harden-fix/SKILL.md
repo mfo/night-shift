@@ -70,13 +70,36 @@ Si `$ARGUMENTS` vide ou invalide → créer audit minimal inline :
 
 ---
 
-## Étape 2b : Re-vérification chaîne (OBLIGATOIRE si IDOR/BAC ou confidence ≠ high)
+## Étape 2b : Re-vérification indépendante (TOUJOURS exécutée)
 
-**Ne PAS faire confiance aveugle à l'audit.** Re-tracer la chaîne : Route → Controller → before_action → Service → Model → DB. Lister chaque maillon avec `fichier:ligne`.
+Re-tracer la chaîne : Route → Controller → before_action → Service → Model → DB. Lister chaque maillon avec `fichier:ligne`.
+
+**Fast-track :** si l'audit a `confidence: high` ET `chain_verified: true` ET type ≠ IDOR/BAC → présenter un résumé court au user et demander confirmation rapide. Sinon → tracer la chaîne complète.
+
+**Attention : authenticate ≠ authorize.** Un `before_action :authenticate_user!` ne protège PAS contre les IDOR entre utilisateurs authentifiés. Vérifier l'autorisation (scope user, policy, authorize), pas seulement l'authentification.
+
+Puis présenter au user (5 lignes max par section) :
+
+```
+### Preuves que la faille est réelle
+- [faits du code : absence de protection, données exposées]
+
+### Preuves que la faille est un faux positif
+- [faits du code : protection en aval, signaux d'intention, données déjà publiques]
+- (AU MINIMUM un fait. Si aucune preuve de FP trouvable, écrire : "Aucune protection trouvée à aucun maillon de la chaîne (vérifié : [liste fichiers lus])")
+
+### Ce que je ne peux pas déterminer depuis le code
+- [ex: est-ce que ce comportement est voulu ?]
+```
+
+**Le user tranche.** Présenter les preuves, attendre la décision du user.
 
 **Verdict :**
-- Faille toujours présente → continuer
-- Protection trouvée → **STOP — challenger l'audit** avec l'utilisateur
+- User confirme faille réelle → continuer (fusionner avec validation du plan Étape 3 en un seul checkpoint si possible)
+- User confirme faux positif → **STOP — mettre à jour l'audit**
+- Preuves contradictoires → **STOP — demander au user**
+
+**Si le user dit "débrouille-toi" :** écrire les preuves dans l'audit, marquer `confidence: low`, `chain_verified: true`, et continuer. Signaler dans la PR ce qui reste à valider par un humain.
 
 ---
 

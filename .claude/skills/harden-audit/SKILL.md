@@ -38,6 +38,41 @@ Pour chaque source : description, URL/endpoint, payload/STR, criticité annoncé
 
 ---
 
+## Étape 0 : Qualification métier — clarifier AVANT d'analyser
+
+**Défaut : faux positif jusqu'à preuve du contraire.**
+
+### Mode interactif (conversation avec le user)
+
+Lire le rapport, puis poser au user les questions dont la réponse n'est PAS dans le code :
+
+1. "Ce comportement est-il voulu ? (page publique, catalogue, consultation cross-org…)"
+2. "Les données exposées sont-elles sensibles dans ce contexte ?"
+3. "Qui est l'attaquant réaliste ?"
+
+**Ne pas avancer tant que le user n'a pas répondu.** Si le user confirme by-design → écrire audit `status: false-positive`, `reason: by-design`, STOP. Si le user hésite ("je ne suis pas sûr") → proposer de continuer en mode batch (faits + indéterminé, confidence: low) et valider le verdict après.
+
+### Mode batch (subagent, pas d'accès au user)
+
+Lire le code et écrire des **faits** :
+- Namespace du controller, before_action, nom de la méthode/helper
+- Liste des champs exposés dans la vue/serializer
+- Champs déjà exposés par une autre action publique (vérifier avec `grep "def " <controller>`)
+
+Puis séparer explicitement :
+
+```
+### Faits (déterminés depuis le code)
+- [ce que j'ai lu]
+
+### Indéterminé (nécessite contexte métier)
+- [ce que je ne peux pas savoir]
+```
+
+**Règle mécanique :** si la section "Indéterminé" contient au moins un item → `confidence: low` obligatoirement. Pas de `medium`, pas de `high`. Cette règle est non négociable — un indéterminé non vide implique confidence low.
+
+---
+
 ## Étape 1 : Comprendre le rapport
 
 1. Lire le rapport complet
@@ -68,7 +103,8 @@ Lister chaque maillon avec `fichier:ligne`.
 
 ### Vérifier CHAQUE maillon :
 - Protection présente (scope user, authorize, policy, validation) ?
-- Si protection trouvée → **faux positif**, documenter et STOP
+- Protection présente (scope user, authorize, policy, validation) ? **Attention : authenticate ≠ authorize** — un `before_action :authenticate_user!` ne protège PAS contre les IDOR entre utilisateurs authentifiés.
+- Si protection d'autorisation trouvée → **faux positif**, documenter et STOP
 
 ### Vérifications par type :
 
@@ -81,6 +117,7 @@ Lister chaque maillon avec `fichier:ligne`.
 ### Conclusion :
 - **Aucune protection** → faille confirmée, continuer vers DREAD
 - **Protection trouvée** → **FAUX POSITIF → COURT-CIRCUIT** : écrire audit avec `verdict: faux positif`, `status: false-positive`, **STOPPER ICI**
+- **Exposition by-design** (Pattern 13) → les données sont déjà accessibles via une autre action/page publique → **FAUX POSITIF → COURT-CIRCUIT**. En mode interactif : confirmer avec le user. En mode batch : marquer `confidence: low` si doute.
 - **Protection partielle** (contournable) → faille 🟡, documenter
 
 **Statuts négatifs valides :** `false-positive`, `not-reproducible`, `wont-fix`

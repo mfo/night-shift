@@ -294,6 +294,28 @@ grep -n "def " app/controllers/<controller>.rb
 
 ---
 
+## Pattern 14 : Faux positif — Lookup non scopé intentionnel (Score 8/10)
+
+### Contexte
+Un `find(params[:id])` sans scope user est signalé comme IDOR, mais le nom du helper ou de la méthode indique explicitement que l'absence de scope est délibérée.
+
+### Symptôme
+`procedure_without_control` fait un `Procedure.find(params[:id])` non scopé → "IDOR !" Mais le nom `without_control` signale une intention : c'est une feature (ex: page admin "Toutes les démarches").
+
+### Signaux d'intention
+- Noms explicites : `without_control`, `public_`, `all_visible`, `unscoped_`, `global_`
+- Le controller est dans un namespace admin/plateforme
+- L'action est documentée comme consultation cross-organisation
+
+### Règle
+**Si le nom de la méthode/helper signale explicitement l'absence de scope, c'est un choix de design, pas un oubli.** Vérifier le contexte métier (Étape 0) avant de qualifier.
+
+### Verdict
+- Nom explicite + contexte admin/public + données non sensibles = **Faux positif 🟢**
+- Nom explicite MAIS données sensibles exposées à un rôle non autorisé = **Faille réelle 🔴** (le nommage n'excuse pas tout)
+
+---
+
 ## Anti-patterns
 
 ### Anti 1 : Qualifier sans tracer la chaîne

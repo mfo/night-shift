@@ -1,5 +1,15 @@
 # Checklist Harden Audit
 
+## Étape 0 : Qualification métier
+- [ ] **Mode interactif** : questions posées AU USER (pas auto-répondues) ?
+  - Comportement voulu ? Données sensibles dans ce contexte ? Attaquant réaliste ?
+  - User a répondu AVANT de continuer ?
+  - Si user hésite → proposé bascule en mode batch (faits + indéterminé) ?
+- [ ] **Mode batch** : faits écrits vs dimensions indéterminées séparées ?
+  - Namespace, before_action, champs exposés = faits
+  - Sensibilité données, intention design = indéterminé si pas dans le code
+  - **Règle mécanique : section "Indéterminé" non vide → `confidence: low` obligatoire** (pas de medium/high)
+
 ## Étape 1 : Compréhension du rapport
 - [ ] Rapport lu entièrement (source, description, STR, criticité) ?
 - [ ] Type OWASP identifié (A01-A10) ?
@@ -14,8 +24,10 @@
 ## Étape 2b : Chaîne complète (CRITIQUE — anti faux-positifs)
 - [ ] Chaîne tracée : Route → Controller → before_action → Service → Model → DB ?
 - [ ] Chaque maillon listé avec fichier:ligne ?
-- [ ] Protection vérifiée à chaque niveau ?
-- [ ] **Si protection trouvée en aval → FAUX POSITIF**, documenter et ne pas continuer vers DREAD
+- [ ] Protection d'**autorisation** (pas juste authentification) vérifiée à chaque niveau ?
+  - `authenticate_user!` = authentification (qui es-tu ?) ≠ autorisation (as-tu le droit ?)
+  - Scope user, policy, authorize = autorisation
+- [ ] **Si protection d'autorisation trouvée en aval → FAUX POSITIF**, documenter et ne pas continuer vers DREAD
 
 ### Vérifications spécifiques par type
 **Si IDOR :**

@@ -23,9 +23,14 @@
 
 ---
 
-## 1. Contexte & Problème
+## 1. Contexte & Problème (co-écrit avec le user en Étape -1)
 
-[Description du problème]
+**Intent :** [pourquoi on fait ça — problème à résoudre]
+**Outcome :** [état final voulu]
+**Scope :** [ce qui est couvert]
+**Non-goals :** [ce qui est explicitement hors scope]
+**Constraints :** [limites techniques/métier/deadline]
+**Success criteria :** [comment on sait que c'est fini]
 
 ### Root Cause (si bug)
 [Analyse avec preuve]
