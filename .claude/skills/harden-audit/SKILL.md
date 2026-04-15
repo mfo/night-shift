@@ -42,9 +42,16 @@ Pour chaque source : description, URL/endpoint, payload/STR, criticité annoncé
 
 **Défaut : faux positif jusqu'à preuve du contraire.**
 
+### Items toujours indéterminés
+
+Ces questions ne peuvent JAMAIS être résolues depuis le code. Elles sont indéterminées par défaut, quel que soit le mode (interactif ou batch). L'agent n'a pas le droit de les résoudre seul.
+
+1. **"Ce comportement est-il voulu par le produit ?"** — un `find` non scopé peut être un bug ou une feature (catalogue, annuaire, page publique). Le nom du helper (`without_control`, `public_`, `all_visible`) est un indice, pas une preuve.
+2. **"Les données exposées sont-elles sensibles dans ce contexte métier ?"** — des emails admin ou une structure de formulaire peuvent être publics ou confidentiels selon le produit. L'agent ne peut pas le savoir.
+
 ### Mode interactif (conversation avec le user)
 
-Lire le rapport, puis poser au user les questions dont la réponse n'est PAS dans le code :
+Lire le rapport, puis poser TOUTES les questions ci-dessous au user — même si tu penses connaître la réponse depuis le code :
 
 1. "Ce comportement est-il voulu ? (page publique, catalogue, consultation cross-org…)"
 2. "Les données exposées sont-elles sensibles dans ce contexte ?"
@@ -66,8 +73,12 @@ Puis séparer explicitement :
 - [ce que j'ai lu]
 
 ### Indéterminé (nécessite contexte métier)
-- [ce que je ne peux pas savoir]
+- Ce comportement est-il voulu par le produit ? [indéterminé par défaut]
+- Les données exposées sont-elles sensibles dans ce contexte métier ? [indéterminé par défaut]
+- [autres items indéterminés éventuels]
 ```
+
+Les deux premiers items sont **pré-remplis et indéterminés par défaut**. L'agent peut les résoudre UNIQUEMENT si le user a explicitement répondu (mode interactif) — jamais depuis sa propre analyse du code.
 
 **Règle mécanique :** si la section "Indéterminé" contient au moins un item → `confidence: low` obligatoirement. Pas de `medium`, pas de `high`. Cette règle est non négociable — un indéterminé non vide implique confidence low.
 
