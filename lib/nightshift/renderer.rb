@@ -45,14 +45,6 @@ module Nightshift
              "CI fixed on ##{pr.number} ✅")
     end
 
-    def create_window(branch, path)
-      system("tmux", "new-window", "-t", @session,
-             "-n", "🔨 #{branch}", "-c", path)
-      # Store branch in tmux window option for lookup
-      system("tmux", "set-window-option", "-t", "#{@session}:",
-             "@branch", branch)
-    end
-
     private
 
     def find_window_by_branch(branch)

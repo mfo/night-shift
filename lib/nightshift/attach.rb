@@ -62,7 +62,8 @@ module Nightshift
         system("tmux", "new-window", "-t", session, "-n", name, "-c", wt_path)
 
         # Store metadata in tmux window options
-        win_idx = `tmux list-windows -t #{session} -F '\#{window_index}' | tail -1`.strip
+        out, = Open3.capture2("tmux", "list-windows", "-t", session, "-F", '#{window_index}')
+        win_idx = out.lines.last&.strip
         system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@worktree_path", wt_path)
         system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@branch", wt_branch)
 
@@ -86,7 +87,8 @@ module Nightshift
         puts "    #{name}"
       end
 
-      win_count = `tmux list-windows -t #{session} | wc -l`.strip
+      out, = Open3.capture2("tmux", "list-windows", "-t", session)
+      win_count = out.lines.size.to_s
       status_parts = ""
       status_parts += " #{n_approved}✅" if n_approved > 0
       status_parts += " #{n_green}🟢" if n_green > 0
@@ -154,20 +156,24 @@ module Nightshift
     end
 
     def setup_merge_hook(session, approved_prs)
+      require "shellwords"
       hook_dir = File.join(Dir.home, ".nightshift")
       FileUtils.mkdir_p(hook_dir)
       hook_script = File.join(hook_dir, "attach_hook.sh")
 
       menu_args = approved_prs.map do |pr|
-        "'✅ ##{pr[:number]} #{pr[:slug]}' #{pr[:number]} \"run-shell '#{BINSTUB} merge #{pr[:number]}'\""
+        label = Shellwords.escape("✅ ##{pr[:number]} #{pr[:slug]}")
+        cmd = Shellwords.escape("#{BINSTUB} merge #{pr[:number]}")
+        "#{label} #{pr[:number]} \"run-shell #{cmd}\""
       end.join(" ")
       menu_args += " '' '' '' 'ignorer' q ''"
 
+      escaped_session = Shellwords.escape(session)
       File.write(hook_script, <<~BASH)
         #!/bin/bash
         sleep 1
         tmux display-menu -T ' PRs à merger ' #{menu_args}
-        tmux set-hook -u -t #{session} client-attached
+        tmux set-hook -u -t #{escaped_session} client-attached
       BASH
       File.chmod(0o755, hook_script)
       system("tmux", "set-hook", "-t", session, "client-attached", "run-shell '#{hook_script}'")
