@@ -1,1 +1,4 @@
 specs/
+.env
+tmp/
+pr-description.md

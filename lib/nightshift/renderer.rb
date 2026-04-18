@@ -38,6 +38,19 @@ module Nightshift
              "gh pr view #{pr.number} --comments", "Enter")
     end
 
+    def run_in_window(branch, command)
+      target = find_window_by_branch(branch)
+      return unless target
+      system("tmux", "send-keys", "-t", "#{@session}:#{target}",
+             command, "Enter")
+    end
+
+    def close_worktree(branch)
+      target = find_window_by_branch(branch)
+      return unless target
+      system("tmux", "kill-window", "-t", "#{@session}:#{target}")
+    end
+
     def notify_fixed(pr)
       target = find_window_by_branch(pr.branch)
       return unless target

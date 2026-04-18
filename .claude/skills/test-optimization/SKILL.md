@@ -20,6 +20,7 @@ allowed-tools:
   - Bash(cat coverage/:*)
   - Bash(rm -f coverage/:*)
   - Agent
+  - Write(pr-description.md)
 ---
 
 # Test Optimization
@@ -133,7 +134,15 @@ Remplir les champs obligatoires :
 
 Auto-remplir "Ce qu'on a appris". Si tu as besoin de quelque chose (tooling, MCP, conseil) → demande une fois. On est une équipe.
 
-### Étape 6 : Mettre à jour l'inventaire
+### Étape 6 : Description PR
+
+Écrire `pr-description.md` à la racine du worktree avec un résumé des optimisations :
+- Fichier traité
+- Techniques appliquées
+- Gains (temps avant/après, %)
+- Coverage maintenue
+
+### Étape 7 : Mettre à jour l'inventaire
 
 Mettre à jour `pocs/test-optimization/slow-tests-inventory.md` avec les colonnes avant/après/gain pour le fichier traité.
 

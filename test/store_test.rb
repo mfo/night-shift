@@ -132,6 +132,97 @@ class StoreTest < Minitest::Test
     assert @store.fresh?(ttl: 60)
   end
 
+  # --- Backlog tests ---
+
+  def test_add_backlog
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    assert_equal 1, @db[:backlog_items].count
+    item = @db[:backlog_items].first
+    assert_equal "pending", item[:status]
+    assert_equal "haml-migration", item[:skill]
+  end
+
+  def test_add_backlog_idempotent
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    assert_equal 1, @db[:backlog_items].count
+  end
+
+  def test_add_backlog_different_skills_same_item
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    @store.add_backlog("other-skill", "app/views/foo.html.haml")
+    assert_equal 2, @db[:backlog_items].count
+  end
+
+  def test_claim_next_fifo
+    @store.add_backlog("haml-migration", "first.haml")
+    @store.add_backlog("haml-migration", "second.haml")
+    item = @store.claim_next("haml-migration")
+    assert_equal "first.haml", item[:item]
+    assert_equal "running", item[:status]
+  end
+
+  def test_claim_next_skips_non_pending
+    @store.add_backlog("haml-migration", "first.haml")
+    @store.claim_next("haml-migration")
+    @store.add_backlog("haml-migration", "second.haml")
+    item = @store.claim_next("haml-migration")
+    assert_equal "second.haml", item[:item]
+  end
+
+  def test_claim_next_returns_nil_when_empty
+    assert_nil @store.claim_next("haml-migration")
+  end
+
+  def test_active_for_skill_running
+    @store.add_backlog("haml-migration", "foo.haml")
+    refute @store.active_for_skill?("haml-migration")
+    @store.claim_next("haml-migration")
+    assert @store.active_for_skill?("haml-migration")
+  end
+
+  def test_active_for_skill_pr_open
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "pr_open", pr_number: 42)
+    assert @store.active_for_skill?("haml-migration")
+  end
+
+  def test_active_for_skill_done_not_active
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "done")
+    refute @store.active_for_skill?("haml-migration")
+  end
+
+  def test_update_backlog_status_with_extras
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "failed", failure_reason: "no_diff")
+    row = @db[:backlog_items].first
+    assert_equal "failed", row[:status]
+    assert_equal "no_diff", row[:failure_reason]
+  end
+
+  def test_backlog_by_branch
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "running", branch: "auto/haml-migration/foo")
+    found = @store.backlog_by_branch("auto/haml-migration/foo")
+    assert_equal "foo.haml", found[:item]
+  end
+
+  def test_backlog_by_branch_not_found
+    assert_nil @store.backlog_by_branch("nope")
+  end
+
+  def test_all_backlog_filter_by_skill
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("test-optimization", "b_spec.rb")
+    assert_equal 1, @store.all_backlog(skill: "haml-migration").size
+    assert_equal 2, @store.all_backlog.size
+  end
+
   # --- Lock tests ---
 
   def test_acquire_lock_succeeds

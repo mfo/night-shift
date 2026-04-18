@@ -94,6 +94,53 @@ module Nightshift
         .insert(key: key, value: value.to_s)
     end
 
+    # --- Backlog ---
+
+    def add_backlog(skill, item)
+      now = Time.now.to_i
+      db[:backlog_items].insert_conflict(target: [:skill, :item])
+        .insert(skill: skill, item: item, status: "pending",
+                created_at: now, updated_at: now)
+    end
+
+    def claim_next(skill)
+      db.transaction do
+        item = db[:backlog_items]
+          .where(skill: skill, status: "pending")
+          .order(:created_at)
+          .first
+        return nil unless item
+        rows = db[:backlog_items]
+          .where(id: item[:id], status: "pending")
+          .update(status: "running", updated_at: Time.now.to_i)
+        rows == 1 ? item.merge(status: "running") : nil
+      end
+    end
+
+    def active_for_skill?(skill)
+      db[:backlog_items]
+        .where(skill: skill, status: %w[running pr_open])
+        .count > 0
+    end
+
+    def update_backlog_status(id, status, **extras)
+      updates = { status: status, updated_at: Time.now.to_i }
+      updates.merge!(extras)
+      db[:backlog_items].where(id: id).update(updates)
+    end
+
+    def backlog_by_branch(branch)
+      db[:backlog_items].where(branch: branch).first
+    end
+
+    def all_backlog(skill: nil)
+      ds = db[:backlog_items]
+      ds = ds.where(skill: skill) if skill
+      ds.order(:skill, :created_at).all
+    end
+
+    # --- PRs ---
+
     def all_prs(github_state: nil)
       ds = db[:prs]
       ds = ds.where(github_state: github_state) if github_state

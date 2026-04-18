@@ -6,6 +6,8 @@ require_relative "../lib/nightshift/reconciler"
 class FakeRenderer
   attr_reader :calls
   def initialize = @calls = []
+  def run_in_window(branch, cmd) = @calls << [:run_in_window, branch, cmd]
+  def close_worktree(branch) = @calls << [:close_worktree, branch]
   def update_window(pr) = @calls << [:update_window, pr.number]
   def autofix(pr) = @calls << [:autofix, pr.number]
   def propose_merge(pr) = @calls << [:propose_merge, pr.number]
@@ -121,6 +123,40 @@ class ReconcilerTest < Minitest::Test
            "autofix should not trigger while lock is held"
     assert_includes @renderer.calls, [:update_window, 1]
   end
+
+  # --- Backlog / skill loop tests ---
+
+  def test_reconcile_skills_detect_merge_marks_done
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "pr_open",
+      branch: "auto/haml-migration/views-foo", pr_number: 42)
+
+    pr = Nightshift::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
+                            github_state: "MERGED")
+    @store.reconcile_pr(pr)
+    @reconciler.reconcile([pr])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "done", updated[:status]
+  end
+
+  def test_reconcile_skills_ignores_non_backlog_prs
+    pr = Nightshift::PR.new(number: 99, branch: "fix/unrelated",
+                            github_state: "MERGED")
+    @store.reconcile_pr(pr)
+    @reconciler.reconcile([pr])
+    # Should not crash
+  end
+
+  def test_active_for_skill_blocks_pick
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "b.haml")
+    @store.claim_next("haml-migration")
+    assert @store.active_for_skill?("haml-migration")
+  end
+
+  # --- Lock tests ---
 
   def test_lock_released_allows_transition
     pr = Nightshift::PR.new(number: 1, branch: "fix/bug",

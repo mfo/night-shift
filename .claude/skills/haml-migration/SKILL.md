@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: "Migrate HAML to ERB with visual validation. Use when user says 'migrate haml', 'convert to erb', or provides a .haml file."
-allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
 ---
 
 # Migration HAML → ERB
@@ -316,22 +316,13 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 
 2. **Pousser les screenshots sur le gist** : lancer la Phase 3+4 du skill `/screenshot-gist` via `push-gist.sh` (add, commit, push depuis `tmp/<nom-composant>/`).
 
-3. **Créer ou mettre à jour la PR** :
+3. **Écrire la description PR** dans `pr-description.md` à la racine du worktree :
 
    Pour construire les URLs des images du gist :
    - Récupérer le gist ID depuis l'URL (dernière partie du path)
    - Format des URLs raw : `https://gist.githubusercontent.com/<user>/<gist-id>/raw/<filename>` (ex: `haml-component-1.png`)
 
-   Vérifier d'abord si une PR existe déjà sur la branche :
-   ```bash
-   gh pr list --head <branch-name> --state open
-   ```
-   - Si une PR existe → mettre à jour sa description (`gh pr edit --body`)
-   - Sinon → créer une PR (`gh pr create --body`)
-
-   **⚠️ Règle Bash** : les commandes `gh pr create/edit` avec HEREDOC nécessitent `$()` — c'est la seule exception acceptée car le HEREDOC ne contient pas de commandes shell.
-
-   **Template de description PR** (tout dans la description, PAS de commentaire séparé) :
+   **Template :**
    ```markdown
    ## Problème
 
