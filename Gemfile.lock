@@ -1,0 +1,43 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    bigdecimal (4.1.1)
+    dotenv (3.2.0)
+    drb (2.2.3)
+    minitest (6.0.4)
+      drb (~> 2.0)
+      prism (~> 1.5)
+    prism (1.9.0)
+    sequel (5.103.0)
+      bigdecimal
+    sqlite3 (2.9.3-aarch64-linux-gnu)
+    sqlite3 (2.9.3-aarch64-linux-musl)
+    sqlite3 (2.9.3-arm-linux-gnu)
+    sqlite3 (2.9.3-arm-linux-musl)
+    sqlite3 (2.9.3-arm64-darwin)
+    sqlite3 (2.9.3-x86-linux-gnu)
+    sqlite3 (2.9.3-x86-linux-musl)
+    sqlite3 (2.9.3-x86_64-darwin)
+    sqlite3 (2.9.3-x86_64-linux-gnu)
+    sqlite3 (2.9.3-x86_64-linux-musl)
+
+PLATFORMS
+  aarch64-linux-gnu
+  aarch64-linux-musl
+  arm-linux-gnu
+  arm-linux-musl
+  arm64-darwin
+  x86-linux-gnu
+  x86-linux-musl
+  x86_64-darwin
+  x86_64-linux-gnu
+  x86_64-linux-musl
+
+DEPENDENCIES
+  dotenv
+  minitest
+  sequel
+  sqlite3
+
+BUNDLED WITH
+   2.7.1
