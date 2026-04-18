@@ -10,7 +10,7 @@ module Nightshift
       puts "── AUTOFIX — PR ##{pr_number} ──────────────────────"
 
       # Circuit breaker
-      if store.circuit_breaker?(pr_number.to_i)
+      if store.circuit_breaker?(pr_number.to_i, kind: "ci_red")
         puts "  ⛔ circuit breaker: max autofix attempts reached, skipping"
         return
       end

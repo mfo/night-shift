@@ -38,21 +38,14 @@ module Nightshift
     end
 
     def record_run(pr_number, kind:)
+      now = Time.now.to_i
       db[:runs].insert(pr_number: pr_number, kind: kind,
-                       created_at: Time.now.to_i, started_at: Time.now.to_i)
+                       created_at: now, started_at: now, finished_at: now)
     end
 
     def locked?(pr_number, kind:, timeout: 900)
-      # Expire zombies first
-      db[:runs].where(kind: kind, finished_at: nil)
-        .exclude(started_at: nil)
-        .where { started_at < Time.now.to_i - timeout }
-        .update(finished_at: -1, success: false)
-
-      db[:runs]
-        .where(pr_number: pr_number, kind: kind, finished_at: nil)
-        .exclude(started_at: nil)
-        .count > 0
+      expire_zombies(kind: kind, timeout: timeout)
+      active_lock?(pr_number, kind: kind)
     end
 
     def with_lock(pr_number, kind:, timeout: 900)
@@ -73,20 +66,9 @@ module Nightshift
 
     def acquire_lock(pr_number, kind:, timeout: 900)
       db.transaction do
-        # Expire zombie locks (crash, kill -9)
-        db[:runs].where(kind: kind, finished_at: nil)
-          .exclude(started_at: nil)
-          .where { started_at < Time.now.to_i - timeout }
-          .update(finished_at: -1, success: false)
+        expire_zombies(kind: kind, timeout: timeout)
+        return false if active_lock?(pr_number, kind: kind)
 
-        # Check existing lock
-        locked = db[:runs]
-          .where(pr_number: pr_number, kind: kind, finished_at: nil)
-          .exclude(started_at: nil)
-          .count > 0
-        return false if locked
-
-        # Acquire
         db[:runs].insert(
           pr_number: pr_number, kind: kind,
           created_at: Time.now.to_i, started_at: Time.now.to_i,
@@ -135,6 +117,22 @@ module Nightshift
       end
 
       { old_state: old_state, new_state: new_state, changed: old_state && old_state != new_state }
+    end
+
+    private
+
+    def expire_zombies(kind:, timeout:)
+      db[:runs].where(kind: kind, finished_at: nil)
+        .exclude(started_at: nil)
+        .where { started_at < Time.now.to_i - timeout }
+        .update(finished_at: -1, success: false)
+    end
+
+    def active_lock?(pr_number, kind:)
+      db[:runs]
+        .where(pr_number: pr_number, kind: kind, finished_at: nil)
+        .exclude(started_at: nil)
+        .count > 0
     end
   end
 end
