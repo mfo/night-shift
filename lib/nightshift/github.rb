@@ -11,8 +11,7 @@ module Nightshift
     # Returns Array<PR>
     def fetch_prs
       repo = gh_repo
-      gh_user = capture("gh", "api", "user", "--jq", ".login").strip
-      gh_user = "mfo" if gh_user.empty?
+      gh_user = ENV.fetch("NIGHTSHIFT_USER")
 
       all_prs = fetch_all_lightweight(repo, gh_user)
       rich_prs = fetch_open_rich(repo)

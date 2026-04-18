@@ -15,6 +15,13 @@ module Nightshift
         return
       end
 
+      store.with_lock(pr_number.to_i, kind: "ci_red") do |result|
+        run_pipeline(pr_number, store: store, repo: repo, result: result)
+      end || puts("  ⏳ autofix already running, skipping")
+    end
+
+    def run_pipeline(pr_number, store:, repo:, result: {})
+
       # Get latest CI run
       run_id = Diagnose.extract_run_id(repo, pr_number)
       unless run_id
@@ -39,7 +46,8 @@ module Nightshift
           has_specs = true
           logs = Diagnose.fetch_logs(repo, job_id)
           if logs
-            Diagnose.strip_ansi(logs).lines.grep(/rspec \.\/spec\//).each do |l|
+            clean = Diagnose.strip_ansi(logs)
+            clean.lines.grep(/rspec \.\/spec\//).each do |l|
               failed_spec_files << l.sub(/^.*rspec /, "rspec ").strip
             end
           end
@@ -69,12 +77,7 @@ module Nightshift
       if system_test_jobs.any?
         puts ""
         puts "  → retrying system tests ..."
-        retry_count = store.db[:runs]
-          .where(pr_number: pr_number.to_i, kind: "retry")
-          .where { created_at > Time.now.to_i - 3600 }
-          .count
-
-        if retry_count >= 1
+        if store.circuit_breaker?(pr_number.to_i, kind: "retry", max: 1)
           puts "  ⛔ already retried once — likely a real failure"
         else
           system_test_jobs.each do |job_id, job_name|
@@ -99,19 +102,30 @@ module Nightshift
         failed_spec_files.each { |f| puts "    #{f}" }
         puts ""
 
-        claude_prompt = <<~PROMPT
-          CI detected failing specs in this project. Here are the failed specs:
+        git_log, = Open3.capture2("git", "log", "main..HEAD", "--oneline", chdir: repo_path)
 
+        claude_prompt = <<~PROMPT
+          CI detected failing specs in this project.
+
+          ## PR commits
+          #{git_log.strip}
+
+          ## Failed specs (from CI)
           #{failed_spec_files.join("\n")}
 
-          Investigate each failure: read the spec file, read the implementation code, understand why it fails, and fix the code (not the spec, unless the spec itself is wrong). Run the failing specs to verify your fix. Do NOT commit. Do NOT push.
+          ## Instructions
+          1. Run the failing specs to see the actual errors
+          2. Read the spec files and the implementation code
+          3. Understand why each spec fails and fix the code (not the spec, unless the spec itself is wrong)
+          4. Re-run the specs to verify your fix
+          Do NOT commit. Do NOT push.
         PROMPT
 
         puts "  → claude fixing specs ..."
         claude_log = File.join(logdir, "claude.log")
         puts "  → logs: #{claude_log}"
 
-        system(
+        claude_ok = system(
           "claude", "-p", claude_prompt,
           "--allowedTools", "Read,Edit,Glob,Grep,Bash(bundle exec rspec:*),Bash(git diff:*),Bash(git status)",
           "--output-format", "stream-json", "--verbose", "--max-turns", "20",
@@ -119,7 +133,19 @@ module Nightshift
           out: claude_log, err: claude_log
         )
 
-        st[:unit] = "🟡"
+        result[:output_path] = claude_log
+        result[:turns_used] = count_turns(claude_log)
+
+        diff_stat, = Open3.capture2("git", "diff", "--stat", chdir: repo_path)
+        if !claude_ok
+          puts "  ⚠ claude exited with error (see #{claude_log})"
+          st[:unit] = "🔴"
+        elsif diff_stat.strip.empty?
+          puts "  ⚠ claude made no changes"
+          st[:unit] = "🔴"
+        else
+          st[:unit] = "🟡"
+        end
         print_dashboard(st)
       end
 
@@ -197,8 +223,10 @@ module Nightshift
       changed, = Open3.capture2("git", "diff", "--name-only", chdir: repo_path)
       if changed.strip.empty?
         puts "  ✅ done (no local changes)"
+        result[:files_changed] = 0
       else
         count = changed.lines.size
+        result[:files_changed] = count
         puts "  #{count} file(s) modified:"
         puts ""
         system("git", "diff", "--color", "--stat", chdir: repo_path)
@@ -207,9 +235,13 @@ module Nightshift
         puts ""
         puts "  next: git add -u && git commit && git push mfo HEAD"
       end
+    end
 
-      # Record run
-      store.record_run(pr_number.to_i, kind: "autofix")
+    def count_turns(log_path)
+      return nil unless File.exist?(log_path)
+      File.read(log_path).scan(/"type"\s*:\s*"assistant"/).size
+    rescue
+      nil
     end
 
     def print_dashboard(st)

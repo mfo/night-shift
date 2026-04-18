@@ -131,4 +131,139 @@ class StoreTest < Minitest::Test
     @store.upsert(pr)
     assert @store.fresh?(ttl: 60)
   end
+
+  # --- Lock tests ---
+
+  def test_acquire_lock_succeeds
+    seed_pr(1)
+    assert @store.acquire_lock(1, kind: "autofix")
+  end
+
+  def test_acquire_lock_blocked_when_already_held
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+    refute @store.acquire_lock(1, kind: "autofix")
+  end
+
+  def test_acquire_lock_different_pr_not_blocked
+    seed_pr(1)
+    seed_pr(2)
+    @store.acquire_lock(1, kind: "autofix")
+    assert @store.acquire_lock(2, kind: "autofix")
+  end
+
+  def test_acquire_lock_different_kind_not_blocked
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+    assert @store.acquire_lock(1, kind: "ci_red")
+  end
+
+  def test_release_lock_allows_reacquire
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+    @store.release_lock(1, kind: "autofix", success: true)
+    assert @store.acquire_lock(1, kind: "autofix")
+  end
+
+  def test_release_lock_records_success
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+    @store.release_lock(1, kind: "autofix", success: true)
+
+    run = @db[:runs].order(:id).last
+    refute_nil run[:finished_at]
+    assert run[:success]
+  end
+
+  def test_release_lock_records_failure
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+    @store.release_lock(1, kind: "autofix", success: false)
+
+    run = @db[:runs].order(:id).last
+    refute run[:success]
+  end
+
+  def test_zombie_lock_expired_after_timeout
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+
+    # Simulate zombie: backdate started_at
+    @db[:runs].update(started_at: Time.now.to_i - 1000)
+
+    # New acquire with short timeout should expire the zombie
+    assert @store.acquire_lock(1, kind: "autofix", timeout: 900)
+  end
+
+  def test_with_lock_yields_and_releases
+    seed_pr(1)
+    called = false
+    @store.with_lock(1, kind: "autofix") { called = true }
+
+    assert called
+    # Lock released — can reacquire
+    assert @store.acquire_lock(1, kind: "autofix")
+  end
+
+  def test_with_lock_returns_false_when_locked
+    seed_pr(1)
+    @store.acquire_lock(1, kind: "autofix")
+
+    called = false
+    result = @store.with_lock(1, kind: "autofix") { called = true }
+
+    refute called
+    assert_equal false, result
+  end
+
+  def test_with_lock_releases_on_exception
+    seed_pr(1)
+    assert_raises(RuntimeError) do
+      @store.with_lock(1, kind: "autofix") { raise "boom" }
+    end
+
+    # Lock released despite exception
+    assert @store.acquire_lock(1, kind: "autofix")
+    # The failed run should be finished (only the new acquire is open)
+    assert_equal 1, @db[:runs].where(success: false).count
+  end
+
+  def test_with_lock_passes_result_for_extras
+    seed_pr(1)
+    @store.with_lock(1, kind: "autofix") do |result|
+      result[:turns_used] = 12
+      result[:files_changed] = 3
+      result[:output_path] = "/tmp/claude.log"
+    end
+
+    run = @db[:runs].order(:id).last
+    assert_equal 12, run[:turns_used]
+    assert_equal 3, run[:files_changed]
+    assert_equal "/tmp/claude.log", run[:output_path]
+    assert run[:success]
+  end
+
+  def test_with_lock_extras_preserved_on_failure
+    seed_pr(1)
+    assert_raises(RuntimeError) do
+      @store.with_lock(1, kind: "autofix") do |result|
+        result[:turns_used] = 5
+        result[:files_changed] = 0
+        raise "spec failure"
+      end
+    end
+
+    run = @db[:runs].order(:id).last
+    assert_equal 5, run[:turns_used]
+    assert_equal 0, run[:files_changed]
+    refute run[:success]
+  end
+
+  private
+
+  def seed_pr(number)
+    pr = Nightshift::PR.new(number: number, branch: "fix/bug-#{number}",
+                            github_state: "OPEN", ci: "red")
+    @store.upsert(pr)
+  end
 end

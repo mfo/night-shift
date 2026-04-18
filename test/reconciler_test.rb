@@ -102,4 +102,39 @@ class ReconcilerTest < Minitest::Test
     @reconciler.reconcile([pr1, pr2])
     assert_equal 2, @renderer.calls.count { |c| c[0] == :update_window }
   end
+
+  def test_lock_prevents_double_autofix
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green")
+    @reconciler.reconcile([pr])
+    @renderer.calls.clear
+
+    # Simulate: autofix already running (lock held externally by Autofix.run)
+    @store.acquire_lock(1, kind: "ci_red")
+
+    # Force a transition to ci_red
+    pr.ci = "red"
+    @reconciler.reconcile([pr])
+
+    # Autofix should NOT trigger because lock is held
+    refute @renderer.calls.any? { |c| c[0] == :autofix },
+           "autofix should not trigger while lock is held"
+    assert_includes @renderer.calls, [:update_window, 1]
+  end
+
+  def test_lock_released_allows_transition
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green")
+    @reconciler.reconcile([pr])
+
+    # Lock held then released (simulates autofix completed)
+    @store.acquire_lock(1, kind: "ci_red")
+    @store.release_lock(1, kind: "ci_red")
+
+    # Transition to ci_red — should trigger because lock was released
+    @renderer.calls.clear
+    pr.ci = "red"
+    @reconciler.reconcile([pr])
+    assert_includes @renderer.calls, [:autofix, 1]
+  end
 end

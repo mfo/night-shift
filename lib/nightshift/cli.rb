@@ -22,17 +22,8 @@ module Nightshift
 
     def cmd_status(_args)
       store = Store.new
-      if store.fresh?
-        rows = store.all_prs
-      else
-        puts "  fetching PRs..."
-        prs = GitHub.fetch_prs
-        prs.each { |pr| store.upsert(pr) }
-        rows = store.all_prs
-      end
-
       puts ""
-      rows.each do |row|
+      store.all_prs.each do |row|
         pr = PR.from_db(row)
         puts "  #{pr.badge}  ##{pr.number}  #{pr.branch}"
       end
@@ -56,11 +47,6 @@ module Nightshift
 
     def cmd_brief(_args)
       store = Store.new
-      unless store.fresh?
-        puts "  fetching PRs..."
-        prs = GitHub.fetch_prs
-        prs.each { |pr| store.upsert(pr) }
-      end
       Brief.generate(store)
     end
 

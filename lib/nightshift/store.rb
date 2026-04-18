@@ -38,7 +38,69 @@ module Nightshift
     end
 
     def record_run(pr_number, kind:)
-      db[:runs].insert(pr_number: pr_number, kind: kind, created_at: Time.now.to_i)
+      db[:runs].insert(pr_number: pr_number, kind: kind,
+                       created_at: Time.now.to_i, started_at: Time.now.to_i)
+    end
+
+    def locked?(pr_number, kind:, timeout: 900)
+      # Expire zombies first
+      db[:runs].where(kind: kind, finished_at: nil)
+        .exclude(started_at: nil)
+        .where { started_at < Time.now.to_i - timeout }
+        .update(finished_at: -1, success: false)
+
+      db[:runs]
+        .where(pr_number: pr_number, kind: kind, finished_at: nil)
+        .exclude(started_at: nil)
+        .count > 0
+    end
+
+    def with_lock(pr_number, kind:, timeout: 900)
+      return false unless acquire_lock(pr_number, kind: kind, timeout: timeout)
+
+      result = { success: nil }
+      begin
+        yield result
+        result[:success] = true if result[:success].nil?
+      rescue
+        result[:success] = false
+        raise
+      ensure
+        release_lock(pr_number, kind: kind, **result)
+      end
+      true
+    end
+
+    def acquire_lock(pr_number, kind:, timeout: 900)
+      db.transaction do
+        # Expire zombie locks (crash, kill -9)
+        db[:runs].where(kind: kind, finished_at: nil)
+          .exclude(started_at: nil)
+          .where { started_at < Time.now.to_i - timeout }
+          .update(finished_at: -1, success: false)
+
+        # Check existing lock
+        locked = db[:runs]
+          .where(pr_number: pr_number, kind: kind, finished_at: nil)
+          .exclude(started_at: nil)
+          .count > 0
+        return false if locked
+
+        # Acquire
+        db[:runs].insert(
+          pr_number: pr_number, kind: kind,
+          created_at: Time.now.to_i, started_at: Time.now.to_i,
+          finished_at: nil, success: nil
+        )
+        true
+      end
+    end
+
+    def release_lock(pr_number, kind:, success: nil, **extras)
+      updates = { finished_at: Time.now.to_i, success: success }
+      updates.merge!(extras)
+      db[:runs].where(pr_number: pr_number, kind: kind, finished_at: nil)
+        .update(updates)
     end
 
     def get_setting(key)

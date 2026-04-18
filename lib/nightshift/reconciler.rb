@@ -8,7 +8,9 @@ module Nightshift
     def reconcile(prs)
       prs.each do |pr|
         result = @store.reconcile_pr(pr)
-        on_transition(pr, result[:old_state], result[:new_state]) if result[:changed]
+        if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].to_s)
+          on_transition(pr, result[:old_state], result[:new_state])
+        end
         @renderer.update_window(pr)
       end
     end
