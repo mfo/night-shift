@@ -67,6 +67,7 @@ spin() {
 
 # Cache for gh_repo (computed once)
 _GH_REPO=""
+_DEPLOYED_PRS=""
 _ERRORS=0
 
 # ---------- cleanup ----------
@@ -172,15 +173,28 @@ fetch_all_prs() {
     end
   )|\([.reviews[] | select(.state == "COMMENTED" or .state == "CHANGES_REQUESTED" or .state == "APPROVED")] | length)|\(.reviewDecision // "")|\(.updatedAt)|\(
     [.reviews[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "COMMENTED")] | last | .author.login // ""
-  )"'
+  )|\(if .autoMergeRequest != null then "auto" else "" end)"'
 
   local open_prs
   open_prs=$(gh pr list \
     --repo "$repo" \
     --state open \
     --limit 50 \
-    --json number,headRefName,state,statusCheckRollup,reviewDecision,reviews,updatedAt \
+    --json number,headRefName,state,statusCheckRollup,reviewDecision,reviews,updatedAt,autoMergeRequest \
     --jq "$rich_jq" 2>/dev/null) || open_prs=""
+
+  # Pass 3: unresolved review threads via GraphQL (replaces review_count from Pass 2)
+  local owner name unresolved_threads=""
+  owner="${repo%%/*}"
+  name="${repo##*/}"
+  unresolved_threads=$(gh api graphql -f query="
+    { repository(owner:\"$owner\", name:\"$name\") {
+      pullRequests(first:50, states:OPEN, orderBy:{field:UPDATED_AT, direction:DESC}) {
+        nodes { number headRefName
+          reviewThreads(first:100) { nodes { isResolved } }
+        }
+      }
+    }}" --jq '.data.repository.pullRequests.nodes[] | "\(.headRefName)|\([.reviewThreads.nodes[] | select(.isResolved == false)] | length)"' 2>/dev/null) || unresolved_threads=""
 
   # Merge: for each user PR, use rich data if available, else lightweight
   echo "$all_prs" | while IFS='|' read -r branch number state; do
@@ -189,7 +203,14 @@ fetch_all_prs() {
     local rich_line
     rich_line=$(echo "$open_prs" | grep "^${branch}|" | head -1 || true)
     if [ -n "$rich_line" ]; then
-      echo "$rich_line"
+      # Replace review_count (field 5) with unresolved thread count from GraphQL
+      local unresolved_count=0
+      if [ -n "$unresolved_threads" ]; then
+        unresolved_count=$(echo "$unresolved_threads" | grep "^${branch}|" | head -1 | cut -d'|' -f2 || echo "0")
+        [ -z "$unresolved_count" ] && unresolved_count=0
+      fi
+      # Inject unresolved count into field 5 (was total review count from Pass 2)
+      echo "$rich_line" | awk -F'|' -v uc="$unresolved_count" 'BEGIN{OFS="|"} {$5=uc; print}'
     else
       # Merged/closed: no CI or reviews needed
       echo "${branch}|${number}|${state}|none|0|"
@@ -223,6 +244,37 @@ fetch_all_prs_cached() {
   echo "$data"
 }
 
+# Fetch PR numbers deployed in recent releases (last 5)
+# Output: one PR number per line
+# Cache: 10 min TTL (deploys are infrequent)
+fetch_deployed_prs() {
+  local rpath="$1"
+  local repo
+  repo=$(gh_repo "$rpath")
+  local cache_file="$NIGHTSHIFT_DIR/deployed_prs"
+  local cache_age_file="$NIGHTSHIFT_DIR/deployed_prs_ts"
+  local now
+  now=$(date +%s)
+
+  if [ -f "$cache_file" ] && [ -f "$cache_age_file" ]; then
+    local ts
+    ts=$(cat "$cache_age_file")
+    if [ $((now - ts)) -lt 600 ]; then
+      cat "$cache_file"
+      return
+    fi
+  fi
+
+  local deployed
+  deployed=$(gh api "repos/$repo/releases?per_page=5" \
+    --jq '.[].body' 2>/dev/null \
+    | grep -oE '#[0-9]+' | tr -d '#' | sort -u) || deployed=""
+
+  echo "$deployed" > "$cache_file"
+  echo "$now" > "$cache_age_file"
+  echo "$deployed"
+}
+
 # Lookup a branch in the cached PR data
 # Args: branch, pr_data (lines from fetch_all_prs)
 # Returns: number|state|ci|review_count|review_decision or empty
@@ -245,10 +297,16 @@ window_name() {
     return
   fi
 
-  IFS='|' read -r num state ci review_count review_decision <<< "$info"
+  IFS='|' read -r num state ci review_count review_decision _updated_at _reviewer auto_merge <<< "$info"
 
   case "$state" in
-    MERGED) echo "🗑 #$num $short"; return ;;
+    MERGED)
+      if echo "$_DEPLOYED_PRS" | grep -qx "$num" 2>/dev/null; then
+        echo "🚀 #$num $short"
+      else
+        echo "🗑 #$num $short"
+      fi
+      return ;;
     CLOSED) echo "⊘ #$num $short"; return ;;
   esac
 
@@ -263,11 +321,18 @@ window_name() {
     return
   fi
 
+  # Auto-merge enabled → waiting for CI/conditions
+  if [ "$auto_merge" = "auto" ]; then
+    echo "🔀 #$num $short"
+    return
+  fi
+
   if [ "$review_decision" = "APPROVED" ]; then
     echo "✅ #$num $short"
     return
   fi
 
+  # review_count = unresolved review threads (from GraphQL Pass 3)
   if [ "${review_count:-0}" -gt 0 ] 2>/dev/null; then
     echo "💬 #$num $short ($review_count)"
     return
@@ -331,13 +396,14 @@ cmd_attach() {
   wt_count=$(git -C "$rpath" worktree list | tail -n +2 | wc -l | tr -d ' ')
   echo "  ◎ ${wt_count} worktrees found"
 
-  # Batch fetch all PRs
+  # Batch fetch all PRs + deployed PRs
   echo "  ◎ fetching PRs from GitHub ..."
   local pr_data
   pr_data=$(fetch_all_prs "$rpath") || {
     echo "  ✗ could not fetch PRs (network? auth?)" >&2
     pr_data=""
   }
+  _DEPLOYED_PRS=$(fetch_deployed_prs "$rpath" 2>/dev/null) || _DEPLOYED_PRS=""
   local pr_count
   pr_count=$(echo "$pr_data" | grep -c "|OPEN|" || true)
   echo "  ✓ ${pr_count} open PRs"
@@ -354,7 +420,8 @@ cmd_attach() {
   tmux set-option -w -t "$SESSION" allow-rename off
   first=false
 
-  local n_red=0 n_green=0 n_running=0
+  local n_red=0 n_green=0 n_running=0 n_approved=0
+  local approved_prs=""
 
   while IFS='|' read -r wt_path wt_branch; do
     [ -n "$wt_path" ] || continue
@@ -382,12 +449,17 @@ cmd_attach() {
       esac
     fi
 
-    # Auto-diagnose if CI is red
+    # Auto-actions based on PR state
     if [ -n "$info" ]; then
-      local _num _state _ci
-      IFS='|' read -r _num _state _ci _ _ <<< "$info"
+      local _num _state _ci _rc _rd _upd _rev _am
+      IFS='|' read -r _num _state _ci _rc _rd _upd _rev _am <<< "$info"
       if [ "$_ci" = "red" ] && [ "$_state" = "OPEN" ]; then
         tmux send-keys -t "$SESSION:$win_idx" "$SELF autofix '' $_num" Enter
+      elif [ "$_rd" = "APPROVED" ] && [ "$_state" = "OPEN" ] && [ "$_am" != "auto" ]; then
+        n_approved=$((n_approved + 1))
+        # Queue merge popup for after attach (display-menu needs an active client)
+        approved_prs="${approved_prs}${_num}|${wt_branch}|${win_idx}
+"
       fi
     fi
 
@@ -399,16 +471,40 @@ cmd_attach() {
 
   # Status summary
   local status_parts=""
+  [ "$n_approved" -gt 0 ] && status_parts="${status_parts} ${n_approved}✅"
   [ "$n_green" -gt 0 ] && status_parts="${status_parts} ${n_green}🟢"
   [ "$n_red" -gt 0 ] && status_parts="${status_parts} ${n_red}🔴"
   [ "$n_running" -gt 0 ] && status_parts="${status_parts} ${n_running}⏳"
   echo ""
   echo "  ✓ ${win_count} windows ready${status_parts}"
 
-  # Auto-launch brief + autofix
+  # Auto-launch brief + autofix + merge
   [ "$n_red" -gt 0 ] && echo "  ◎ autofix queued for ${n_red} red PR(s)"
+  [ "$n_approved" -gt 0 ] && echo "  ◎ merge proposed for ${n_approved} approved PR(s)"
   echo "  ◎ launching morning brief ..."
   echo ""
+
+  # Queue consolidated merge menu for approved PRs (fires after client attaches)
+  if [ -n "$approved_prs" ]; then
+    local _hook_script="$NIGHTSHIFT_DIR/attach_hook.sh"
+    local _menu_items=""
+    {
+      echo "#!/bin/bash"
+      echo "sleep 1"
+      # Build one consolidated menu with all approved PRs
+      local _menu_args=""
+      while IFS='|' read -r _pr_num _pr_branch _pr_win; do
+        [ -z "$_pr_num" ] && continue
+        local _pr_short; _pr_short=$(slug "$_pr_branch")
+        _menu_args="${_menu_args} '✅ #${_pr_num} ${_pr_short}' ${_pr_num} \"run-shell '${SELF} merge ${_pr_num}'\" "
+      done <<< "$approved_prs"
+      _menu_args="${_menu_args} '' '' '' 'ignorer' q ''"
+      echo "tmux display-menu -T ' PRs à merger ' ${_menu_args}"
+      echo "tmux set-hook -u -t $SESSION client-attached"
+    } > "$_hook_script"
+    chmod +x "$_hook_script"
+    tmux set-hook -t "$SESSION" client-attached "run-shell '$_hook_script'"
+  fi
 
   # Launch brief then watch in the main window (index 0)
   tmux send-keys -t "$SESSION:0" "$SELF brief && $SELF watch" Enter
@@ -431,6 +527,9 @@ cmd_refresh() {
     echo "nightshift: refresh failed (network? auth?)" >&2
     return 1
   }
+
+  # Fetch deployed PRs for 🚀 detection
+  _DEPLOYED_PRS=$(fetch_deployed_prs "$rpath" 2>/dev/null) || _DEPLOYED_PRS=""
 
   local changes=0
 
@@ -474,17 +573,25 @@ cmd_refresh() {
           "voir le pane" v "select-window -t $target_session:$window_index" \
           "ignorer" q ""
       elif [[ "$new_name" == 💬* ]] && [[ "$current_name" != 💬* ]]; then
-        # Review comments → menu
-        [ -n "$pr_num" ] && tmux display-menu -T " 💬 #${pr_num} ${short} " \
-          "voir le pane" v "select-window -t $target_session:$window_index" \
-          "ouvrir sur GitHub" g "run-shell 'gh pr view $pr_num --web'" \
-          "ignorer" q ""
+        # Review comments → show comments in pane + menu
+        if [ -n "$pr_num" ]; then
+          local repo; repo=$(gh_repo "$rpath")
+          display_review_comments "$repo" "$pr_num" "$target_session:$window_index"
+          tmux display-menu -T " 💬 #${pr_num} ${short} " \
+            "voir le pane" v "select-window -t $target_session:$window_index" \
+            "ouvrir sur GitHub" g "run-shell 'gh pr view $pr_num --web'" \
+            "ignorer" q ""
+        fi
       elif [[ "$new_name" == ⛔* ]] && [[ "$current_name" != ⛔* ]]; then
-        # Changes requested → menu
-        [ -n "$pr_num" ] && tmux display-menu -T " ⛔ #${pr_num} ${short} " \
-          "voir le pane" v "select-window -t $target_session:$window_index" \
-          "ouvrir sur GitHub" g "run-shell 'gh pr view $pr_num --web'" \
-          "ignorer" q ""
+        # Changes requested → show comments in pane + menu
+        if [ -n "$pr_num" ]; then
+          local repo; repo=$(gh_repo "$rpath")
+          display_review_comments "$repo" "$pr_num" "$target_session:$window_index"
+          tmux display-menu -T " ⛔ #${pr_num} ${short} " \
+            "voir le pane" v "select-window -t $target_session:$window_index" \
+            "ouvrir sur GitHub" g "run-shell 'gh pr view $pr_num --web'" \
+            "ignorer" q ""
+        fi
       elif [[ "$new_name" == 🟢* ]] && [[ "$current_name" == 🔴* ]]; then
         # Rouge → vert → notification
         [ -n "$pr_num" ] && tmux display-menu -T " 🟢 #${pr_num} ${short} — CI green! " \
@@ -536,6 +643,7 @@ cmd_status() {
     echo "error: could not fetch PRs" >&2
     return 1
   }
+  _DEPLOYED_PRS=$(fetch_deployed_prs "$rpath" 2>/dev/null) || _DEPLOYED_PRS=""
 
   echo ""
   while IFS='|' read -r wt_path wt_branch; do
@@ -547,6 +655,47 @@ cmd_status() {
     echo "  $name"
   done < <(list_worktrees "$rpath")
   echo ""
+}
+
+# Display unresolved review comments for a PR in the pane
+# Args: repo (owner/name), pr_number, target (tmux pane)
+display_review_comments() {
+  local repo="$1" pr_num="$2" target="$3"
+  local owner name
+  owner="${repo%%/*}"
+  name="${repo##*/}"
+
+  local threads
+  threads=$(gh api graphql -f query="
+    { repository(owner:\"$owner\", name:\"$name\") {
+      pullRequest(number:$pr_num) {
+        reviewThreads(first:10) { nodes { isResolved
+          comments(first:1) { nodes { author { login } body createdAt } }
+        } }
+      }
+    }}" --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+    | select(.isResolved == false)
+    | .comments.nodes[0]
+    | "\(.author.login)|\(.createdAt)|\(.body[0:100] | gsub("\n";" "))"' 2>/dev/null) || return 0
+
+  [ -z "$threads" ] && return 0
+
+  local count=0
+  tmux send-keys -t "$target" "" # clear any pending input
+  tmux send-keys -t "$target" "echo '── review comments #${pr_num} ──'" Enter
+  while IFS='|' read -r author created_at body; do
+    [ -z "$author" ] && continue
+    count=$((count + 1))
+    [ "$count" -gt 5 ] && break
+    local age
+    age=$(relative_age "$created_at")
+    tmux send-keys -t "$target" "echo '  ${author} (${age}): ${body}'" Enter
+  done <<< "$threads"
+
+  if [ "$count" -gt 5 ]; then
+    tmux send-keys -t "$target" "echo '  → voir plus: gh pr view $pr_num --web'" Enter
+  fi
+  tmux send-keys -t "$target" "echo '──────────────────────────────'" Enter
 }
 
 # Strip ANSI color codes from input
@@ -1010,9 +1159,15 @@ relative_age() {
 
 # Get emoji for PR state (same logic as window_name but returns just the emoji)
 pr_emoji() {
-  local state="$1" ci="$2" review_decision="$3" review_count="$4"
+  local state="$1" ci="$2" review_decision="$3" review_count="$4" num="${5:-}"
   case "$state" in
-    MERGED) echo "🗑"; return ;;
+    MERGED)
+      if [ -n "$num" ] && echo "$_DEPLOYED_PRS" | grep -qx "$num" 2>/dev/null; then
+        echo "🚀"
+      else
+        echo "🗑"
+      fi
+      return ;;
     CLOSED) echo "⊘"; return ;;
   esac
   if [ "$ci" = "red" ]; then echo "🔴"; return; fi
@@ -1028,10 +1183,16 @@ pr_emoji() {
 
 # Combined badges for brief display (e.g. "🔴💬(2)" or "✅")
 pr_badges() {
-  local state="$1" ci="$2" review_decision="$3" review_count="$4"
+  local state="$1" ci="$2" review_decision="$3" review_count="$4" num="${5:-}"
   local badges=""
   case "$state" in
-    MERGED) echo "🗑"; return ;;
+    MERGED)
+      if [ -n "$num" ] && echo "$_DEPLOYED_PRS" | grep -qx "$num" 2>/dev/null; then
+        echo "🚀"
+      else
+        echo "🗑"
+      fi
+      return ;;
     CLOSED) echo "⊘"; return ;;
   esac
   # CI badge
@@ -1063,6 +1224,7 @@ cmd_brief() {
     echo "error: could not fetch PRs" >&2
     return 1
   }
+  _DEPLOYED_PRS=$(fetch_deployed_prs "$rpath" 2>/dev/null) || _DEPLOYED_PRS=""
 
   # Load previous snapshot for transition detection (deduplicated, last wins)
   local snapshot_file="$NIGHTSHIFT_DIR/state_snapshot"
@@ -1083,8 +1245,9 @@ cmd_brief() {
   echo "── morning brief ────────────────────────── $(date '+%d %b, %H:%M')"
   echo ""
 
-  # Collect open PRs with worktrees
-  local actions="" changes="" summary_approved=0 summary_green=0 summary_red=0 summary_requested=0 summary_comments=0 summary_running=0 total_open=0
+  # Collect PRs with worktrees into categorized sections
+  local actions="" deployed="" transitions=""
+  local summary_approved=0 summary_green=0 summary_red=0 summary_requested=0 summary_comments=0 summary_running=0 summary_deployed=0 total_open=0
 
   while IFS='|' read -r wt_path wt_branch; do
     [ -n "$wt_path" ] || continue
@@ -1095,19 +1258,39 @@ cmd_brief() {
     local num state ci review_count review_decision updated_at reviewer
     IFS='|' read -r num state ci review_count review_decision updated_at reviewer <<< "$info"
 
-    [ "$state" = "MERGED" ] || [ "$state" = "CLOSED" ] && continue
-    total_open=$((total_open + 1))
+    [ "$state" = "CLOSED" ] && continue
 
     local short
     short=$(slug "$wt_branch")
-    local badges
-    badges=$(pr_badges "$state" "$ci" "$review_decision" "$review_count")
     local emoji
-    emoji=$(pr_emoji "$state" "$ci" "$review_decision" "$review_count")
+    emoji=$(pr_emoji "$state" "$ci" "$review_decision" "$review_count" "$num")
     local age
     age=$(relative_age "$updated_at")
 
-    # Count CI status for summary
+    # Deployed PRs → separate section
+    if [ "$state" = "MERGED" ]; then
+      if echo "$_DEPLOYED_PRS" | grep -qx "$num" 2>/dev/null; then
+        summary_deployed=$((summary_deployed + 1))
+        deployed="${deployed}🚀|#${num}|${short}|déployée
+"
+      fi
+      # Detect transitions for merged/deployed
+      local current_key="${num}|${emoji}"
+      echo "${current_key}" >> "$snapshot_file.new"
+      if [ -n "$prev_snapshot" ]; then
+        local prev_emoji
+        prev_emoji=$(echo "$prev_snapshot" | grep "^${num}|" | cut -d'|' -f2 || true)
+        if [ -n "$prev_emoji" ] && [ "$prev_emoji" != "$emoji" ]; then
+          transitions="${transitions}${prev_emoji}→${emoji}|#${num}|${short}|
+"
+        fi
+      fi
+      continue
+    fi
+
+    total_open=$((total_open + 1))
+
+    # Count CI status
     case "$ci" in
       red)     summary_red=$((summary_red + 1)) ;;
       green)   summary_green=$((summary_green + 1)) ;;
@@ -1123,44 +1306,51 @@ cmd_brief() {
         fi ;;
     esac
 
-    # Actions: PRs that need human action (red CI, comments, changes requested, approved)
-    local action_label=""
+    # Actions: PRs that need human action
+    local action_label="" action_cmd=""
     if [ "$ci" = "red" ]; then
-      action_label="CI rouge ${age} → autofix"
+      action_label="CI rouge ${age}"
+      action_cmd="autofix lancé"
     fi
     case "$review_decision" in
-      APPROVED)          action_label="${action_label:+${action_label} · }approved ${age} → merger" ;;
-      CHANGES_REQUESTED) action_label="${action_label:+${action_label} · }changes requested ${age}" ;;
+      APPROVED)
+        action_label="${action_label:+${action_label} · }approved ${age}"
+        action_cmd="nightshift merge ${num}" ;;
+      CHANGES_REQUESTED)
+        action_label="${action_label:+${action_label} · }changes requested ${age}"
+        action_cmd="adresser les retours" ;;
       *)
         if [ "${review_count:-0}" -gt 0 ] 2>/dev/null; then
-          action_label="${action_label:+${action_label} · }${review_count} comments ${age}"
+          action_label="${action_label:+${action_label} · }${review_count} comment(s) ${age}"
+          action_cmd="lire les comments"
         fi ;;
     esac
-    [ -n "$action_label" ] && actions="${actions}${badges}|#${num}|${short}|${action_label}
+    if [ -n "$action_label" ]; then
+      actions="${actions}${emoji}|#${num}|${short}|${action_label}|→ ${action_cmd}
 "
+    fi
 
     # Detect transitions since last brief
     local current_key="${num}|${emoji}"
     if [ -n "$prev_snapshot" ]; then
       local prev_emoji
-      prev_emoji=$(echo "$prev_snapshot" | grep "^${num}|" | cut -d'|' -f2)
+      prev_emoji=$(echo "$prev_snapshot" | grep "^${num}|" | cut -d'|' -f2 || true)
       if [ -n "$prev_emoji" ] && [ "$prev_emoji" != "$emoji" ]; then
         local reviewer_info=""
         [ -n "$reviewer" ] && reviewer_info="par $reviewer"
-        changes="${changes}${prev_emoji}→${emoji}|#${num}|${short}|${reviewer_info}
+        transitions="${transitions}${prev_emoji}→${emoji}|#${num}|${short}|${reviewer_info}
 "
       fi
     fi
 
-    # Save to new snapshot
     echo "${current_key}" >> "$snapshot_file.new"
   done < <(list_worktrees "$rpath")
 
-  # Also check PRs without worktrees (in case a review came in)
+  # Also snapshot PRs without worktrees
   while IFS='|' read -r branch num state ci review_count review_decision updated_at reviewer; do
     [ "$state" = "OPEN" ] || continue
     local emoji
-    emoji=$(pr_emoji "$state" "$ci" "$review_decision" "$review_count")
+    emoji=$(pr_emoji "$state" "$ci" "$review_decision" "$review_count" "$num")
     echo "${num}|${emoji}" >> "$snapshot_file.new"
   done <<< "$pr_data"
 
@@ -1169,24 +1359,36 @@ cmd_brief() {
   if [ -n "$actions" ]; then
     echo "  ACTION REQUISE"
     echo ""
-    while IFS='|' read -r icon pr short_name label; do
+    while IFS='|' read -r icon pr short_name label cmd; do
       [ -z "$icon" ] && continue
-      echo "    ${icon}  ${pr}  ${short_name}  ${label}"
+      echo "    ${icon}  ${pr}  ${short_name}"
+      echo "       ${label}"
+      echo "       ${cmd}"
     done <<< "$actions"
     echo ""
   fi
 
-  if [ -n "$changes" ]; then
-    echo "  CHANGEMENTS"
+  if [ -n "$deployed" ]; then
+    echo "  DÉPLOYÉES"
+    echo ""
+    while IFS='|' read -r icon pr short_name label; do
+      [ -z "$icon" ] && continue
+      echo "    ${icon}  ${pr}  ${short_name}"
+    done <<< "$deployed"
+    echo ""
+  fi
+
+  if [ -n "$transitions" ]; then
+    echo "  TRANSITIONS"
     echo ""
     while IFS='|' read -r transition pr short_name detail; do
       [ -z "$transition" ] && continue
       echo "    ${transition}  ${pr}  ${short_name}  ${detail}"
-    done <<< "$changes"
+    done <<< "$transitions"
     echo ""
   fi
 
-  # Summary
+  # Summary bar
   local parts=""
   [ "$summary_approved" -gt 0 ] && parts="${parts}${summary_approved}✅ "
   [ "$summary_green" -gt 0 ] && parts="${parts}${summary_green}🟢 "
@@ -1194,22 +1396,9 @@ cmd_brief() {
   [ "$summary_requested" -gt 0 ] && parts="${parts}${summary_requested}⛔ "
   [ "$summary_comments" -gt 0 ] && parts="${parts}${summary_comments}💬 "
   [ "$summary_running" -gt 0 ] && parts="${parts}${summary_running}⏳ "
+  [ "$summary_deployed" -gt 0 ] && parts="${parts}${summary_deployed}🚀 "
 
   echo "  ${total_open} PRs ouvertes  ${parts}"
-  echo ""
-
-  # Suggestion (priorité: approved > red > changes requested > comments)
-  if [ "$summary_approved" -gt 0 ]; then
-    echo "  → merger les PRs approved"
-  elif [ "$summary_red" -gt 0 ]; then
-    echo "  → fixer les CI rouges (autofix)"
-  elif [ "$summary_requested" -gt 0 ]; then
-    echo "  → adresser les changes requested"
-  elif [ "$summary_comments" -gt 0 ]; then
-    echo "  → lire les review comments"
-  else
-    echo "  → rien d'urgent"
-  fi
 
   echo ""
   echo "──────────────────────────────────────────────────────────"
