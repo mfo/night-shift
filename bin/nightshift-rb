@@ -4,4 +4,15 @@ require "dotenv"
 Dotenv.load(File.expand_path("../.env", __dir__))
 
 require_relative "../lib/nightshift"
+
+%w[
+  NIGHTSHIFT_REPO
+  NIGHTSHIFT_SESSION
+  NIGHTSHIFT_DB_PATH
+  NIGHTSHIFT_USER
+  NIGHTSHIFT_WATCH_INTERVAL
+  NIGHTSHIFT_AUTOFIX_MAX
+  NIGHTSHIFT_AUTOFIX_WINDOW
+].each { |var| ENV.fetch(var) { abort "nightshift: missing env var #{var}" } }
+
 Nightshift::CLI.run(ARGV)
