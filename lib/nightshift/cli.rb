@@ -121,12 +121,8 @@ module Nightshift
       puts "nightshift: closed #{branch}"
     end
 
-    def worktree_path_for_branch(repo_path, branch)
-      out, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
-      out.each_line do |line|
-        return line.split.first if line.include?("[#{branch}]")
-      end
-      nil
+    def worktree_path_for_branch(_repo_path, branch)
+      Worktree.path_for_branch(branch)
     end
 
     def cmd_auto(_args)

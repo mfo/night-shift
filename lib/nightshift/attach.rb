@@ -29,7 +29,7 @@ module Nightshift
       puts ""
 
       # Count worktrees
-      worktrees = list_worktrees(repo_path)
+      worktrees = Worktree.list(repo_path)
       puts "  ◎ #{worktrees.size} worktrees found"
 
       # Fetch PRs
@@ -45,7 +45,7 @@ module Nightshift
 
       # Create session with main window
       puts "  ◎ building tmux session ..."
-      main_path = git_main_worktree(repo_path)
+      main_path = Worktree.main_path(repo_path)
       system("tmux", "new-session", "-d", "-s", session, "-n", "📦 main", "-c", main_path)
       system("tmux", "set-option", "-w", "-t", session, "allow-rename", "off")
 
@@ -54,6 +54,7 @@ module Nightshift
       n_running = 0
       n_approved = 0
       approved_prs = []
+      cleanup_prs = []
 
       worktrees.each do |wt_path, wt_branch|
         pr = pr_by_branch[wt_branch]
@@ -81,6 +82,14 @@ module Nightshift
           elsif pr.review_decision == "APPROVED" && pr.github_state == "OPEN" && !pr.auto_merge
             n_approved += 1
             approved_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, win_idx: win_idx }
+          elsif %w[CHANGES_REQUESTED].include?(pr.review_decision) || pr.review_count.to_i > 0
+            system("tmux", "send-keys", "-t", "#{session}:#{win_idx}",
+                   "gh pr view #{pr.number} --comments", "Enter")
+          end
+
+          # Collect cleanup candidates (menu shown post-attach via hook)
+          if %w[MERGED].include?(pr.github_state)
+            cleanup_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, deployed: pr.deployed }
           end
         end
 
@@ -99,12 +108,13 @@ module Nightshift
       puts "  ✓ #{win_count} windows ready#{status_parts}"
       puts "  ◎ autofix queued for #{n_red} red PR(s)" if n_red > 0
       puts "  ◎ merge proposed for #{n_approved} approved PR(s)" if n_approved > 0
+      puts "  ◎ #{cleanup_prs.size} worktree(s) to cleanup" if cleanup_prs.any?
       puts "  ◎ launching morning brief ..."
       puts ""
 
-      # Queue merge menu for approved PRs
-      if approved_prs.any?
-        setup_merge_hook(session, approved_prs)
+      # Queue menus for after client attaches (display-menu needs active client)
+      if approved_prs.any? || cleanup_prs.any?
+        setup_post_attach_hook(session, approved_prs, cleanup_prs)
       end
 
       # Launch brief then watch in main window
@@ -135,46 +145,40 @@ module Nightshift
       end
     end
 
-    def list_worktrees(repo_path)
-      output, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
-      lines = output.lines.drop(1) # skip main
-      lines.filter_map do |line|
-        wt_path = line.split.first
-        wt_path = wt_path.sub(/^~/, Dir.home)
-        branch_match = line.match(/\[(.+)\]/)
-        next unless branch_match
-        branch = branch_match[1]
-        next unless File.directory?(wt_path)
-        [wt_path, branch]
-      end
-    end
-
-    def git_main_worktree(repo_path)
-      output, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
-      path = output.lines.first&.split&.first
-      path&.sub(/^~/, Dir.home) || repo_path
-    end
-
-    def setup_merge_hook(session, approved_prs)
+    def setup_post_attach_hook(session, approved_prs, cleanup_prs)
       require "shellwords"
       hook_dir = File.join(Dir.home, ".nightshift")
       FileUtils.mkdir_p(hook_dir)
       hook_script = File.join(hook_dir, "attach_hook.sh")
 
-      menu_args = approved_prs.map do |pr|
-        label = Shellwords.escape("✅ ##{pr[:number]} #{pr[:slug]}")
-        cmd = Shellwords.escape("#{BINSTUB} merge #{pr[:number]}")
-        "#{label} #{pr[:number]} \"run-shell #{cmd}\""
-      end.join(" ")
-      menu_args += " '' '' '' 'ignorer' q ''"
+      lines = ["#!/bin/bash", "sleep 1"]
+
+      if approved_prs.any?
+        menu_args = approved_prs.map do |pr|
+          label = Shellwords.escape("✅ ##{pr[:number]} #{pr[:slug]}")
+          cmd = Shellwords.escape("#{BINSTUB} merge #{pr[:number]}")
+          "#{label} #{pr[:number]} \"run-shell #{cmd}\""
+        end.join(" ")
+        menu_args += " '' '' '' 'ignorer' q ''"
+        lines << "tmux display-menu -T ' PRs à merger ' #{menu_args}"
+      end
+
+      if cleanup_prs.any?
+        menu_args = cleanup_prs.map do |pr|
+          emoji = pr[:deployed] ? "🚀" : "🗑"
+          label = Shellwords.escape("#{emoji} ##{pr[:number]} #{pr[:slug]}")
+          cmd = Shellwords.escape("#{BINSTUB} close #{pr[:branch]}")
+          "#{label} #{pr[:number]} \"run-shell #{cmd}\""
+        end.join(" ")
+        menu_args += " '' '' '' 'garder tout' q ''"
+        lines << "sleep 1" if approved_prs.any?
+        lines << "tmux display-menu -T ' Worktrees à fermer ' #{menu_args}"
+      end
 
       escaped_session = Shellwords.escape(session)
-      File.write(hook_script, <<~BASH)
-        #!/bin/bash
-        sleep 1
-        tmux display-menu -T ' PRs à merger ' #{menu_args}
-        tmux set-hook -u -t #{escaped_session} client-attached
-      BASH
+      lines << "tmux set-hook -u -t #{escaped_session} client-attached"
+
+      File.write(hook_script, lines.join("\n") + "\n")
       File.chmod(0o755, hook_script)
       system("tmux", "set-hook", "-t", session, "client-attached", "run-shell '#{hook_script}'")
     end

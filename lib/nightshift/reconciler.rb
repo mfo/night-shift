@@ -85,22 +85,11 @@ module Nightshift
     end
 
     def list_worktree_branches
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      out, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
-      branches = Set.new
-      out.each_line do |line|
-        match = line.match(/\[(.+)\]/)
-        branches << match[1] if match
-      end
-      branches
+      Worktree.branches
     end
 
-    def worktree_path_for_branch(repo_path, branch)
-      out, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
-      out.each_line do |line|
-        return line.split.first if line.include?("[#{branch}]")
-      end
-      nil
+    def worktree_path_for_branch(_repo_path, branch)
+      Worktree.path_for_branch(branch)
     end
 
     def on_transition(pr, old_state, new_state)

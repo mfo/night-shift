@@ -37,12 +37,15 @@ module Nightshift
         puts ""
       end
 
-      # Deployed
-      if deployed_prs.any?
-        puts "  DÉPLOYÉES"
+      # Worktrees to cleanup — only show merged/deployed PRs that still have a worktree
+      worktree_branches = Worktree.branches
+      cleanup_prs = prs.select { |pr| %i[deployed merged].include?(pr.state) && worktree_branches.include?(pr.branch) }
+      if cleanup_prs.any?
+        puts "  WORKTREES À FERMER"
         puts ""
-        deployed_prs.each do |pr|
-          puts "    🚀  ##{pr.number}  #{pr.slug}"
+        cleanup_prs.each do |pr|
+          puts "    #{pr.emoji}  ##{pr.number}  #{pr.slug}"
+          puts "       → nightshift close #{pr.branch}"
         end
         puts ""
       end

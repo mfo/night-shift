@@ -6,6 +6,7 @@ require "sequel/extensions/migration"
 require "fileutils"
 
 require_relative "nightshift/db"
+require_relative "nightshift/worktree"
 require_relative "nightshift/pr"
 require_relative "nightshift/store"
 require_relative "nightshift/github"
