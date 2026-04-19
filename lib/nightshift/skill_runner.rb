@@ -18,9 +18,8 @@ module Nightshift
         "claude", "-p", prompt,
         "--allowedTools", skill[:allowed_tools],
         "--output-format", "stream-json",
-        "--verbose", "--max-turns", "30",
-        chdir: worktree_path,
-        out: log_path, err: log_path
+        "--verbose", "--max-turns", "200",
+        chdir: worktree_path
       )
 
       commits, = Open3.capture2("git", "log", "main..HEAD", "--oneline",

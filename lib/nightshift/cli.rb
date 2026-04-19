@@ -100,7 +100,7 @@ module Nightshift
       branch = args.shift or abort("Usage: nightshift close <branch>")
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
-      wt_path = File.join(File.dirname(repo_path), branch)
+      wt_path = worktree_path_for_branch(repo_path, branch)
 
       # Sync backlog: if item is running/pr_open, mark as failed
       store = Store.new
@@ -115,8 +115,18 @@ module Nightshift
       renderer.close_worktree(branch)
 
       # Remove worktree
-      system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force")
+      if wt_path
+        system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force")
+      end
       puts "nightshift: closed #{branch}"
+    end
+
+    def worktree_path_for_branch(repo_path, branch)
+      out, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
+      out.each_line do |line|
+        return line.split.first if line.include?("[#{branch}]")
+      end
+      nil
     end
 
     def cmd_auto(_args)

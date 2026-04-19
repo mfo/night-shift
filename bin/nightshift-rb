@@ -1,4 +1,7 @@
 #!/usr/bin/env ruby
 
+require "dotenv"
+Dotenv.load(File.expand_path("../.env", __dir__))
+
 require_relative "../lib/nightshift"
 Nightshift::CLI.run(ARGV)

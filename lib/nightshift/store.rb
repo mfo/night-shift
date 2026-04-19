@@ -119,7 +119,7 @@ module Nightshift
 
     def active_for_skill?(skill)
       db[:backlog_items]
-        .where(skill: skill, status: %w[running pr_open])
+        .where(skill: skill, status: %w[running pr_open failed])
         .count > 0
     end
 

@@ -188,6 +188,13 @@ class StoreTest < Minitest::Test
     assert @store.active_for_skill?("haml-migration")
   end
 
+  def test_active_for_skill_failed_is_active
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "failed", failure_reason: "no_diff")
+    assert @store.active_for_skill?("haml-migration")
+  end
+
   def test_active_for_skill_done_not_active
     @store.add_backlog("haml-migration", "foo.haml")
     item = @store.claim_next("haml-migration")

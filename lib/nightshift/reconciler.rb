@@ -1,3 +1,5 @@
+require "open3"
+
 module Nightshift
   class Reconciler
     def initialize(store:, renderer:)
@@ -34,8 +36,8 @@ module Nightshift
     def handle_done(item)
       @store.update_backlog_status(item[:id], "done")
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      wt_path = File.join(File.dirname(repo_path), item[:branch])
-      system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force")
+      wt_path = worktree_path_for_branch(repo_path, item[:branch])
+      system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force") if wt_path
       @renderer.close_worktree(item[:branch])
     end
 
@@ -53,16 +55,35 @@ module Nightshift
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       slug = item[:item].sub(%r{^app/}, "").gsub("/", "-").sub(/\.html\.haml$/, "").sub(/\.rb$/, "")
       branch = "auto/#{skill_name}/#{slug}"
-      wt_path = File.join(File.dirname(repo_path), branch)
+      wt_dir = "auto-#{skill_name}-#{slug}"
+      wt_path = File.join(File.dirname(repo_path), wt_dir)
 
-      system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
+      unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
+        @store.update_backlog_status(item[:id], "failed", failure_reason: "worktree_error")
+        return
+      end
       @store.update_backlog_status(item[:id], "running", branch: branch)
 
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       system("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}", "-c", wt_path)
 
+      # Get the window index of the just-created window and tag it
+      out, = Open3.capture2("tmux", "list-windows", "-t", session, "-F", '#{window_index}')
+      win_idx = out.lines.last&.strip
+      system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@branch", branch)
+
+      # Send skill-run command directly via index (not via renderer lookup)
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
-      @renderer.run_in_window(branch, "#{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}")
+      cmd = "#{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}"
+      system("tmux", "send-keys", "-t", "#{session}:#{win_idx}", cmd, "Enter")
+    end
+
+    def worktree_path_for_branch(repo_path, branch)
+      out, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
+      out.each_line do |line|
+        return line.split.first if line.include?("[#{branch}]")
+      end
+      nil
     end
 
     def on_transition(pr, old_state, new_state)
