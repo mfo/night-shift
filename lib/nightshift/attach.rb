@@ -127,7 +127,8 @@ module Nightshift
       system("tmux", "send-keys", "-t", "#{session}:0",
              "#{BINSTUB} brief && #{BINSTUB} auto", "Enter")
 
-      # Attach
+      # Select main window and attach
+      system("tmux", "select-window", "-t", "#{session}:0")
       if ENV["TMUX"]
         system("tmux", "switch-client", "-t", session)
       else
