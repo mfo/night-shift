@@ -33,8 +33,11 @@ module Nightshift
           puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
           actions_for(pr).each { |line| puts "       #{line}" }
           if pr.review_count.to_i > 0
-            fetch_last_comments(pr.number).each do |author, body|
-              puts "       #{author}: #{body}"
+            fetch_review_comments(pr.number).each do |c|
+              puts ""
+              puts "          💬 #{c[:author]} — #{c[:path]}:#{c[:line]}"
+              puts "          #{c[:body]}"
+              puts "          vim +#{c[:line]} #{c[:path]}   #{c[:url]}"
             end
           end
         end
@@ -85,16 +88,15 @@ module Nightshift
       store.set_setting("last_brief", Time.now.to_i.to_s)
     end
 
-    def fetch_last_comments(pr_number)
+    def fetch_review_comments(pr_number)
       repo = GitHub.gh_repo
-      # Review comments (inline on code) — richer than PR comments
-      jq = '.[] | "\(.user.login)|\(.body)"'
+      jq = '.[] | "\(.user.login)\t\(.path)\t\(.line // .original_line // "")\t\(.html_url)\t\(.body)"'
       out, = Open3.capture2("gh", "api", "repos/#{repo}/pulls/#{pr_number}/comments",
                             "--jq", jq)
       out.lines.filter_map do |line|
-        author, body = line.strip.split("|", 2)
-        next unless author && body && !body.empty?
-        [author, body]
+        parts = line.strip.split("\t", 5)
+        next if parts.size < 5 || parts[4].empty?
+        { author: parts[0], path: parts[1], line: parts[2], url: parts[3], body: parts[4] }
       end
     rescue StandardError
       []
