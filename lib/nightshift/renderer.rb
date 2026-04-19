@@ -12,6 +12,20 @@ module Nightshift
       target = find_window_by_branch(pr.branch)
       return unless target
       system("tmux", "rename-window", "-t", "#{@session}:#{target}", pr.window_name)
+      send_pane_brief(target, pr)
+    end
+
+    def send_pane_brief(target, pr)
+      line = pane_brief_line(pr)
+      # Set pane title (visible in pane border with pane-border-format)
+      system("tmux", "select-pane", "-t", "#{@session}:#{target}", "-T", line)
+    end
+
+    def pane_brief_line(pr)
+      parts = ["##{pr.number}", pr.badge, pr.slug]
+      parts << "by:#{pr.reviewer}" if pr.reviewer && !pr.reviewer.empty?
+      parts << pr.updated_at.to_s.slice(0, 10) if pr.updated_at
+      parts.compact.join(" ")
     end
 
     def autofix(pr)

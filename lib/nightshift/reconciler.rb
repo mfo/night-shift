@@ -28,10 +28,20 @@ module Nightshift
 
     def reconcile_skills(prs)
       pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
+      active_branches = @worktree_branches || list_worktree_branches
 
-      @store.all_backlog.select { |i| i[:status] == "pr_open" }.each do |item|
-        pr = pr_by_branch[item[:branch]]
-        handle_done(item) if pr&.github_state == "MERGED"
+      @store.all_backlog.each do |item|
+        case item[:status]
+        when "pr_open"
+          pr = pr_by_branch[item[:branch]]
+          handle_done(item) if pr&.github_state == "MERGED"
+        when "running"
+          # Zombie recovery: running item but worktree gone
+          if item[:branch] && !active_branches.include?(item[:branch])
+            @store.update_backlog_status(item[:id], "failed",
+                                         failure_reason: "zombie_recovered")
+          end
+        end
       end
 
       pick_next_items

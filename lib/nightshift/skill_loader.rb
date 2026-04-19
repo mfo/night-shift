@@ -27,7 +27,9 @@ module Nightshift
       raise "Invalid SKILL.md: no frontmatter found" unless match
       yaml = YAML.safe_load(match[1], permitted_classes: [Symbol])
       raise "Invalid SKILL.md: malformed YAML frontmatter" unless yaml.is_a?(Hash)
-      [yaml, match[2]]
+      body = match[2]
+      raise "Invalid SKILL.md: empty prompt (body is required)" if body.strip.empty?
+      [yaml, body]
     rescue Psych::SyntaxError => e
       raise "Invalid SKILL.md: #{e.message}"
     end

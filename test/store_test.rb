@@ -230,6 +230,38 @@ class StoreTest < Minitest::Test
     assert_equal 2, @store.all_backlog.size
   end
 
+  def test_active_for_skill_skipped_not_active
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "skipped")
+    refute @store.active_for_skill?("haml-migration")
+  end
+
+  def test_claim_next_respects_fifo_across_statuses
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "b.haml")
+    @store.add_backlog("haml-migration", "c.haml")
+
+    # Claim and finish first two
+    item1 = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item1[:id], "done")
+    item2 = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item2[:id], "done")
+
+    # Third should be "c.haml"
+    item3 = @store.claim_next("haml-migration")
+    assert_equal "c.haml", item3[:item]
+  end
+
+  def test_all_backlog_ordered_by_skill_then_created
+    @store.add_backlog("test-optimization", "b_spec.rb")
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "z.haml")
+    items = @store.all_backlog
+    skills = items.map { |i| i[:skill] }
+    assert_equal %w[haml-migration haml-migration test-optimization], skills
+  end
+
   # --- Lock tests ---
 
   def test_acquire_lock_succeeds

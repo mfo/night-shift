@@ -1,4 +1,5 @@
 require "open3"
+require "shellwords"
 
 module Nightshift
   module SkillRunner
@@ -14,12 +15,12 @@ module Nightshift
 
       puts "── SKILL #{skill_name} — #{item} ──────────────────────"
 
-      claude_ok = system(
+      claude_ok = run_with_tee(
         "claude", "-p", prompt,
         "--allowedTools", skill[:allowed_tools],
         "--output-format", "stream-json",
         "--verbose", "--max-turns", "200",
-        chdir: worktree_path
+        log_path: log_path, chdir: worktree_path
       )
 
       commits, = Open3.capture2("git", "log", "main..HEAD", "--oneline",
@@ -37,6 +38,14 @@ module Nightshift
 
     def build_prompt(skill, item)
       skill[:prompt].gsub("$ARGUMENTS", item)
+    end
+
+    def run_with_tee(*cmd, log_path:, chdir:)
+      tee_pipe = IO.popen(["tee", log_path], "w")
+      pid = spawn(*cmd, out: tee_pipe, err: tee_pipe, chdir: chdir)
+      _, status = Process.waitpid2(pid)
+      tee_pipe.close
+      status.success?
     end
 
     def failure_reason(claude_ok, has_commits)

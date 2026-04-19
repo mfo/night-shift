@@ -54,6 +54,9 @@ module Nightshift
       main_path = Worktree.main_path(repo_path)
       system("tmux", "new-session", "-d", "-s", session, "-n", "📦 main", "-c", main_path)
       system("tmux", "set-option", "-w", "-t", session, "allow-rename", "off")
+      # Show pane titles in border (brief per pane)
+      system("tmux", "set-option", "-t", session, "pane-border-status", "top")
+      system("tmux", "set-option", "-t", session, "pane-border-format", ' #{pane_title} ')
 
       n_red = 0
       n_green = 0
@@ -73,6 +76,15 @@ module Nightshift
         win_idx = out.lines.last&.strip
         system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@worktree_path", wt_path)
         system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@branch", wt_branch)
+
+        # Set pane title with PR brief
+        if pr
+          pane_brief = "##{pr.number} #{pr.badge} #{pr.slug}"
+          pane_brief += " by:#{pr.reviewer}" if pr.reviewer && !pr.reviewer.to_s.empty?
+          system("tmux", "select-pane", "-t", "#{session}:#{win_idx}", "-T", pane_brief)
+        else
+          system("tmux", "select-pane", "-t", "#{session}:#{win_idx}", "-T", wt_branch)
+        end
 
         if pr
           case pr.ci

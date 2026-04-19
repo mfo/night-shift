@@ -24,7 +24,8 @@ class ReconcilerTest < Minitest::Test
     @renderer = FakeRenderer.new
     # Pass all test branches so worktree-centric filter doesn't block
     @all_branches = Set.new(%w[fix/bug fix/a fix/b fix/bug-1 fix/bug-2
-                               auto/haml-migration/views-foo fix/unrelated])
+                               auto/haml-migration/views-foo auto/haml-migration/views-bar
+                               auto/haml-migration/a fix/unrelated])
     @reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                              worktree_branches: @all_branches)
   end
@@ -161,6 +162,25 @@ class ReconcilerTest < Minitest::Test
     assert @store.active_for_skill?("haml-migration")
   end
 
+  def test_failed_item_blocks_pick
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "b.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "failed", failure_reason: "test")
+    assert @store.active_for_skill?("haml-migration"),
+           "failed item should block new picks until skipped"
+  end
+
+  def test_skipped_item_unblocks_pick
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "b.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "failed", failure_reason: "test")
+    @store.update_backlog_status(item[:id], "skipped")
+    refute @store.active_for_skill?("haml-migration"),
+           "skipped item should not block new picks"
+  end
+
   # --- Cleanup tests ---
 
   def test_transition_to_merged_triggers_cleanup
@@ -184,6 +204,180 @@ class ReconcilerTest < Minitest::Test
     pr.deployed = true
     @reconciler.reconcile([pr])
     assert_includes @renderer.calls, [:propose_cleanup, 1]
+  end
+
+  # --- Zombie recovery tests ---
+
+  def test_zombie_recovery_marks_running_item_failed
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "running",
+      branch: "auto/haml-migration/views-foo")
+
+    # Reconcile with worktree_branches that do NOT include the running branch
+    branches_without_zombie = Set.new(%w[fix/bug fix/other])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches_without_zombie)
+    reconciler.reconcile([])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "failed", updated[:status]
+    assert_equal "zombie_recovered", updated[:failure_reason]
+  end
+
+  def test_zombie_recovery_ignores_running_with_active_worktree
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "running",
+      branch: "auto/haml-migration/views-foo")
+
+    # Worktree exists — should NOT recover
+    @reconciler.reconcile([])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "running", updated[:status]
+  end
+
+  def test_zombie_recovery_skips_items_without_branch
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    # Running but no branch assigned yet (edge case: claimed but not launched)
+    assert_nil item[:branch]
+
+    branches = Set.new(%w[fix/bug])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+    reconciler.reconcile([])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "running", updated[:status], "should not touch running items with nil branch"
+  end
+
+  # --- handle_done tests ---
+
+  def test_handle_done_closes_worktree_via_renderer
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "pr_open",
+      branch: "auto/haml-migration/views-foo", pr_number: 42)
+
+    pr = Nightshift::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
+                            github_state: "MERGED")
+    @store.reconcile_pr(pr)
+    @reconciler.reconcile([pr])
+
+    assert_includes @renderer.calls, [:close_worktree, "auto/haml-migration/views-foo"]
+  end
+
+  def test_handle_done_ignores_pr_open_not_merged
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "pr_open",
+      branch: "auto/haml-migration/views-foo", pr_number: 42)
+
+    pr = Nightshift::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
+                            github_state: "OPEN", ci: "green")
+    @store.reconcile_pr(pr)
+    @reconciler.reconcile([pr])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "pr_open", updated[:status]
+  end
+
+  # --- Worktree-centric filter tests ---
+
+  def test_worktree_centric_filter_ignores_prs_without_worktree
+    # PR exists but branch is NOT in worktree_branches
+    branches = Set.new(%w[fix/a])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+
+    pr_in = Nightshift::PR.new(number: 1, branch: "fix/a", github_state: "OPEN", ci: "green")
+    pr_out = Nightshift::PR.new(number: 2, branch: "fix/no-worktree", github_state: "OPEN", ci: "red")
+    reconciler.reconcile([pr_in, pr_out])
+
+    # Only pr_in should be updated
+    assert_equal [[:update_window, 1]], @renderer.calls
+    assert_nil @store.get_state(2)
+  end
+
+  # --- Backlog lifecycle full cycle ---
+
+  def test_full_backlog_lifecycle_pending_to_done
+    # pending → claim → running → pr_open → merged → done
+    @store.add_backlog("haml-migration", "app/views/bar.html.haml")
+    item = @store.claim_next("haml-migration")
+    assert_equal "running", item[:status]
+
+    @store.update_backlog_status(item[:id], "running",
+      branch: "auto/haml-migration/views-bar")
+    @store.update_backlog_status(item[:id], "pr_open",
+      branch: "auto/haml-migration/views-bar", pr_number: 99)
+
+    pr = Nightshift::PR.new(number: 99, branch: "auto/haml-migration/views-bar",
+                            github_state: "MERGED")
+    @store.reconcile_pr(pr)
+    @reconciler.reconcile([pr])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "done", updated[:status]
+  end
+
+  def test_full_backlog_lifecycle_zombie_to_skip
+    # pending → claim → running → zombie_recovered → skip → unblocked
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "b.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "running",
+      branch: "auto/haml-migration/a")
+
+    # Worktree disappears
+    branches = Set.new(%w[fix/other])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+    reconciler.reconcile([])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "failed", updated[:status]
+    assert_equal "zombie_recovered", updated[:failure_reason]
+
+    # Still blocked
+    assert @store.active_for_skill?("haml-migration")
+
+    # Skip it
+    @store.update_backlog_status(item[:id], "skipped")
+    refute @store.active_for_skill?("haml-migration")
+
+    # Next item claimable
+    next_item = @store.claim_next("haml-migration")
+    assert_equal "b.haml", next_item[:item]
+  end
+
+  # --- Multiple transitions in sequence ---
+
+  def test_rapid_state_changes
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green")
+    @reconciler.reconcile([pr])
+
+    # green → red → green → approved (3 transitions)
+    pr.ci = "red"
+    @reconciler.reconcile([pr])
+
+    pr.ci = "green"
+    @reconciler.reconcile([pr])
+
+    pr.review_decision = "APPROVED"
+    @reconciler.reconcile([pr])
+
+    transitions = @db[:transitions].where(pr_number: 1).all
+    assert_equal 3, transitions.size
+    assert_equal "ci_green", transitions[0][:from_state]
+    assert_equal "ci_red", transitions[0][:to_state]
+    assert_equal "ci_red", transitions[1][:from_state]
+    assert_equal "ci_green", transitions[1][:to_state]
+    assert_equal "ci_green", transitions[2][:from_state]
+    assert_equal "approved", transitions[2][:to_state]
   end
 
   # --- Lock tests ---

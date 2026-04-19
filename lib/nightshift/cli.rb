@@ -190,8 +190,9 @@ module Nightshift
       when "add"  then cmd_backlog_add(args)
       when "scan" then cmd_backlog_scan(args)
       when "list" then cmd_backlog_list(args)
+      when "skip" then cmd_backlog_skip(args)
       else
-        abort "usage: nightshift backlog <add|scan|list>"
+        abort "usage: nightshift backlog <add|scan|list|skip>"
       end
     end
 
@@ -220,7 +221,7 @@ module Nightshift
       items = store.all_backlog(skill: skill_filter)
 
       icons = { "pending" => "⬜", "running" => "🔄", "pr_open" => "🔵",
-                "done" => "✅", "failed" => "❌" }
+                "done" => "✅", "failed" => "❌", "skipped" => "⏭" }
 
       puts ""
       items.each do |item|
@@ -235,6 +236,17 @@ module Nightshift
       puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
       puts ""
     end
+    def cmd_backlog_skip(args)
+      id = args.shift or abort("usage: nightshift backlog skip <id>")
+      item = store.db[:backlog_items].where(id: id.to_i).first
+      abort "nightshift: backlog item ##{id} not found" unless item
+      unless item[:status] == "failed"
+        abort "nightshift: can only skip failed items (current: #{item[:status]})"
+      end
+      store.update_backlog_status(item[:id], "skipped")
+      puts "nightshift: skipped backlog item ##{id} (#{item[:item]})"
+    end
+
     def usage
       puts "Usage: nightshift <#{COMMANDS.join('|')}>"
       exit 1
