@@ -45,15 +45,16 @@ module Nightshift
 
     def cmd_refresh(_args)
       prs = GitHub.fetch_prs
-
       renderer = Renderer.new
       reconciler = Reconciler.new(store: store, renderer: renderer)
       reconciler.reconcile(prs)
       puts "Refreshed (#{prs.size} PRs fetched, worktree-centric)"
+    rescue GitHub::Error => e
+      $stderr.puts e.message
     end
 
     def cmd_merge(args)
-      pr_number = args.shift or abort("Usage: nightshift merge <pr-number>")
+      pr_number = args.shift or abort("usage: nightshift merge <pr-number>")
       system("gh", "pr", "merge", pr_number, "--auto", "--squash",
              chdir: ENV.fetch("NIGHTSHIFT_REPO"))
     end
@@ -64,12 +65,12 @@ module Nightshift
     end
 
     def cmd_diagnose(args)
-      pr_number = args.shift or abort("Usage: nightshift diagnose <pr-number>")
+      pr_number = args.shift or abort("usage: nightshift diagnose <pr-number>")
       Diagnose.run(pr_number)
     end
 
     def cmd_autofix(args)
-      pr_number = args.shift or abort("Usage: nightshift autofix <pr-number>")
+      pr_number = args.shift or abort("usage: nightshift autofix <pr-number>")
 
       Autofix.run(pr_number, store: store)
     end
@@ -87,7 +88,7 @@ module Nightshift
     end
 
     def cmd_open(args)
-      branch = args.shift or abort("Usage: nightshift open <branch>")
+      branch = args.shift or abort("usage: nightshift open <branch>")
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       wt_path = File.join(File.dirname(repo_path), branch)
@@ -101,7 +102,7 @@ module Nightshift
     end
 
     def cmd_close(args)
-      branch = args.shift or abort("Usage: nightshift close <branch>")
+      branch = args.shift or abort("usage: nightshift close <branch>")
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       wt_path = Worktree.path_for_branch(branch)
@@ -140,7 +141,7 @@ module Nightshift
       puts ""
       puts "  backlog: #{pending} pending, #{running} running, #{pr_open} pr_open, #{done} done, #{failed} failed"
 
-      Reconciler::SKILLS.each do |skill|
+      Nightshift.skill_names.each do |skill|
         active = store.active_for_skill?(skill)
         skill_pending = items.count { |i| i[:skill] == skill && i[:status] == "pending" }
         puts "  #{skill}: #{active ? '🔄 active' : '⬜ idle'} (#{skill_pending} pending)"
@@ -149,10 +150,7 @@ module Nightshift
       puts ""
       puts "  picking next items..."
 
-      prs = GitHub.fetch_prs
-      renderer = Renderer.new
-      reconciler = Reconciler.new(store: store, renderer: renderer)
-      reconciler.reconcile(prs)
+      cmd_refresh([])
 
       puts "  entering watch loop..."
       puts ""
@@ -161,8 +159,8 @@ module Nightshift
     end
 
     def cmd_skill_run(args)
-      skill = args.shift or abort("Usage: nightshift skill-run <skill> <item>")
-      item_path = args.shift or abort("Usage: nightshift skill-run <skill> <item>")
+      skill = args.shift or abort("usage: nightshift skill-run <skill> <item>")
+      item_path = args.shift or abort("usage: nightshift skill-run <skill> <item>")
       worktree_path = Dir.pwd
 
 
@@ -220,35 +218,27 @@ module Nightshift
       when "scan" then cmd_backlog_scan(args)
       when "list" then cmd_backlog_list(args)
       else
-        abort "Usage: nightshift backlog <add|scan|list>"
+        abort "usage: nightshift backlog <add|scan|list>"
       end
     end
 
     def cmd_backlog_add(args)
-      skill = args.shift or abort("Usage: nightshift backlog add <skill> <item>")
-      item = args.shift or abort("Usage: nightshift backlog add <skill> <item>")
+      skill = args.shift or abort("usage: nightshift backlog add <skill> <item>")
+      item = args.shift or abort("usage: nightshift backlog add <skill> <item>")
 
       store.add_backlog(skill, item)
       puts "nightshift: added #{item} to #{skill} backlog"
     end
 
     def cmd_backlog_scan(args)
-      skill = args.shift or abort("Usage: nightshift backlog scan <skill>")
+      skill = args.shift or abort("usage: nightshift backlog scan <skill>")
+      config = Nightshift::SKILLS[skill]
+      abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
 
-
-      case skill
-      when "haml-migration"
-        files = Dir.glob("#{repo_path}/app/views/**/*.html.haml")
-        files.each { |f| store.add_backlog(skill, f.sub("#{repo_path}/", "")) }
-        puts "nightshift: scanned #{files.size} haml files"
-      when "test-optimization"
-        files = Dir.glob("#{repo_path}/spec/**/*_spec.rb")
-        files.each { |f| store.add_backlog(skill, f.sub("#{repo_path}/", "")) }
-        puts "nightshift: scanned #{files.size} spec files"
-      else
-        abort "nightshift: unknown skill '#{skill}' for scan"
-      end
+      files = Dir.glob("#{repo_path}/#{config[:scan]}")
+      files.each { |f| store.add_backlog(skill, f.sub("#{repo_path}/", "")) }
+      puts "nightshift: scanned #{files.size} files for #{skill}"
     end
 
     def cmd_backlog_list(args)

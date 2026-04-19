@@ -136,13 +136,15 @@ module Nightshift
               chdir: repo_path).strip
     end
 
+    class Error < StandardError; end
+
     def capture(*cmd, chdir: nil)
       opts = chdir ? { chdir: chdir } : {}
       out, err, status = Open3.capture3(*cmd, **opts)
       unless status.success?
-        $stderr.puts "nightshift: command failed: #{cmd.join(' ')}"
-        $stderr.puts err unless err.empty?
-        return ""
+        msg = "nightshift: command failed: #{cmd.join(' ')}"
+        msg += "\n#{err}" unless err.empty?
+        raise Error, msg
       end
       out
     end

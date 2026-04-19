@@ -15,14 +15,14 @@ module Nightshift
     end
 
     def autofix(pr)
-      target = find_window_by_branch(pr.branch)
+      target = find_window_by_branch(pr.branch, caller_action: "autofix ##{pr.number}")
       return unless target
       system("tmux", "send-keys", "-t", "#{@session}:#{target}",
              "#{BINSTUB} autofix #{pr.number}", "Enter")
     end
 
     def propose_merge(pr)
-      target = find_window_by_branch(pr.branch)
+      target = find_window_by_branch(pr.branch, caller_action: "propose_merge ##{pr.number}")
       return unless target
       system("tmux", "display-menu", "-t", "#{@session}:#{target}",
              "-T", "PR ##{pr.number} approved",
@@ -32,7 +32,7 @@ module Nightshift
     end
 
     def show_comments(pr)
-      target = find_window_by_branch(pr.branch)
+      target = find_window_by_branch(pr.branch, caller_action: "show_comments ##{pr.number}")
       return unless target
       system("tmux", "send-keys", "-t", "#{@session}:#{target}",
              "gh pr view #{pr.number} --comments", "Enter")
@@ -59,7 +59,7 @@ module Nightshift
     end
 
     def propose_cleanup(pr)
-      target = find_window_by_branch(pr.branch)
+      target = find_window_by_branch(pr.branch, caller_action: "propose_cleanup ##{pr.number}")
       return unless target
       system("tmux", "display-menu", "-t", "#{@session}:#{target}",
              "-T", "PR ##{pr.number} #{pr.github_state == 'MERGED' ? 'merged' : 'deployed'}",
@@ -69,18 +69,22 @@ module Nightshift
 
     private
 
-    def find_window_by_branch(branch)
+    def find_window_by_branch(branch, caller_action: nil)
       return nil unless branch
       out, _, status = Open3.capture3(
         "tmux", "list-windows", "-t", @session,
         "-F", '#{window_index} #{@branch}'
       )
-      return nil unless status.success?
+      unless status.success?
+        $stderr.puts "nightshift: tmux session #{@session} not found" if caller_action
+        return nil
+      end
 
       out.each_line do |line|
         idx, win_branch = line.strip.split(" ", 2)
         return idx if win_branch == branch
       end
+      $stderr.puts "nightshift: window not found for #{branch} (#{caller_action})" if caller_action
       nil
     end
   end

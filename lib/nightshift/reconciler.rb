@@ -9,7 +9,7 @@ module Nightshift
       @worktree_branches = worktree_branches
     end
 
-    SKILLS = %w[haml-migration test-optimization].freeze
+    SKILLS = Nightshift::SKILLS
 
     def reconcile(prs)
       # Worktree-centric: only reconcile PRs that match a local worktree
@@ -48,7 +48,7 @@ module Nightshift
     end
 
     def pick_next_items
-      SKILLS.each do |skill_name|
+      SKILLS.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
         item = @store.claim_next(skill_name)
         next unless item

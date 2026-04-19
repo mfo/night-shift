@@ -35,10 +35,16 @@ module Nightshift
       # Fetch PRs
       puts "  ◎ fetching PRs from GitHub ..."
       store = Store.new
-      prs = GitHub.fetch_prs
-      prs.each { |pr| store.reconcile_pr(pr) }
-      open_count = prs.count { |pr| pr.github_state == "OPEN" }
-      puts "  ✓ #{open_count} open PRs"
+      begin
+        prs = GitHub.fetch_prs
+        prs.each { |pr| store.reconcile_pr(pr) }
+        open_count = prs.count { |pr| pr.github_state == "OPEN" }
+        puts "  ✓ #{open_count} open PRs"
+      rescue GitHub::Error => e
+        $stderr.puts "  ⚠ #{e.message}"
+        prs = store.all_prs.map { |r| PR.from_db(r) }
+        puts "  ⚠ using cached PRs (#{prs.size})"
+      end
 
       # Build PR lookup by branch
       pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
