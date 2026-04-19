@@ -127,34 +127,7 @@ module Nightshift
     end
 
     def cmd_auto(_args)
-
-      items = store.all_backlog
-
-      pending = items.count { |i| i[:status] == "pending" }
-      running = items.count { |i| i[:status] == "running" }
-      pr_open = items.count { |i| i[:status] == "pr_open" }
-      done = items.count { |i| i[:status] == "done" }
-      failed = items.count { |i| i[:status] == "failed" }
-
-      puts ""
-      puts "  nightshift auto"
-      puts ""
-      puts "  backlog: #{pending} pending, #{running} running, #{pr_open} pr_open, #{done} done, #{failed} failed"
-
-      Nightshift.skill_names.each do |skill|
-        active = store.active_for_skill?(skill)
-        skill_pending = items.count { |i| i[:skill] == skill && i[:status] == "pending" }
-        puts "  #{skill}: #{active ? '🔄 active' : '⬜ idle'} (#{skill_pending} pending)"
-      end
-
-      puts ""
-      puts "  picking next items..."
-
       cmd_refresh([])
-
-      puts "  entering watch loop..."
-      puts ""
-
       cmd_watch([])
     end
 

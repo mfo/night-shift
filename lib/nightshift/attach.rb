@@ -123,9 +123,9 @@ module Nightshift
         setup_post_attach_hook(session, approved_prs, cleanup_prs)
       end
 
-      # Launch brief then watch in main window
+      # Launch brief + auto (skill picking + watch) in main window
       system("tmux", "send-keys", "-t", "#{session}:0",
-             "#{BINSTUB} brief && #{BINSTUB} watch", "Enter")
+             "#{BINSTUB} brief && #{BINSTUB} auto", "Enter")
 
       # Attach
       if ENV["TMUX"]
