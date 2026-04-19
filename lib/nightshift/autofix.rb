@@ -134,7 +134,7 @@ module Nightshift
         )
 
         result[:output_path] = claude_log
-        result[:turns_used] = count_turns(claude_log)
+        result[:turns_used] = Nightshift.count_turns(claude_log)
 
         diff_stat, = Open3.capture2("git", "diff", "--stat", chdir: repo_path)
         if !claude_ok
@@ -235,13 +235,6 @@ module Nightshift
         puts ""
         puts "  next: git add -u && git commit && git push mfo HEAD"
       end
-    end
-
-    def count_turns(log_path)
-      return nil unless File.exist?(log_path)
-      File.read(log_path).scan(/"type"\s*:\s*"assistant"/).size
-    rescue
-      nil
     end
 
     def print_dashboard(st)

@@ -30,20 +30,13 @@ module Nightshift
         success: claude_ok && has_commits,
         failure_reason: failure_reason(claude_ok, has_commits),
         log_path: log_path,
-        turns_used: count_turns(log_path),
+        turns_used: Nightshift.count_turns(log_path),
         files_changed: has_commits ? commits.lines.size : 0
       }
     end
 
     def build_prompt(skill, item)
       skill[:prompt].gsub("$ARGUMENTS", item)
-    end
-
-    def count_turns(log_path)
-      return nil unless File.exist?(log_path)
-      File.read(log_path).scan(/"type"\s*:\s*"assistant"/).size
-    rescue
-      nil
     end
 
     def failure_reason(claude_ok, has_commits)

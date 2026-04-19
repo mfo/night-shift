@@ -1,3 +1,5 @@
+require "open3"
+
 module Nightshift
   module Brief
     module_function
@@ -21,7 +23,6 @@ module Nightshift
 
       # Categorize PRs
       open_prs = prs.select { |pr| pr.github_state == "OPEN" }
-      deployed_prs = prs.select { |pr| pr.state == :deployed }
 
       # Actions requises
       actionable = open_prs.select { |pr| %i[ci_red changes_requested approved has_comments].include?(pr.state) }
@@ -29,10 +30,13 @@ module Nightshift
         puts "  ACTION REQUISE"
         puts ""
         actionable.each do |pr|
-          puts "    #{pr.emoji}  ##{pr.number}  #{pr.slug}"
-          label, cmd = action_for(pr)
-          puts "       #{label}"
-          puts "       #{cmd}"
+          puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
+          actions_for(pr).each { |line| puts "       #{line}" }
+          if pr.review_count.to_i > 0
+            fetch_last_comments(pr.number).each do |author, body|
+              puts "       #{author}: #{body}"
+            end
+          end
         end
         puts ""
       end
@@ -62,7 +66,7 @@ module Nightshift
         puts ""
       end
 
-      # Summary bar
+      # Summary bar (open PRs only)
       counts = open_prs.group_by(&:state).transform_values(&:count)
       parts = []
       parts << "#{counts[:approved]}✅" if counts[:approved]
@@ -71,7 +75,7 @@ module Nightshift
       parts << "#{counts[:changes_requested]}⛔" if counts[:changes_requested]
       parts << "#{counts[:has_comments]}💬" if counts[:has_comments]
       parts << "#{counts[:ci_running]}⏳" if counts[:ci_running]
-      parts << "#{deployed_prs.size}🚀" if deployed_prs.any?
+      parts << "#{cleanup_prs.size}🧹" if cleanup_prs.any?
 
       puts "  #{open_prs.size} PRs ouvertes  #{parts.join(' ')}"
       puts ""
@@ -81,19 +85,28 @@ module Nightshift
       store.set_setting("last_brief", Time.now.to_i.to_s)
     end
 
-    def action_for(pr)
-      case pr.state
-      when :ci_red
-        ["CI rouge", "→ autofix lancé"]
-      when :approved
-        ["approved", "→ nightshift merge #{pr.number}"]
-      when :changes_requested
-        ["changes requested", "→ adresser les retours"]
-      when :has_comments
-        ["#{pr.review_count} comment(s)", "→ lire les comments"]
-      else
-        ["", ""]
+    def fetch_last_comments(pr_number)
+      repo = GitHub.gh_repo
+      # Review comments (inline on code) — richer than PR comments
+      jq = '.[] | "\(.user.login)|\(.body)"'
+      out, = Open3.capture2("gh", "api", "repos/#{repo}/pulls/#{pr_number}/comments",
+                            "--jq", jq)
+      out.lines.filter_map do |line|
+        author, body = line.strip.split("|", 2)
+        next unless author && body && !body.empty?
+        [author, body]
       end
+    rescue StandardError
+      []
+    end
+
+    def actions_for(pr)
+      lines = []
+      lines << "CI rouge → autofix lancé" if pr.ci == "red"
+      lines << "approved → nightshift merge #{pr.number}" if pr.review_decision == "APPROVED"
+      lines << "changes requested → adresser les retours" if pr.review_decision == "CHANGES_REQUESTED"
+      lines << "💬 #{pr.review_count} comment(s) → gh pr view #{pr.number} --comments" if pr.review_count.to_i > 0
+      lines
     end
   end
 end

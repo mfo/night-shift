@@ -23,14 +23,14 @@ class SkillRunnerTest < Minitest::Test
   end
 
   def test_count_turns_nil_when_missing
-    assert_nil Nightshift::SkillRunner.count_turns("/nonexistent/path.log")
+    assert_nil Nightshift.count_turns("/nonexistent/path.log")
   end
 
   def test_count_turns_counts_assistant_messages
     log = Tempfile.new("claude.log")
     log.write('{"type":"assistant"}blah{"type":"assistant"}')
     log.close
-    assert_equal 2, Nightshift::SkillRunner.count_turns(log.path)
+    assert_equal 2, Nightshift.count_turns(log.path)
   ensure
     log&.unlink
   end

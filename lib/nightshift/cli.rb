@@ -8,6 +8,10 @@ module Nightshift
 
     module_function
 
+    def store
+      @store ||= Store.new
+    end
+
     def run(args)
       cmd = args.shift
       case cmd
@@ -30,7 +34,7 @@ module Nightshift
     end
 
     def cmd_status(_args)
-      store = Store.new
+
       puts ""
       store.all_prs.each do |row|
         pr = PR.from_db(row)
@@ -41,7 +45,7 @@ module Nightshift
 
     def cmd_refresh(_args)
       prs = GitHub.fetch_prs
-      store = Store.new
+
       renderer = Renderer.new
       reconciler = Reconciler.new(store: store, renderer: renderer)
       reconciler.reconcile(prs)
@@ -55,7 +59,7 @@ module Nightshift
     end
 
     def cmd_brief(_args)
-      store = Store.new
+
       Brief.generate(store)
     end
 
@@ -66,7 +70,7 @@ module Nightshift
 
     def cmd_autofix(args)
       pr_number = args.shift or abort("Usage: nightshift autofix <pr-number>")
-      store = Store.new
+
       Autofix.run(pr_number, store: store)
     end
 
@@ -100,10 +104,10 @@ module Nightshift
       branch = args.shift or abort("Usage: nightshift close <branch>")
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
-      wt_path = worktree_path_for_branch(repo_path, branch)
+      wt_path = Worktree.path_for_branch(branch)
 
       # Sync backlog: if item is running/pr_open, mark as failed
-      store = Store.new
+
       item = store.backlog_by_branch(branch)
       if item && %w[running pr_open].include?(item[:status])
         store.update_backlog_status(item[:id], "failed", failure_reason: "manual_close")
@@ -121,12 +125,8 @@ module Nightshift
       puts "nightshift: closed #{branch}"
     end
 
-    def worktree_path_for_branch(_repo_path, branch)
-      Worktree.path_for_branch(branch)
-    end
-
     def cmd_auto(_args)
-      store = Store.new
+
       items = store.all_backlog
 
       pending = items.count { |i| i[:status] == "pending" }
@@ -164,7 +164,7 @@ module Nightshift
       skill = args.shift or abort("Usage: nightshift skill-run <skill> <item>")
       item_path = args.shift or abort("Usage: nightshift skill-run <skill> <item>")
       worktree_path = Dir.pwd
-      store = Store.new
+
 
       result = SkillRunner.run(skill, item: item_path, worktree_path: worktree_path)
 
@@ -227,7 +227,7 @@ module Nightshift
     def cmd_backlog_add(args)
       skill = args.shift or abort("Usage: nightshift backlog add <skill> <item>")
       item = args.shift or abort("Usage: nightshift backlog add <skill> <item>")
-      store = Store.new
+
       store.add_backlog(skill, item)
       puts "nightshift: added #{item} to #{skill} backlog"
     end
@@ -235,7 +235,7 @@ module Nightshift
     def cmd_backlog_scan(args)
       skill = args.shift or abort("Usage: nightshift backlog scan <skill>")
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      store = Store.new
+
 
       case skill
       when "haml-migration"
@@ -253,7 +253,7 @@ module Nightshift
 
     def cmd_backlog_list(args)
       skill_filter = args.shift
-      store = Store.new
+
       items = store.all_backlog(skill: skill_filter)
 
       icons = { "pending" => "⬜", "running" => "🔄", "pr_open" => "🔵",
@@ -272,15 +272,6 @@ module Nightshift
       puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
       puts ""
     end
-
-    def fallback_bash(cmd, args)
-      bash_path = File.join(__dir__, "../../bin/nightshift")
-      unless File.exist?(bash_path)
-        abort "nightshift: '#{cmd}' not yet implemented in Ruby"
-      end
-      exec(bash_path, cmd, *args)
-    end
-
     def usage
       puts "Usage: nightshift <#{COMMANDS.join('|')}>"
       exit 1

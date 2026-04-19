@@ -21,4 +21,10 @@ require_relative "nightshift/attach"
 require_relative "nightshift/cli"
 
 module Nightshift
+  def self.count_turns(log_path)
+    return nil unless File.exist?(log_path)
+    File.read(log_path).scan(/"type"\s*:\s*"assistant"/).size
+  rescue StandardError
+    nil
+  end
 end
