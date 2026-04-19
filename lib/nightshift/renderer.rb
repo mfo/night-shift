@@ -63,7 +63,7 @@ module Nightshift
       return unless target
       system("tmux", "display-menu", "-t", "#{@session}:#{target}",
              "-T", "PR ##{pr.number} #{pr.github_state == 'MERGED' ? 'merged' : 'deployed'}",
-             "Close worktree", "c", "run-shell '#{BINSTUB} close #{pr.branch}'",
+             "Close worktree", "c", "send-keys -t #{@session}:#{target} '#{BINSTUB} close #{pr.branch}' Enter",
              "Keep", "k", "")
     end
 

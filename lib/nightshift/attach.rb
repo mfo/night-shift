@@ -89,7 +89,7 @@ module Nightshift
 
           # Collect cleanup candidates (menu shown post-attach via hook)
           if %w[MERGED].include?(pr.github_state)
-            cleanup_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, deployed: pr.deployed }
+            cleanup_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, deployed: pr.deployed, win_idx: win_idx }
           end
         end
 
@@ -163,16 +163,14 @@ module Nightshift
         lines << "tmux display-menu -T ' PRs à merger ' #{menu_args}"
       end
 
-      if cleanup_prs.any?
-        menu_args = cleanup_prs.map do |pr|
-          emoji = pr[:deployed] ? "🚀" : "🗑"
-          label = Shellwords.escape("#{emoji} ##{pr[:number]} #{pr[:slug]}")
-          cmd = Shellwords.escape("#{BINSTUB} close #{pr[:branch]}")
-          "#{label} #{pr[:number]} \"run-shell #{cmd}\""
-        end.join(" ")
-        menu_args += " '' '' '' 'garder tout' q ''"
-        lines << "sleep 1" if approved_prs.any?
-        lines << "tmux display-menu -T ' Worktrees à fermer ' #{menu_args}"
+      # One popup per cleanup PR, targeted at its own pane
+      cleanup_prs.each do |pr|
+        emoji = pr[:deployed] ? "🚀" : "🗑"
+        target = Shellwords.escape("#{session}:#{pr[:win_idx]}")
+        close_cmd = Shellwords.escape("#{BINSTUB} close #{pr[:branch]}")
+        lines << "tmux display-menu -t #{target} -T '#{emoji} ##{pr[:number]} #{pr[:slug]}' " \
+                 "'Fermer worktree' c \"send-keys -t #{target} '#{BINSTUB} close #{pr[:branch]}' Enter\" " \
+                 "'Garder' k ''"
       end
 
       escaped_session = Shellwords.escape(session)
