@@ -93,6 +93,11 @@ module Nightshift
           when "running" then n_running += 1
           end
 
+          # Per-pane brief (write to file + cat)
+          Brief.write_pane_brief(pr, wt_path)
+          system("tmux", "send-keys", "-t", "#{session}:#{win_idx}",
+                 "cat tmp/pr-brief.txt", "Enter")
+
           # Auto-actions
           if pr.ci == "red" && pr.github_state == "OPEN"
             system("tmux", "send-keys", "-t", "#{session}:#{win_idx}",
@@ -100,9 +105,6 @@ module Nightshift
           elsif pr.review_decision == "APPROVED" && pr.github_state == "OPEN" && !pr.auto_merge
             n_approved += 1
             approved_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, win_idx: win_idx }
-          elsif %w[CHANGES_REQUESTED].include?(pr.review_decision) || pr.review_count.to_i > 0
-            system("tmux", "send-keys", "-t", "#{session}:#{win_idx}",
-                   "gh pr view #{pr.number} --comments", "Enter")
           end
 
           # Collect cleanup candidates (menu shown post-attach via hook)

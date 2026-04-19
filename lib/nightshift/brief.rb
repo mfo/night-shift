@@ -119,5 +119,34 @@ module Nightshift
       lines << "💬 #{pr.review_count} comment(s) → gh pr view #{pr.number} --comments" if pr.review_count.to_i > 0
       lines
     end
+
+    def pane_brief_for(pr)
+      lines = []
+      lines << "── PR ##{pr.number} #{pr.badge} #{pr.slug} ──"
+      lines << "  state: #{pr.state}  ci: #{pr.ci || 'none'}  review: #{pr.review_decision || 'none'}"
+
+      actions_for(pr).each { |a| lines << "  → #{a}" }
+
+      if pr.review_count.to_i > 0
+        comments = fetch_review_comments(pr.number)
+        comments.each do |c|
+          lines << ""
+          lines << "  💬 #{c[:author]} — #{c[:path]}:#{c[:line]}"
+          lines << "  #{c[:body]}"
+          lines << "  vim +#{c[:line]} #{c[:path]}   #{c[:url]}"
+        end
+      end
+
+      lines << ""
+      lines.join("\n")
+    end
+
+    def write_pane_brief(pr, worktree_path)
+      dir = File.join(worktree_path, "tmp")
+      FileUtils.mkdir_p(dir)
+      path = File.join(dir, "pr-brief.txt")
+      File.write(path, pane_brief_for(pr))
+      path
+    end
   end
 end
