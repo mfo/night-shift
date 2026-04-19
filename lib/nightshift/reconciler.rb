@@ -113,6 +113,8 @@ module Nightshift
         @renderer.show_comments(pr)
       in [:ci_red, :ci_green]
         @renderer.notify_fixed(pr)
+      in [_, :merged | :deployed]
+        @renderer.propose_cleanup(pr)
       else
         # noop
       end

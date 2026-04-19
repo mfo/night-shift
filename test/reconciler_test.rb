@@ -13,6 +13,7 @@ class FakeRenderer
   def propose_merge(pr) = @calls << [:propose_merge, pr.number]
   def show_comments(pr) = @calls << [:show_comments, pr.number]
   def notify_fixed(pr) = @calls << [:notify_fixed, pr.number]
+  def propose_cleanup(pr) = @calls << [:propose_cleanup, pr.number]
 end
 
 class ReconcilerTest < Minitest::Test
@@ -158,6 +159,31 @@ class ReconcilerTest < Minitest::Test
     @store.add_backlog("haml-migration", "b.haml")
     @store.claim_next("haml-migration")
     assert @store.active_for_skill?("haml-migration")
+  end
+
+  # --- Cleanup tests ---
+
+  def test_transition_to_merged_triggers_cleanup
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green")
+    @reconciler.reconcile([pr])
+    @renderer.calls.clear
+
+    pr.github_state = "MERGED"
+    @reconciler.reconcile([pr])
+    assert_includes @renderer.calls, [:propose_cleanup, 1]
+  end
+
+  def test_transition_to_deployed_triggers_cleanup
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green")
+    @reconciler.reconcile([pr])
+    @renderer.calls.clear
+
+    pr.github_state = "MERGED"
+    pr.deployed = true
+    @reconciler.reconcile([pr])
+    assert_includes @renderer.calls, [:propose_cleanup, 1]
   end
 
   # --- Lock tests ---

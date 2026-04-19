@@ -18,6 +18,11 @@ module Nightshift
       attrs.each { |k, v| send(:"#{k}=", v) }
     end
 
+    # Priority order (first match wins):
+    # terminal: deployed > merged > closed
+    # urgent:   ci_red > changes_requested
+    # active:   auto_merging > approved > has_comments
+    # passive:  ci_green > ci_running > draft
     def state
       case to_h
       in { github_state: "MERGED", deployed: true }  then :deployed

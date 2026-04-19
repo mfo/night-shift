@@ -58,6 +58,15 @@ module Nightshift
              "CI fixed on ##{pr.number} ✅")
     end
 
+    def propose_cleanup(pr)
+      target = find_window_by_branch(pr.branch)
+      return unless target
+      system("tmux", "display-menu", "-t", "#{@session}:#{target}",
+             "-T", "PR ##{pr.number} #{pr.github_state == 'MERGED' ? 'merged' : 'deployed'}",
+             "Close worktree", "c", "run-shell '#{BINSTUB} close #{pr.branch}'",
+             "Keep", "k", "")
+    end
+
     private
 
     def find_window_by_branch(branch)
