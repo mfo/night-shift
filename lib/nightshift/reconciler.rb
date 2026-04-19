@@ -1,23 +1,29 @@
 require "open3"
+require "set"
 
 module Nightshift
   class Reconciler
-    def initialize(store:, renderer:)
+    def initialize(store:, renderer:, worktree_branches: nil)
       @store = store
       @renderer = renderer
+      @worktree_branches = worktree_branches
     end
 
     SKILLS = %w[haml-migration test-optimization].freeze
 
     def reconcile(prs)
-      prs.each do |pr|
+      # Worktree-centric: only reconcile PRs that match a local worktree
+      branches = @worktree_branches || list_worktree_branches
+      active_prs = prs.select { |pr| branches.include?(pr.branch) }
+
+      active_prs.each do |pr|
         result = @store.reconcile_pr(pr)
         if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].to_s)
           on_transition(pr, result[:old_state], result[:new_state])
         end
         @renderer.update_window(pr)
       end
-      reconcile_skills(prs)
+      reconcile_skills(active_prs)
     end
 
     def reconcile_skills(prs)
@@ -76,6 +82,17 @@ module Nightshift
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
       cmd = "#{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}"
       system("tmux", "send-keys", "-t", "#{session}:#{win_idx}", cmd, "Enter")
+    end
+
+    def list_worktree_branches
+      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
+      out, = Open3.capture2("git", "-C", repo_path, "worktree", "list")
+      branches = Set.new
+      out.each_line do |line|
+        match = line.match(/\[(.+)\]/)
+        branches << match[1] if match
+      end
+      branches
     end
 
     def worktree_path_for_branch(repo_path, branch)

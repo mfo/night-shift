@@ -45,7 +45,7 @@ module Nightshift
       renderer = Renderer.new
       reconciler = Reconciler.new(store: store, renderer: renderer)
       reconciler.reconcile(prs)
-      puts "Refreshed #{prs.size} PRs"
+      puts "Refreshed (#{prs.size} PRs fetched, worktree-centric)"
     end
 
     def cmd_merge(args)

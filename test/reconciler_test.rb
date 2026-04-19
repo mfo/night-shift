@@ -21,7 +21,11 @@ class ReconcilerTest < Minitest::Test
     Sequel::Migrator.run(@db, "db/migrations")
     @store = Nightshift::Store.new(@db)
     @renderer = FakeRenderer.new
-    @reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer)
+    # Pass all test branches so worktree-centric filter doesn't block
+    @all_branches = Set.new(%w[fix/bug fix/a fix/b fix/bug-1 fix/bug-2
+                               auto/haml-migration/views-foo fix/unrelated])
+    @reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                             worktree_branches: @all_branches)
   end
 
   def test_first_reconcile_no_transition
