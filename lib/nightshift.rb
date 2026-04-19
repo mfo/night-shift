@@ -7,9 +7,12 @@ require "fileutils"
 
 module Nightshift
   SKILLS = {
-    "haml-migration"    => { scan: "app/views/**/*.html.haml" },
-    "test-optimization" => { scan: "spec/**/*_spec.rb" }
+    "haml-migration"    => { scan: "app/views/**/*.html.haml", needs_server: true },
+    "test-optimization" => { scan: "spec/**/*_spec.rb",
+                             inventory: File.expand_path("../../pocs/test-optimization/slow-tests-inventory.md", __FILE__) }
   }.freeze
+
+  BASE_PORT = 3001
 
   def self.skill_names = SKILLS.keys
 

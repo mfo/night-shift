@@ -37,7 +37,10 @@ module Nightshift
     end
 
     def build_prompt(skill, item)
-      skill[:prompt].gsub("$ARGUMENTS", item)
+      port = ENV.fetch("NIGHTSHIFT_PORT", "3000")
+      skill[:prompt]
+        .gsub("$ARGUMENTS", item)
+        .gsub("$PORT", port)
     end
 
     def run_with_tee(*cmd, log_path:, chdir:)

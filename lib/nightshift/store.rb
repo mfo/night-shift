@@ -96,18 +96,18 @@ module Nightshift
 
     # --- Backlog ---
 
-    def add_backlog(skill, item)
+    def add_backlog(skill, item, priority: 0)
       now = Time.now.to_i
       db[:backlog_items].insert_conflict(target: [:skill, :item])
         .insert(skill: skill, item: item, status: "pending",
-                created_at: now, updated_at: now)
+                priority: priority, created_at: now, updated_at: now)
     end
 
     def claim_next(skill)
       db.transaction do
         item = db[:backlog_items]
           .where(skill: skill, status: "pending")
-          .order(:created_at)
+          .order(Sequel.desc(:priority), :created_at)
           .first
         return nil unless item
         rows = db[:backlog_items]

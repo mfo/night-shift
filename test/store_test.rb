@@ -262,6 +262,27 @@ class StoreTest < Minitest::Test
     assert_equal %w[haml-migration haml-migration test-optimization], skills
   end
 
+  def test_add_backlog_with_priority
+    @store.add_backlog("test-optimization", "slow_spec.rb", priority: 2355)
+    item = @db[:backlog_items].first
+    assert_equal 2355, item[:priority]
+  end
+
+  def test_claim_next_picks_highest_priority_first
+    @store.add_backlog("test-optimization", "fast_spec.rb", priority: 100)
+    @store.add_backlog("test-optimization", "slow_spec.rb", priority: 6641)
+    @store.add_backlog("test-optimization", "medium_spec.rb", priority: 500)
+    item = @store.claim_next("test-optimization")
+    assert_equal "slow_spec.rb", item[:item]
+  end
+
+  def test_claim_next_fifo_within_same_priority
+    @store.add_backlog("haml-migration", "a.haml", priority: 0)
+    @store.add_backlog("haml-migration", "b.haml", priority: 0)
+    item = @store.claim_next("haml-migration")
+    assert_equal "a.haml", item[:item]
+  end
+
   # --- Lock tests ---
 
   def test_acquire_lock_succeeds

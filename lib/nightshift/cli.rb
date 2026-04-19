@@ -210,9 +210,36 @@ module Nightshift
       abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
 
-      files = Dir.glob("#{repo_path}/#{config[:scan]}")
-      files.each { |f| store.add_backlog(skill, f.sub("#{repo_path}/", "")) }
-      puts "nightshift: scanned #{files.size} files for #{skill}"
+      if config[:inventory]
+        scan_from_inventory(skill, config, repo_path)
+      else
+        files = Dir.glob("#{repo_path}/#{config[:scan]}")
+        files.each { |f| store.add_backlog(skill, f.sub("#{repo_path}/", "")) }
+        puts "nightshift: scanned #{files.size} files for #{skill}"
+      end
+    end
+
+    def scan_from_inventory(skill, config, _repo_path)
+      inventory_path = config[:inventory]
+      abort "nightshift: inventory not found: #{inventory_path}" unless File.exist?(inventory_path)
+
+      entries = parse_inventory(File.read(inventory_path))
+      entries.each { |e| store.add_backlog(skill, e[:file], priority: e[:priority]) }
+      puts "nightshift: loaded #{entries.size} items from inventory (sorted by CI time)"
+    end
+
+    def parse_inventory(content)
+      entries = []
+      content.each_line do |line|
+        # Match inventory table rows: | U01 | `spec/path/file_spec.rb` | ... | 23.55s | ...
+        match = line.match(/\|\s*[US]\d+\s*\|\s*`([^`]+)`\s*\|[^|]*\|\s*([\d.]+)s\s*\|/)
+        next unless match
+        file = match[1]
+        time_s = match[2].to_f
+        # Priority = time in centiseconds (higher = slower = picked first)
+        entries << { file: file, priority: (time_s * 100).to_i }
+      end
+      entries
     end
 
     def cmd_backlog_list(args)
@@ -229,7 +256,8 @@ module Nightshift
         extra = ""
         extra = " PR##{item[:pr_number]}" if item[:pr_number]
         extra += " (#{item[:failure_reason]})" if item[:failure_reason]
-        puts "  #{icon} [#{item[:skill]}] #{item[:item]}#{extra}"
+        prio = item[:priority].to_i > 0 ? " p:#{item[:priority]}" : ""
+        puts "  #{icon} ##{item[:id]} [#{item[:skill]}] #{item[:item]}#{extra}#{prio}"
       end
       puts ""
       counts = items.group_by { |i| i[:status] }.transform_values(&:size)

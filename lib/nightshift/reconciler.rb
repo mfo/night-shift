@@ -81,6 +81,15 @@ module Nightshift
       @store.update_backlog_status(item[:id], "running", branch: branch)
 
       session = ENV.fetch("NIGHTSHIFT_SESSION")
+      skill_config = SKILLS[skill_name] || {}
+
+      # Allocate port for skills that need a local server
+      port = nil
+      if skill_config[:needs_server]
+        port = allocate_port
+        setup_worktree_server(wt_path, repo_path, port)
+      end
+
       system("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}", "-c", wt_path)
 
       # Get the window index of the just-created window and tag it
@@ -88,10 +97,39 @@ module Nightshift
       win_idx = out.lines.last&.strip
       system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@branch", branch)
 
-      # Send skill-run command directly via index (not via renderer lookup)
+      # Launch server in background pane if needed
+      if port
+        system("tmux", "split-window", "-t", "#{session}:#{win_idx}", "-v", "-l", "20%",
+               "-c", wt_path)
+        system("tmux", "send-keys", "-t", "#{session}:#{win_idx}.1",
+               "overmind start -f Procfile.sidekiq.dev", "Enter")
+        # Wait for server to be ready, then run skill in main pane
+        system("tmux", "select-pane", "-t", "#{session}:#{win_idx}.0")
+      end
+
+      # Send skill-run command
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
-      cmd = "#{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}"
-      system("tmux", "send-keys", "-t", "#{session}:#{win_idx}", cmd, "Enter")
+      env_prefix = port ? "NIGHTSHIFT_PORT=#{port}" : ""
+      cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
+      system("tmux", "send-keys", "-t", "#{session}:#{win_idx}.0", cmd, "Enter")
+    end
+
+    def allocate_port
+      # Find next available port based on active running skills
+      used_ports = @store.all_backlog.select { |i| i[:status] == "running" }.size
+      Nightshift::BASE_PORT + used_ports
+    end
+
+    def setup_worktree_server(wt_path, _repo_path, port)
+      vite_port = port + 100
+
+      # .env.development.local — overrides PORT for rails + vite
+      env_dev = File.join(wt_path, ".env.development.local")
+      File.write(env_dev, <<~ENV)
+        PORT=#{port}
+        VITE_RUBY_PORT=#{vite_port}
+        APP_HOST=localhost:#{port}
+      ENV
     end
 
     def list_worktree_branches

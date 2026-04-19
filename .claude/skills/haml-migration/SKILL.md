@@ -12,7 +12,7 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - Fichier à migrer : `$ARGUMENTS` (ex: `app/components/alert/alert_component.html.haml`)
 - Remote git pour push/PR : `origin`
 
-**⚠️ Règle Playwright** : ne JAMAIS naviguer en dehors de `localhost:3000`. Toutes les URLs doivent commencer par `http://localhost:3000/`.
+**⚠️ Règle Playwright** : ne JAMAIS naviguer en dehors de `localhost:$PORT`. Toutes les URLs doivent commencer par `http://localhost:$PORT/`.
 
 **⚠️ Règle Bash** : ne jamais utiliser de commandes qui déclenchent une approbation de sécurité. Concrètement :
 - Pas de `$()` (command substitution) — stocker dans une variable via un appel séparé
@@ -80,7 +80,7 @@ grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 ```
 Si absent → appliquer le skill `/dev-auto-login` (crée l'initializer + redémarre le serveur).
 
-**4. Lancer Playwright** — naviguer sur `localhost:3000` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
+**4. Lancer Playwright** — naviguer sur `localhost:$PORT` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
 
 **5. Configurer le viewport** — le viewport Playwright est `null` par défaut, ce qui fait crasher `page.viewportSize()`. Toujours appeler `browser_resize` (1280×800) juste après le premier `browser_navigate`.
 
@@ -108,7 +108,7 @@ Lancer le skill `/screenshot-gist NomDuComposant` pour créer le gist et cloner 
 ```bash
 grep -r "NomDuComposant\|render.*nom_du_composant" app/views/ app/components/
 ```
-Lister chaque point d'utilisation avec la page correspondante. Consulter `data/routes-reference.txt` pour trouver les URLs correctes (`localhost:3000/...`).
+Lister chaque point d'utilisation avec la page correspondante. Consulter `data/routes-reference.txt` pour trouver les URLs correctes (`localhost:$PORT/...`).
 
 **2. Sélectionner jusqu'à 3 points d'entrée** pour les screenshots :
 - **Préférer les pages réelles** = preuve plus forte qu'une page de démo
@@ -136,7 +136,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
      ```bash
      bundle exec rubocop -A spec/components/previews/nom_du_composant_preview.rb
      ```
-   - Visiter `localhost:3000/rails/view_components/nom_du_composant/default`
+   - Visiter `localhost:$PORT/rails/view_components/nom_du_composant/default`
    - Commiter le preview avec le commit de migration (il restera dans le projet — utile pour la suite)
 
    **c. Composant trop complexe** → skip UNIQUEMENT après avoir tenté au moins 3 approches :
@@ -350,9 +350,9 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
    ![erb](https://gist.githubusercontent.com/<user>/<gist-id>/raw/erb-usage1-component-1.png)
 
    **Couverture visuelle (X/Y utilisations) :**
-   - ✅ `localhost:3000/path/page1` — usage dans contexte A
-   - ✅ `localhost:3000/path/page2` — usage dans contexte B
-   - ⏭️ `localhost:3000/path/page3` — raison du skip
+   - ✅ `localhost:$PORT/path/page1` — usage dans contexte A
+   - ✅ `localhost:$PORT/path/page2` — usage dans contexte B
+   - ⏭️ `localhost:$PORT/path/page3` — raison du skip
 
    [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
 
@@ -369,7 +369,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 - [ ] Serveur vérifié (.overmind.sock présent)
 - [ ] Routes disponibles (`data/routes-reference.txt`, sinon `/rails-routes`)
 - [ ] Auto-login dev en place (`/dev-auto-login`)
-- [ ] Playwright lancé + navigation localhost:3000 OK
+- [ ] Playwright lancé + navigation localhost:$PORT OK
 - [ ] Viewport configuré (browser_resize 1280×800)
 - [ ] Gist créé via `/screenshot-gist` dans `tmp/<nom-composant>/`
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
