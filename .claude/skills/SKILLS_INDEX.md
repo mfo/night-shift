@@ -1,11 +1,12 @@
 # Skills Index
-<!-- Last updated: 2026-04-09 -->
+<!-- Last updated: 2026-04-17 -->
 
 ## Skills (`.claude/skills/`)
 
 | Name | Type | Description | Depends on | Files |
 |---|---|---|---|---|
 | bugfix | workflow | Investigate and fix bugs | review-3-amigos | SKILL.md, patterns.md |
+| challenge-all-modals | audit | Audit all modals, evaluate usage, propose alternatives | — | SKILL.md, problems.md, solutions.md, checklist.md |
 | create-pr | workflow | Create GitHub PR | — | SKILL.md |
 | dev-auto-login | utility | Setup dev auto-login | — | SKILL.md |
 | feature-spec | pipeline | Architecture spec (Phase 0) | review-3-amigos | SKILL.md, checklist.md, template.md, pitfalls/*.md |
