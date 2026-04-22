@@ -42,5 +42,28 @@ module Nightshift
       path = out.lines.first&.split&.first
       path&.sub(/^~/, Dir.home) || repo_path
     end
+
+    # Remove a worktree, its branch, and its test database
+    def cleanup(branch, repo_path: ENV.fetch("NIGHTSHIFT_REPO"))
+      wt_path = path_for_branch(branch, repo_path)
+
+      # Drop test database (mirrors post-checkout naming convention)
+      if wt_path
+        wt_name = File.basename(wt_path)
+        db_suffix = wt_name.sub(/^demarches-simplifiees\.fr-/, "").gsub("-", "_")
+        db_name = "tps_test_#{db_suffix}"
+        system("dropdb", "-U", "tps_test", "-h", "localhost", "--if-exists", db_name)
+      end
+
+      # Remove worktree (or orphan directory if git doesn't track it)
+      if wt_path
+        system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force")
+        FileUtils.rm_rf(wt_path) if Dir.exist?(wt_path)
+      end
+
+      # Delete branch
+      system("git", "-C", repo_path, "branch", "-D", branch, err: File::NULL)
+    end
+
   end
 end

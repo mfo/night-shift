@@ -51,17 +51,23 @@ module Nightshift
 
     def handle_done(item)
       @store.update_backlog_status(item[:id], "done")
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      wt_path = worktree_path_for_branch(repo_path, item[:branch])
-      system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force") if wt_path
+      Worktree.cleanup(item[:branch])
       @renderer.close_worktree(item[:branch])
     end
 
     def pick_next_items
+      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       SKILLS.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
         item = @store.claim_next(skill_name)
         next unless item
+
+        # Guard: skip if the target file no longer exists on main
+        unless system("git", "-C", repo_path, "cat-file", "-e", "HEAD:#{item[:item]}", err: File::NULL)
+          @store.update_backlog_status(item[:id], "skipped", failure_reason: "file_not_found")
+          next
+        end
+
         launch_skill(skill_name, item)
       end
     end
@@ -69,10 +75,13 @@ module Nightshift
     def launch_skill(skill_name, item)
       require "shellwords"
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      slug = item[:item].sub(%r{^app/}, "").gsub("/", "-").sub(/\.html\.haml$/, "").sub(/\.rb$/, "")
+      slug = short_slug(item[:item])
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
       wt_path = File.join(File.dirname(repo_path), wt_dir)
+
+      # Clean up stale branch/dir from previous failed attempts
+      Worktree.cleanup(branch)
 
       unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
         @store.update_backlog_status(item[:id], "failed", failure_reason: "worktree_error")
@@ -136,8 +145,15 @@ module Nightshift
       Worktree.branches
     end
 
-    def worktree_path_for_branch(_repo_path, branch)
-      Worktree.path_for_branch(branch)
+    # Fuzzy-readable slug: dir initials + filename
+    # spec/system/routing/rules_full_scenario_spec.rb → s-s-r-rules_full_scenario
+    # app/views/shared/dossiers/_demande.html.haml → v-s-d-_demande
+    def short_slug(path)
+      parts = path.sub(%r{^(app|spec)/}, "").split("/")
+      filename = parts.pop
+      filename = filename.sub(/(_spec)?\.rb$/, "").sub(/\.html\.haml$/, "")
+      dirs = parts.map { |d| d[0] }
+      (dirs + [filename]).join("-")
     end
 
     def on_transition(pr, old_state, new_state)

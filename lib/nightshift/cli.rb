@@ -48,7 +48,7 @@ module Nightshift
       renderer = Renderer.new
       reconciler = Reconciler.new(store: store, renderer: renderer)
       reconciler.reconcile(prs)
-      puts "Refreshed (#{prs.size} PRs fetched, worktree-centric)"
+      puts "#{Time.now.strftime('%H:%M:%S')} Refreshed (#{prs.size} PRs fetched, worktree-centric)"
     rescue GitHub::Error => e
       $stderr.puts e.message
     end
@@ -103,9 +103,7 @@ module Nightshift
 
     def cmd_close(args)
       branch = args.shift or abort("usage: nightshift close <branch>")
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
-      wt_path = Worktree.path_for_branch(branch)
 
       # Sync backlog: if item is running/pr_open, mark as failed
 
@@ -119,10 +117,8 @@ module Nightshift
       renderer = Renderer.new(session: session)
       renderer.close_worktree(branch)
 
-      # Remove worktree
-      if wt_path
-        system("git", "-C", repo_path, "worktree", "remove", wt_path, "--force")
-      end
+      # Remove worktree, branch, and test DB
+      Worktree.cleanup(branch)
       puts "nightshift: closed #{branch}"
     end
 
@@ -153,6 +149,9 @@ module Nightshift
         store.update_backlog_status(backlog_item[:id], "failed",
                                    failure_reason: result[:failure_reason])
         puts "nightshift: skill failed (#{result[:failure_reason]})"
+        SkillRunner.analyze_failure(skill, item: item_path,
+                                   worktree_path: worktree_path,
+                                   failure_reason: result[:failure_reason])
         return
       end
 
@@ -161,7 +160,10 @@ module Nightshift
       unless File.exist?(desc_path)
         store.update_backlog_status(backlog_item[:id], "failed",
                                    failure_reason: "no_pr_description")
-        puts "nightshift: skill succeeded but no .nightshift/pr-description.md"
+        puts "nightshift: skill succeeded but no pr-description.md"
+        SkillRunner.analyze_failure(skill, item: item_path,
+                                   worktree_path: worktree_path,
+                                   failure_reason: "no_pr_description")
         return
       end
 

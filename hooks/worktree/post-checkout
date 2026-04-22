@@ -102,6 +102,23 @@ else
   }
 fi
 
+# Copier .claude/ depuis night-shift (source de vérité pour skills, settings)
+# Exclure agents/ — nightshift gère l'orchestration, pas les agents Claude
+nightshift_claude="${NIGHTSHIFT_DIR:-$HOME/dev/night-shift}/.claude"
+claude_target="$worktree_path/.claude"
+
+if [ -d "$nightshift_claude" ]; then
+  mkdir -p "$claude_target"
+  for item in "$nightshift_claude"/*; do
+    name=$(basename "$item")
+    [ "$name" = "agents" ] && continue
+    cp -r "$item" "$claude_target/"
+  done
+  echo "==> .claude/ copié depuis night-shift (skills, settings — sans agents)"
+else
+  echo "⚠️  night-shift/.claude/ non trouvé ($nightshift_claude)"
+fi
+
 # Installation des dépendances
 cd "$worktree_path"
 
