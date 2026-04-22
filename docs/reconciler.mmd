@@ -1,0 +1,73 @@
+---
+title: Reconciler — Transitions & Side Effects
+---
+stateDiagram-v2
+    direction TB
+
+    state "PR Reconciliation" as pr_recon {
+        [*] --> fetch_prs: GitHub.fetch_prs
+        fetch_prs --> filter: worktree-centric filter
+        filter --> reconcile_pr: for each active PR
+        reconcile_pr --> check_transition: state changed?
+
+        check_transition --> on_transition: yes & not locked
+        check_transition --> update_window: no
+        on_transition --> update_window
+
+        state "on_transition" as on_transition {
+            [*] --> ci_red: → ci_red
+            [*] --> approved: → approved
+            [*] --> has_comments: → has_comments / changes_requested
+            [*] --> ci_green: ci_red → ci_green
+            [*] --> merged: → merged / deployed
+
+            ci_red --> autofix: renderer.autofix
+            approved --> propose_merge: renderer.propose_merge
+            has_comments --> show_comments: renderer.show_comments
+            ci_green --> notify_fixed: renderer.notify_fixed
+            merged --> propose_cleanup: renderer.propose_cleanup
+        }
+    }
+
+    state "Skill Reconciliation" as skill_recon {
+        [*] --> scan_backlog: store.all_backlog
+
+        scan_backlog --> check_pr_open: status = pr_open
+        check_pr_open --> handle_done: PR merged on GitHub
+        handle_done --> done_effects
+
+        state "handle_done side effects" as done_effects {
+            [*] --> mark_done: store → done
+            mark_done --> cleanup_wt: Worktree.cleanup(branch)
+            cleanup_wt --> close_window: renderer.close_worktree
+        }
+
+        scan_backlog --> check_running: status = running
+        check_running --> zombie: worktree gone?
+        zombie --> mark_failed: store → failed (zombie_recovered)
+
+        scan_backlog --> pick_next: pick_next_items
+        pick_next --> check_active: active_for_skill?
+        check_active --> skip: yes (1 per skill)
+        check_active --> claim: no → store.claim_next
+        claim --> launch_skill
+    }
+
+    state "launch_skill" as launch {
+        [*] --> cleanup_stale: Worktree.cleanup(branch)
+        cleanup_stale --> git_worktree_add: git worktree add -b
+        git_worktree_add --> worktree_error: fail
+        git_worktree_add --> mark_running: success → store → running
+        worktree_error --> mark_wt_failed: store → failed (worktree_error)
+
+        mark_running --> setup_server: needs_server?
+        setup_server --> tmux_window: tmux new-window
+        mark_running --> tmux_window
+
+        tmux_window --> tag_window: @branch = branch
+        tag_window --> split_pane: server pane (if port)
+        tag_window --> send_skill_run: nightshift skill-run
+        split_pane --> send_skill_run
+    }
+
+    pr_recon --> skill_recon: reconcile_skills(active_prs)

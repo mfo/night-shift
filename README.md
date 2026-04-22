@@ -65,12 +65,29 @@ Chaque git worktree = une fenêtre tmux, nommée avec le statut PR en temps rée
 ### Commandes
 
 ```bash
+# Session tmux
 nightshift attach              # Crée/rattache la session tmux depuis les worktrees
 nightshift refresh             # Met à jour les statuts PR sur toutes les fenêtres
 nightshift status              # Tableau stdout (sans tmux)
 nightshift watch               # Refresh continu (toutes les 2 min)
-nightshift diagnose            # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
-nightshift autofix             # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
+nightshift auto                # refresh + watch (raccourci)
+nightshift brief               # Morning brief : actions requises, changements, suggestions
+
+# CI
+nightshift diagnose <pr>       # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
+nightshift autofix <pr>        # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
+nightshift merge <pr>          # Auto-merge squash via gh
+
+# Worktrees
+nightshift open <branch>       # Crée un worktree + fenêtre tmux
+nightshift close <branch>      # Supprime worktree, branche, DB test, fenêtre tmux
+
+# Backlog (skills auto)
+nightshift backlog list [skill]  # Liste les items du backlog
+nightshift backlog add <skill> <item>   # Ajoute un item au backlog
+nightshift backlog scan <skill>  # Scan le repo et alimente le backlog
+nightshift backlog skip <id>     # Marque un item failed comme skipped
+nightshift skill-run <skill> <item>  # Lance un skill dans le worktree courant (usage interne)
 ```
 
 ### autofix
@@ -114,7 +131,15 @@ Dépendances : `tmux`, `gh`, `git`. Optionnel : `claude` (pour autofix specs).
 
 ```
 night-shift/
-├── bin/nightshift                     # Orchestrateur tmux
+├── bin/nightshift                     # Orchestrateur tmux (bash)
+├── bin/nightshift-rb                  # CLI Ruby (commandes métier)
+├── lib/nightshift/                    # Code Ruby
+│   ├── cli.rb                         # Dispatch des commandes
+│   ├── reconciler.rb                  # Boucle reconciliation PR + skills auto
+│   ├── skill_runner.rb                # Lancement claude -p + kaizen auto sur échec
+│   ├── worktree.rb                    # Gestion worktrees (create, cleanup, DB)
+│   ├── store.rb                       # SQLite (backlog, PRs)
+│   └── ...
 ├── .claude/skills/                    # Skills (le livrable principal)
 │   ├── haml-migration/                # POC 1
 │   ├── test-optimization/             # POC 2
@@ -126,15 +151,18 @@ night-shift/
 │   ├── harden-pentest/                # POC 5 — Explorer une surface d'attaque
 │   ├── harden-audit/                  # POC 5 — Qualifier une faille
 │   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
+│   ├── pr-description/                # Transversal — Génère pr-description.md
+│   ├── create-pr/                     # Transversal — Push + gh pr create
 │   ├── kaizen/                        # Transversal — write + synth
 │   └── review-3-amigos/              # Transversal — Review PM+UX+Dev
 │
+├── hooks/worktree/post-checkout       # Hook : DB isolée + copie .claude/ dans les worktrees
 ├── epics/                             # Vision et roadmap
 ├── pocs/                              # Data projet par POC (setup, specs, inventaires)
 ├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix)
 ├── kaizen/                            # Learnings par itération
 ├── specs/                             # Specs techniques ponctuelles
-└── hooks/                             # Hooks git (worktree DB)
+└── docs/                              # Diagrammes (reconciler.mmd)
 ```
 
 Chaque POC a un numéro aligné entre skills, pocs/ et kaizen/ (ex: `2-test-optimization`).
