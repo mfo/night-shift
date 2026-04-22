@@ -41,10 +41,13 @@ Basé sur le contexte de la session, proposer où ranger le kaizen :
 Créer `~/dev/night-shift/kaizen/<catégorie>/YYYY-MM-DD-<titre>.md` avec le template (`kaizen/templates/task.md`).
 Pré-remplir "Ce qui s'est passé" à partir de la session.
 
-#### 3. Poser UNE question
+#### 3. Lire les logs claude (si run auto)
+Si `tmp/claude-{skill}.log` existe dans le worktree, le lire pour identifier la **cause racine** de l'échec — pas juste le symptôme. Remonter au code d'infra (hooks, runner, settings) quand le symptôme est "fichier introuvable", "skill inconnu", ou "permission denied".
+
+#### 4. Poser UNE question
 "Qu'est-ce que tu as appris ?"
 
-#### 4. Lister les permissions bloquantes
+#### 5. Lister les permissions bloquantes
 Parcourir la session et lister les permissions qui ont été demandées interactivement. Les ajouter comme action dans le Post-it :
 - Ex: `- [ ] Ajouter permission Bash(bun lint:herb:*) dans allowed-tools du skill`
 

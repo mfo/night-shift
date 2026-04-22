@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: "Migrate HAML to ERB with visual validation. Use when user says 'migrate haml', 'convert to erb', or provides a .haml file."
-allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
 ---
 
 # Migration HAML → ERB
@@ -20,8 +20,9 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - Pas de pipes complexes (`cmd1 | cmd2`) — découper en étapes
 - 1 commande simple = 1 appel Bash
 - **Repo cible** : ne JAMAIS utiliser `git -C` — le working directory est déjà le repo cible, exécuter `git mv`, `git add`, `git commit`, etc. directement.
-- **Ne JAMAIS utiliser `rm`** — aucune suppression de fichier n'est nécessaire dans ce workflow.
+- **Remplacement du HAML** : utiliser `git mv fichier.html.haml fichier.html.erb` pour renommer, puis écraser le contenu avec l'ERB généré. Un seul commit propre, pas de suppression séparée.
 - **Rebase** : pour les rebase interactifs : `git rebase --continue`.
+- **Permission refusée** : si une commande est refusée, ne JAMAIS réessayer la même commande. Chercher une alternative ou abandonner.
 
 ---
 
