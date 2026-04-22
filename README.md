@@ -1,231 +1,144 @@
-# Hooks Worktree - Isolation des Bases de Données
+# Night Shift — Workflows de développement avec IA
 
-## Problème
-
-Quand on travaille avec des git worktrees pour isoler différentes tâches (POCs, features, migrations), on a besoin que chaque worktree ait sa propre base de données de test.
-
-**Sans isolation :**
-- Tous les worktrees partagent la même DB test
-- Les tests d'un worktree peuvent casser ceux d'un autre
-- Impossible de travailler sur plusieurs tâches en parallèle
-
-**Avec isolation :**
-- Chaque worktree a sa propre DB : `tps_test_poc_haml`, `tps_test_poc_bugs`, etc.
-- Les tests sont complètement isolés
-- On peut lancer des tests en parallèle sans conflit
+**Statut :** Démonstrateur — Exploration et apprentissage en cours (N=1)
 
 ---
 
-## Solution : Hook post-checkout
+## L'idée
 
-Le hook `post-checkout` s'exécute automatiquement après chaque checkout de branche dans un worktree.
+Développer sur des projets complexes = tâches répétitives, règles à respecter, charge mentale constante. Peut-on déléguer certaines de ces tâches à un agent IA ?
 
-**Ce qu'il fait :**
-1. Détecte qu'on est dans un worktree (pas le repo principal)
-2. Génère un nom de DB unique basé sur le nom du worktree
-3. Crée un fichier `.env.test.local` avec la config DB spécifique
-4. Crée la DB PostgreSQL si elle n'existe pas
-5. Charge le schema Rails dans la nouvelle DB
+Pas tout automatiser d'un coup. Juste : choisir UNE tâche, créer un prompt, observer ce qui marche, améliorer, répéter.
+
+## Approche
+
+1. Choisir 1 tâche répétitive
+2. Créer un skill (prompt + checklist + patterns)
+3. Tester, observer, documenter (kaizen)
+4. Améliorer le skill avec les learnings
+5. Passer à la tâche suivante
+
+## Projet exemple : demarches-simplifiees.fr
+
+Application Rails, ~30 000 commits, contraintes fortes (RGAA, sécurité, GraphQL).
+
+| POC | Skill | Description |
+|---|---|---|
+| 1 | `haml-migration` | Migration HAML → ERB |
+| 2 | `test-optimization` | Optimisation tests lents |
+| 3 | `bugfix` | Investigation + correction bugs |
+| 4 | `feature-*` | Workflow features en 4 phases (spec → plan → impl → review) |
+| 5 | `harden-*` | Sécurité applicative (pentest → audit → fix) |
+
+## Utiliser un skill
+
+Les skills sont des slash commands. Lancer Claude Code dans le projet cible :
+
+```bash
+/haml-migration app/views/path/to/file.html.haml
+/test-optimization spec/models/dossier_spec.rb
+/bugfix <description ou lien Sentry>
+/feature-spec → /feature-plan → /feature-implementation → /feature-review
+/harden-pentest <surface d'attaque> → /harden-audit → /harden-fix audits/YYYY-MM-DD-slug-audit.md
+```
+
+Après une session : `/kaizen write`. Pour améliorer les skills : `/kaizen synth`.
+
+Review transversale : `/review-3-amigos <spec, plan, ou PR diff>`.
+
+## `bin/nightshift` — Orchestrateur de PRs
+
+Suivre ses PRs depuis son terminal. Les faire avancer sans y penser.
+
+Chaque git worktree = une fenêtre tmux, nommée avec le statut PR en temps réel.
+
+```
+  📦 main
+  🟢 #12933 cleanup-old-referentiel
+  🔴 #12931 cleanup-nature-step3
+  ✅ #12930 cleanup-nature-step2
+  ⏳ #12929 fix-xss-service-links
+  💬 #12811 haml-migration (3)
+  🗑 #12173 homogenize-preview
+```
+
+### Commandes
+
+```bash
+nightshift attach              # Crée/rattache la session tmux depuis les worktrees
+nightshift refresh             # Met à jour les statuts PR sur toutes les fenêtres
+nightshift status              # Tableau stdout (sans tmux)
+nightshift watch               # Refresh continu (toutes les 2 min)
+nightshift diagnose            # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
+nightshift autofix             # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
+```
+
+### autofix
+
+Quand une PR est rouge, `autofix` prépare le déblocage :
+
+1. **System tests** — relance les jobs flaky (1 retry max)
+2. **Specs** — délègue le fix à `claude -p` (Read, Edit, rspec — max 20 turns)
+3. **Linters** — rubocop -A, herb, apostrophe, yaml (en dernier, nettoie ce que claude a pu casser)
+4. **Vérification** — relance les specs et linters pour confirmer
+5. **Résumé** — diff coloré des fichiers modifiés
+
+Le commit et le push restent manuels. Se lance automatiquement dans le pane tmux quand une PR passe au rouge.
+
+### Iconographie
+
+| Icône | Signification | Action |
+|---|---|---|
+| 🔨 | Pas de PR | En construction |
+| ⏳ | CI en cours | Attendre |
+| 🟢 | CI verte, en review | Attendre review |
+| 🔴 | CI rouge | Fixer (autofix) |
+| 💬 | Commentaires de review | Lire et adresser |
+| ⛔ | Changes requested | Corriger |
+| ✅ | Approved | Merger |
+| 🗑 | Mergée | Worktree supprimable |
+| ⊘ | Fermée | Worktree supprimable |
+
+### Configuration
+
+```bash
+export NIGHTSHIFT_REPO=~/dev/mon-projet       # Repo cible (défaut: ~/dev/demarches-simplifiees.fr)
+export NIGHTSHIFT_SESSION=nightshift           # Nom de session tmux
+export NIGHTSHIFT_WATCH_INTERVAL=120           # Intervalle de refresh en secondes
+export NIGHTSHIFT_DEBUG=1                      # Mode debug (verbose, bypass circuit breaker)
+```
+
+Dépendances : `tmux`, `gh`, `git`. Optionnel : `claude` (pour autofix specs).
+
+## Structure
+
+```
+night-shift/
+├── bin/nightshift                     # Orchestrateur tmux
+├── .claude/skills/                    # Skills (le livrable principal)
+│   ├── haml-migration/                # POC 1
+│   ├── test-optimization/             # POC 2
+│   ├── bugfix/                        # POC 3
+│   ├── feature-spec/                  # POC 4 — Phase 0
+│   ├── feature-plan/                  # POC 4 — Phase 1
+│   ├── feature-implementation/        # POC 4 — Phase 2
+│   ├── feature-review/                # POC 4 — Phase 3
+│   ├── harden-pentest/                # POC 5 — Explorer une surface d'attaque
+│   ├── harden-audit/                  # POC 5 — Qualifier une faille
+│   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
+│   ├── kaizen/                        # Transversal — write + synth
+│   └── review-3-amigos/              # Transversal — Review PM+UX+Dev
+│
+├── epics/                             # Vision et roadmap
+├── pocs/                              # Data projet par POC (setup, specs, inventaires)
+├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix)
+├── kaizen/                            # Learnings par itération
+├── specs/                             # Specs techniques ponctuelles
+└── hooks/                             # Hooks git (worktree DB)
+```
+
+Chaque POC a un numéro aligné entre skills, pocs/ et kaizen/ (ex: `2-test-optimization`).
 
 ---
 
-## Installation
-
-### 1. Créer le worktree
-
-```bash
-cd /path/to/demarche.numerique.gouv.fr
-git worktree add -b poc-haml ../demarche.numerique.gouv.fr-poc-haml main
-```
-
-### 2. Installer le hook dans le worktree
-
-```bash
-cd ../demarche.numerique.gouv.fr-poc-haml
-
-# Créer le répertoire des hooks
-mkdir -p .githooks
-
-# Copier le hook
-cp /path/to/night-shift/hooks/worktree/post-checkout .githooks/
-
-# Rendre exécutable
-chmod +x .githooks/post-checkout
-
-# Configurer git pour utiliser .githooks
-git config core.hooksPath .githooks
-```
-
-### 3. Tester
-
-```bash
-# Checkout d'une branche pour déclencher le hook
-git checkout -b test-hook
-
-# Vérifier que la DB a été créée
-psql -U tps_test -h localhost -l | grep tps_test_poc_haml
-
-# Vérifier .env.test.local
-cat .env.test.local
-```
-
-**Sortie attendue :**
-```
-==> Worktree détecté: demarche.numerique.gouv.fr-poc-haml
-==> Configuration de la base de données: tps_test_poc_haml
-==> Création de la base de données tps_test_poc_haml
-==> Chargement du schema dans tps_test_poc_haml
-✓ Configuration worktree terminée!
-  → Base de données: tps_test_poc_haml
-  → Config: .env.test.local
-```
-
----
-
-## Configuration
-
-Le hook utilise ces conventions de nommage :
-
-**Format du worktree :**
-```
-demarche.numerique.gouv.fr-{suffixe}
-```
-
-**Nom de la DB généré :**
-```
-tps_test_{suffixe_avec_underscores}
-```
-
-**Exemples :**
-| Nom du worktree | DB créée |
-|-----------------|----------|
-| `demarche.numerique.gouv.fr-poc-haml` | `tps_test_poc_haml` |
-| `demarche.numerique.gouv.fr-poc-bugs` | `tps_test_poc_bugs` |
-| `demarche.numerique.gouv.fr-migration-phase2` | `tps_test_migration_phase2` |
-
----
-
-## Prérequis
-
-**PostgreSQL configuré :**
-```bash
-# Créer l'utilisateur test si nécessaire
-createuser -s tps_test
-
-# Vérifier que psql fonctionne
-psql -U tps_test -h localhost -l
-```
-
-**Rails configuré :**
-- Fichier `.env.test` avec config DB par défaut
-- `config/database.yml` qui lit les variables d'env
-
----
-
-## Dépannage
-
-### Le hook ne s'exécute pas
-
-```bash
-# Vérifier que le hook est exécutable
-ls -la .githooks/post-checkout
-
-# Vérifier la config git
-git config core.hooksPath
-
-# Forcer l'exécution manuelle
-.githooks/post-checkout prev_head new_head 1
-```
-
-### La DB ne se crée pas
-
-```bash
-# Vérifier les credentials PostgreSQL
-psql -U tps_test -h localhost -c "SELECT 1"
-
-# Créer la DB manuellement
-createdb -U tps_test -h localhost tps_test_poc_haml
-
-# Charger le schema
-RAILS_ENV=test bundle exec rails db:schema:load
-```
-
-### .env.test.local n'est pas pris en compte
-
-```bash
-# Vérifier que dotenv charge .env.test.local
-cat config/application.rb | grep Dotenv
-
-# Vérifier l'ordre de chargement (doit être après .env.test)
-# .env.test.local doit override .env.test
-```
-
----
-
-## Nettoyage
-
-### Supprimer un worktree
-
-```bash
-# Depuis le repo principal
-cd /path/to/demarche.numerique.gouv.fr
-git worktree remove ../demarche.numerique.gouv.fr-poc-haml
-
-# Supprimer la DB associée
-dropdb -U tps_test -h localhost tps_test_poc_haml
-```
-
-### Lister toutes les DBs de worktrees
-
-```bash
-psql -U tps_test -h localhost -l | grep tps_test_
-```
-
-### Supprimer toutes les DBs de worktrees
-
-```bash
-# ATTENTION: Supprime toutes les DBs commençant par tps_test_
-psql -U tps_test -h localhost -l -t | cut -d '|' -f 1 | grep tps_test_ | xargs -I {} dropdb -U tps_test -h localhost {}
-```
-
----
-
-## Intégration avec Night Shift
-
-Ce hook est un **building block** du projet Night Shift.
-
-**Pourquoi c'est critique :**
-- Les agents IA travaillent dans des worktrees isolés
-- Chaque POC doit avoir sa propre DB de test
-- Sans isolation, un POC peut casser les tests d'un autre
-- Permet de lancer plusieurs agents en parallèle
-
-**Workflow Night Shift :**
-1. Créer un worktree pour le POC : `git worktree add -b poc-X ...`
-2. Le hook configure automatiquement la DB isolée
-3. L'agent IA travaille dans un environnement propre
-4. Les tests du POC n'interfèrent pas avec le repo principal
-5. Cleanup facile : `git worktree remove` + `dropdb`
-
----
-
-## Améliorations Possibles
-
-**Automatiser l'installation :**
-```bash
-# Script bin/worktree-create qui :
-# 1. Crée le worktree
-# 2. Installe le hook automatiquement
-# 3. Configure git hooks path
-# 4. Vérifie la DB
-```
-
-**Support d'autres SGBD :**
-- MySQL : adapter les commandes createdb/dropdb
-- SQLite : créer un fichier DB unique par worktree
-
-**Cleanup automatique :**
-- Hook post-worktree-remove qui supprime la DB
-- Script qui détecte les DBs orphelines
-
----
+*On ne construit pas un outil, on apprend à construire des workflows. L'échec fait partie du processus.*

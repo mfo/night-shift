@@ -1,6 +1,6 @@
 # Epic 2 : Orchestrateur Night Shift
 
-**Status :** En cours — Phase 1 ✅, Phase 1.5 ✅, Phase 2 ✅, Phase 3 en cours
+**Status :** En cours — Phase 1 livrée, Phase 1.5 livrée, Phase 2 prête à implémenter
 
 ---
 
@@ -91,111 +91,104 @@ Retours intégrés, basés sur l'analyse des 64 PRs produites :
 
 ---
 
-## Phase 2 : CI Reactor ✅
+## Phase 2 : CI Reactor (prêt à implémenter)
 
-### Livré
+### Concept
 
-- **`nightshift autofix`** — pipeline séquentiel : retry system tests → fix specs (`claude -p`) → fix linters (rubocop, herb, apostrophe, yaml) → vérification → diff coloré. Pas de commit/push automatique.
-- **`nightshift brief`** — morning brief : actions requises, changements depuis le dernier brief, résumé, suggestion. Auto-lancé sur main à l'attach.
-- **Badges combinés** — `🔴💬(1)` au lieu d'un seul emoji, CI rouge prime sur les reviews.
-- **PR cache** — `fetch_all_prs_cached()` (60s TTL), évite les appels GitHub dupliqués.
-- **Auto-triggers** — autofix lancé automatiquement sur transition vers 🔴 (attach + refresh).
-
-### Guardrails livrés
-
-- Circuit breaker : max 2 autofix par PR par heure (bypass en mode debug)
-- Claude -p : allowedTools restrictif (Read, Edit, Bash rspec), max 20 turns
-- Spinner avec logs dans `tmp/claude.log`
-- Commande claude complète affichée pour visibilité
-
-### Backlog (reporté)
-
-| Feature | Raison |
-|---|---|
-| Event-driven `gh run watch` | Polling 2min suffisant, watch consomme trop d'API |
-| Notifications macOS (`osascript`) | Pas nécessaire tant qu'on est dans tmux |
-| State file (`state.json`) | État tmux suffit pour l'instant, à revoir au refacto Rust |
-
----
-
-## Phase 3 : Cycle de vie complet
-
-### Vision
-
-Nightshift passe d'observateur à gestionnaire du cycle de vie PR :
+Un agent réactif qui gère le cycle CI pour toutes les PRs ouvertes. Le `diagnose` fait le triage, le reactor exécute la réaction.
 
 ```
-nightshift start <branch>
-    ... travail, PR, CI, review ...
-    refresh : 💬/⛔ → affiche les review comments dans le pane
-    refresh : ✅ → active merge when ready
-    refresh : 🗑 → check release → 🚀 (deployed)
-nightshift clean <branch>
+CI rouge → diagnose (Phase 1.5)
+  → SI linter only     → autofix + commit + push (automatique)
+  → SI system test     → retry 1x (gh run rerun --job)
+  → SI system test 2x  → notification "vrai bug"
+  → SI unit test       → notification + contexte pré-chargé
+  → SI CodeQL          → notification sécurité — escalade humain
 ```
 
-### Nouvelles icônes
+### Priorités d'implémentation
 
-| Icône | Signification | Action |
-|---|---|---|
-| 🚀 | Déployée en prod | Cleanup possible |
-
-### Priorités
-
-| # | Feature | Commande/Trigger | Description |
+| Priorité | Feature | Effort | Gain estimé |
 |---|---|---|---|
-| **1** | Créer worktree | `nightshift start <branch>` | `git worktree add` + `tmux new-window` immédiat |
-| **2** | Merge when ready | Auto sur ✅ au refresh | `gh pr merge --auto --squash` |
-| **3** | Review comments | Auto sur 💬/⛔ au refresh | Afficher review comments + conversation dans le pane |
-| **4** | Detect deploy | Auto sur 🗑 au refresh | Checker si `#num` dans une release GitHub → 🚀 |
-| **5** | Cleanup worktree | `nightshift clean <branch>` | `git worktree remove` + `tmux kill-window` |
+| **P0** | `nightshift autofix` — linters | 2-3h | ~30-40% des CI rouges éliminés |
+| **P1** | Retry system tests flaky (1 retry max) | 1h | Faux positifs éliminés |
+| **P2** | `gh run watch` par fenêtre (event-driven) | 2h | Réaction en 5-10s au lieu de 0-120s |
+| **P3** | Notifications macOS (`osascript`) | 1h | Push au lieu de pull |
+| **P4** | State file (`~/.nightshift/state.json`) | 2h | Transitions, métriques, circuit breaker |
 
-### Backlog (non priorisé)
+### P0 : Autofix linters
 
-- **Stacked PRs** : `nightshift stack` / `nightshift restack` — rebase en cascade
-- **Autonomie** : `claude -p` headless, Docker isolation, boucle kaizen auto
+```bash
+cmd_autofix():
+  1. diagnose → détecter le type d'échec
+  2. si linter only :
+     - cd worktree
+     - bundle exec rubocop -a
+     - bun lint:herb --fix
+     - bundle exec rake lint:apostrophe:fix
+     - bundle exec rake lint:yaml_newline:fix
+  3. si fichiers modifiés :
+     - git add + commit "fix(lint): autofix linter offenses"
+     - git push
+  4. sinon : rien à fixer, problème ailleurs
+```
+
+### P1 : Retry system tests
+
+```bash
+# Si catégorie == SYSTEM TEST et @retry_count < 1 :
+gh run rerun --job $job_id
+tmux set-option @retry_count 1
+# Si 2e échec : notification, pas de retry
+```
+
+### P2 : Event-driven au lieu de polling
+
+Remplacer le polling global par un watcher ciblé par PR active :
+```bash
+# Pour chaque fenêtre ⏳ (CI running) :
+gh run watch <run-id> --exit-status; nightshift refresh
+```
+Réaction en 5-10s après la fin du CI au lieu de 0-120s.
+
+### Guardrails (avant tout automatisme)
+
+- **Circuit breaker** : max 2 tentatives autofix par PR par heure
+- **Sémaphore** : max 1 `claude -p` actif à la fois (si Phase 3)
+- **Timeout** : 300s max par opération automatique
+- **Dry-run par défaut** pour `claude -p` : proposer le fix, attendre validation
+- **Logs structurés** : `~/.nightshift/log/` avec timestamp, action, PR, résultat
+- **Métriques** : `~/.nightshift/metrics.jsonl` (append-only) pour mesurer l'impact
 
 ---
 
-## Phase 4 : Nightshift v2 — Migration Ruby
+## Phase 3 : Stacked PRs + Autonomie (backlog)
 
-### Lot 1 : Socle Ruby + parité fonctionnelle ✍️
+### Stacked PRs
 
-Spec : `specs/2026-04-18-nightshift-v2-ruby-spec.md`
+Pattern récurrent (ex: #12927→#12929→#12930→#12931→#12933). Le coût de rebase en cascade est un multiplicateur de douleur.
 
-Migration bash → Ruby : reconciliation loop, Sequel/SQLite, pattern matching, tests unitaires. Parité des 8 commandes.
+```bash
+nightshift stack       — visualiser les chaînes de PRs (via depends_on dans le body)
+nightshift restack     — rebase en cascade quand une PR parente est mergée
+```
 
-### Lot 1.5 : Cycle de vie worktree + Skills supervisés (TODO — spec à rédiger)
+- Détection : parser `depends_on: #\d+` dans les descriptions de PR
+- Rebase : `git rebase main && git push --force-with-lease` (jamais `--force` nu)
+- Alerte dans `refresh` : si une PR parente est mergée, indiquer `↑ rebase needed`
 
-Fermer la boucle : nightshift gère le cycle de vie complet d'un worktree/PR et peut piloter des skills existants.
+### Morning briefing
 
-- `nightshift open <branch>` : crée worktree + fenêtre tmux + PR draft
-- `nightshift close <branch>` : merge/cleanup worktree + kill fenêtre tmux
-- **Skill runner** : exécuter un skill Claude Code dans un worktree supervisé
-  - Deux skills pilotes : `haml-migration`, `test-optimization`
-  - Suivi du run dans `runs` (lock, circuit breaker, résultat)
-  - Logs capturés, diff affiché en fin de run
-- Réconciliation : détecter quand un skill a terminé, proposer commit/push
+```bash
+nightshift brief       — résumé au premier attach de la journée
+```
 
-### Lot 2 : SupervisedSkill + Eval (TODO — spec à rédiger)
+### Autonomie
 
-- `SupervisedSkill` : claude -p executor + ollama judge + retry loop
-- Eval system : fixtures par skill, baseline scores, régression detection
-- Kaizen auto-loop : extraire learnings, améliorer SKILL.md
-- Utilise `Store` pour persister jobs, scores, kaizens
-
-### Lot 3 : Event sources + concurrence (TODO — spec à rédiger)
-
-- Multi-source polling (GitHub, Sentry, YWH)
-- `Async` gem pour concurrence non-bloquante
-- Priority queue pour les events
-- `nightshift ingest <source> <url>`
-
-### Lot 4 : Renderer découplé (TODO — spec à rédiger)
-
-- Interface `Renderer` abstraite
-- `TmuxRenderer` (actuel)
-- `SwiftBridgeRenderer` (Unix socket → app macOS native)
-- `StdoutRenderer` (debug/CI)
+- `claude -p` pour fixer les unit tests (avec `--allowedTools` restrictif)
+- Lancement automatique de skills depuis un inventaire (ancien design de queue)
+- Docker isolation pour `claude -p` headless
+- Boucle kaizen automatique (PR review comments → amélioration skills)
 
 ---
 
@@ -208,4 +201,4 @@ Fermer la boucle : nightshift gère le cycle de vie complet d'un worktree/PR et 
 | Ollama/Gemma triage | Overkill pour du polling `gh` |
 | launchd scheduling | `nightshift watch` / `gh run watch` suffisent |
 | Docker (Phase 1-2) | Reporté en Phase 3, pas bloquant |
-| Polling global toutes les 2 min | Polling 2min suffisant, `gh run watch` consomme trop d'API |
+| Polling global toutes les 2 min | Remplacé par `gh run watch` event-driven (Phase 2) |
