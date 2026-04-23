@@ -7,6 +7,8 @@ allowed-tools:
   - Grep
   - Edit
   - Bash(bundle exec:*)
+  - Bash(.claude/skills/test-optimization/coverage.sh:*)
+  - Bash(git -C:*)
   - Bash(git add:*)
   - Bash(git commit:*)
   - Bash(git diff:*)
@@ -18,7 +20,6 @@ allowed-tools:
   - Bash(bundle install)
   - Bash(bundle check)
   - Bash(cat coverage/:*)
-  - Bash(rm -f coverage/:*)
   - Agent
   - Write(pr-description.md)
   - Skill(pr-description)
@@ -46,7 +47,7 @@ allowed-tools:
 Suivre `quickstart.md` Phase 1 : créer le worktree, afficher la commande `cd + claude` à l'utilisateur, puis **STOP**. Ne pas continuer.
 
 **Si on est dans un worktree** :
-Suivre `quickstart.md` Phase 2 (bundle, db:test:prepare, spring start), puis enchaîner sur l'étape 1.
+Suivre `quickstart.md` Phase 2 (spring start uniquement — le hook post-checkout a déjà fait bundle/DB), puis enchaîner sur l'étape 1.
 
 ### Étape 1 : Profiler (baseline locale)
 
@@ -84,8 +85,7 @@ Pour chaque technique du catalogue (communes + system si `spec/system/`) :
    - Si un test casse → rollback et passer à la technique suivante.
    - **Vérifier la coverage si :** du code source (`app/`) a été modifié, OU des `it`/`describe` ont été supprimés/fusionnés (risque de perdre un cas couvert). **Skip le run coverage** pour les refactors setup-only (let_it_be, let! → let, before_all, aggregate_failures…) qui ne changent pas les cas testés.
    ```bash
-   rm -f coverage/.resultset.json
-   COVERAGE=true bundle exec spring rspec spec/path/to/file_spec.rb
+   .claude/skills/test-optimization/coverage.sh spec/path/to/file_spec.rb
    ```
    - Comparer la coverage avec la baseline courante (initiale à l'étape 1, puis mise à jour après chaque commit). **Toute baisse = rollback immédiat.**
 3. **Mesurer le gain** (1 warm-up + 3 runs, médiane, **SANS** `COVERAGE=true` — l'overhead fausserait les temps) :

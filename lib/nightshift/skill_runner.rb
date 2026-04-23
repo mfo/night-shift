@@ -1,5 +1,6 @@
 require "open3"
 require "shellwords"
+require "yaml"
 
 module Nightshift
   module SkillRunner
@@ -14,13 +15,14 @@ module Nightshift
 
       puts "── SKILL #{skill_name} — #{item} ──────────────────────"
 
-      claude_ok = run_with_tee(
-        "claude", "-p", prompt,
-        "--permission-mode", "acceptEdits",
-        "--output-format", "stream-json",
-        "--verbose", "--max-turns", "200",
-        log_path: log_path, chdir: worktree_path
-      )
+      allowed = extract_allowed_tools(skill_name, worktree_path)
+      cmd = ["claude", "-p", prompt,
+             "--permission-mode", "acceptEdits",
+             "--output-format", "stream-json",
+             "--verbose", "--max-turns", "200"]
+      cmd += ["--allowedTools", *allowed] if allowed.any?
+
+      claude_ok = run_with_tee(*cmd, log_path: log_path, chdir: worktree_path)
 
       commits, = Open3.capture2("git", "log", "main..HEAD", "--oneline",
                                 chdir: worktree_path)
@@ -33,6 +35,21 @@ module Nightshift
         turns_used: Nightshift.count_turns(log_path),
         files_changed: has_commits ? commits.lines.size : 0
       }
+    end
+
+    def extract_allowed_tools(skill_name, worktree_path)
+      skill_md = File.join(worktree_path, ".claude", "skills", skill_name, "SKILL.md")
+      return [] unless File.exist?(skill_md)
+
+      content = File.read(skill_md)
+      # Extract YAML frontmatter
+      match = content.match(/\A---\s*\n(.*?\n)---/m)
+      return [] unless match
+
+      frontmatter = YAML.safe_load(match[1], permitted_classes: [Symbol]) || {}
+      Array(frontmatter["allowed-tools"])
+    rescue StandardError
+      []
     end
 
     def run_with_tee(*cmd, log_path:, chdir:)
