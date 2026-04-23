@@ -67,7 +67,13 @@ module Nightshift
 
       worktrees.each do |wt_path, wt_branch|
         pr = pr_by_branch[wt_branch]
-        name = pr ? pr.window_name : "🔨 #{wt_branch}"
+        name = if pr
+                 pr.window_name
+               elsif wt_branch.start_with?("auto/")
+                 "🤖 #{wt_branch.sub('auto/', '')}"
+               else
+                 "🔨 #{wt_branch}"
+               end
 
         system("tmux", "new-window", "-t", session, "-n", name, "-c", wt_path)
 

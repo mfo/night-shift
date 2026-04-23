@@ -108,10 +108,14 @@ module Nightshift
         setup_worktree_server(wt_path, repo_path, port)
       end
 
-      win_id, = Open3.capture2("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}",
-                               "-c", wt_path, "-P", "-F", '#{window_id}')
-      win_id = win_id.strip
-      system("tmux", "set-option", "-w", "-t", win_id, "@branch", branch)
+      # Reuse existing window if one already has this branch (e.g. from attach)
+      win_id = find_window_by_branch(session, branch)
+      unless win_id
+        win_id, = Open3.capture2("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}-#{slug}",
+                                 "-c", wt_path, "-P", "-F", '#{window_id}')
+        win_id = win_id.strip
+        system("tmux", "set-option", "-w", "-t", win_id, "@branch", branch)
+      end
 
       # Launch server in background pane if needed
       if port
@@ -146,6 +150,21 @@ module Nightshift
         VITE_RUBY_PORT=#{vite_port}
         APP_HOST=localhost:#{port}
       ENV
+    end
+
+    def find_window_by_branch(session, branch)
+      return nil unless branch
+      out, _, status = Open3.capture3(
+        "tmux", "list-windows", "-t", session,
+        "-F", '#{window_id} #{@branch}'
+      )
+      return nil unless status.success?
+
+      out.each_line do |line|
+        win_id, win_branch = line.strip.split(" ", 2)
+        return win_id if win_branch == branch
+      end
+      nil
     end
 
     def list_worktree_branches

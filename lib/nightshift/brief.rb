@@ -33,11 +33,18 @@ module Nightshift
           puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
           actions_for(pr).each { |line| puts "       #{line}" }
           if pr.review_count.to_i > 0 || pr.comment_count.to_i > 0
-            fetch_review_comments(pr.number).each do |c|
+            all = fetch_all_comments(pr.number)
+            all[:review].each do |c|
               puts ""
               puts "          💬 #{c[:author]} — #{c[:path]}:#{c[:line]}"
               puts "          #{c[:body]}"
               puts "          vim +#{c[:line]} #{c[:path]}   #{c[:url]}"
+            end
+            all[:issue].each do |c|
+              puts ""
+              puts "          💬 #{c[:author]}"
+              puts "          #{c[:body]}"
+              puts "          #{c[:url]}"
             end
           end
         end
@@ -57,16 +64,27 @@ module Nightshift
         puts ""
       end
 
-      # Transitions
+      # Transitions — collapse ping-pong per PR, show only net change
       if transitions.any?
-        puts "  TRANSITIONS"
-        puts ""
-        transitions.each do |t|
-          from_emoji = PR::EMOJI[t[:from_state].to_sym] || t[:from_state]
-          to_emoji = PR::EMOJI[t[:to_state].to_sym] || t[:to_state]
-          puts "    #{from_emoji}→#{to_emoji}  ##{t[:pr_number]}"
+        # Group by PR, keep first from_state and last to_state
+        net = transitions.group_by { |t| t[:pr_number] }.filter_map do |pr_num, ts|
+          first_from = ts.first[:from_state]
+          last_to = ts.last[:to_state]
+          next if first_from == last_to # ping-pong: no net change
+          { pr_number: pr_num, from_state: first_from, to_state: last_to, count: ts.size }
         end
-        puts ""
+
+        if net.any?
+          puts "  TRANSITIONS"
+          puts ""
+          net.each do |t|
+            from_emoji = PR::EMOJI[t[:from_state].to_sym] || t[:from_state]
+            to_emoji = PR::EMOJI[t[:to_state].to_sym] || t[:to_state]
+            suffix = t[:count] > 1 ? " (#{t[:count]} changes)" : ""
+            puts "    #{from_emoji}→#{to_emoji}  ##{t[:pr_number]}#{suffix}"
+          end
+          puts ""
+        end
       end
 
       # Summary bar (open PRs only)
@@ -111,6 +129,26 @@ module Nightshift
       []
     end
 
+    def fetch_issue_comments(pr_number)
+      repo = GitHub.gh_repo
+      jq = '.[] | "\(.user.login)\t\(.html_url)\t\(.body)"'
+      out, = Open3.capture2("gh", "api", "repos/#{repo}/issues/#{pr_number}/comments",
+                            "--jq", jq)
+      out.lines.filter_map do |line|
+        parts = line.strip.split("\t", 3)
+        next if parts.size < 3 || parts[2].empty?
+        { author: parts[0], url: parts[1], body: parts[2].lines.first&.strip || parts[2].strip }
+      end
+    rescue StandardError
+      []
+    end
+
+    def fetch_all_comments(pr_number)
+      review = fetch_review_comments(pr_number)
+      issue = fetch_issue_comments(pr_number)
+      { review: review, issue: issue }
+    end
+
     def actions_for(pr)
       lines = []
       lines << "CI rouge → autofix lancé" if pr.ci == "red"
@@ -129,12 +167,18 @@ module Nightshift
       actions_for(pr).each { |a| lines << "  → #{a}" }
 
       if pr.review_count.to_i > 0 || pr.comment_count.to_i > 0
-        comments = fetch_review_comments(pr.number)
-        comments.each do |c|
+        all = fetch_all_comments(pr.number)
+        all[:review].each do |c|
           lines << ""
           lines << "  💬 #{c[:author]} — #{c[:path]}:#{c[:line]}"
           lines << "  #{c[:body]}"
           lines << "  vim +#{c[:line]} #{c[:path]}   #{c[:url]}"
+        end
+        all[:issue].each do |c|
+          lines << ""
+          lines << "  💬 #{c[:author]}"
+          lines << "  #{c[:body]}"
+          lines << "  #{c[:url]}"
         end
       end
 
