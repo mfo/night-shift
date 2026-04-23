@@ -2,7 +2,7 @@ require "open3"
 
 module Nightshift
   module CLI
-    COMMANDS = %w[attach refresh status watch diagnose autofix brief merge open close backlog auto skill-run].freeze
+    COMMANDS = %w[attach refresh status watch diagnose autofix brief merge open close backlog auto skill-run reset].freeze
 
     BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
 
@@ -25,6 +25,7 @@ module Nightshift
       when "attach"    then cmd_attach(args)
       when "open"      then cmd_open(args)
       when "close"     then cmd_close(args)
+      when "reset"     then cmd_reset(args)
       when "backlog"   then cmd_backlog(args)
       when "auto"      then cmd_auto(args)
       when "skill-run" then cmd_skill_run(args)
@@ -120,6 +121,30 @@ module Nightshift
       # Remove worktree, branch, and test DB
       Worktree.cleanup(branch)
       puts "nightshift: closed #{branch}"
+    end
+
+    def cmd_reset(args)
+      skill = args.shift or abort("usage: nightshift reset <skill>")
+      session = ENV.fetch("NIGHTSHIFT_SESSION")
+      renderer = Renderer.new(session: session)
+
+      items = store.all_backlog(skill: skill).select { |i|
+        %w[running failed].include?(i[:status]) || (i[:status] == "pending" && i[:branch])
+      }
+      if items.empty?
+        puts "nightshift: nothing to reset for #{skill}"
+        return
+      end
+
+      items.each do |item|
+        if item[:branch]
+          renderer.close_worktree(item[:branch])
+          Worktree.cleanup(item[:branch])
+        end
+        store.update_backlog_status(item[:id], "pending", branch: nil, failure_reason: nil)
+        puts "  ⬜ ##{item[:id]} #{item[:item]} → pending"
+      end
+      puts "nightshift: reset #{items.size} item(s) for #{skill}"
     end
 
     def cmd_auto(_args)

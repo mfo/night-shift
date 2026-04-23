@@ -311,13 +311,15 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
         ```
      6. Relancer la comparaison (retour au point 1)
 
-### Étape 6 : Push gist + PR
+### Étape 6 : Push gist + écrire pr-description.md
+
+**⚠️ Ne PAS push la branche ni créer la PR — c'est le runner nightshift qui s'en charge.**
 
 1. **Construire le résultat de comparaison** : reprendre les résultats de l'étape 5 (✅/❌ par fichier)
 
 2. **Pousser les screenshots sur le gist** : lancer la Phase 3+4 du skill `/screenshot-gist` via `push-gist.sh` (add, commit, push depuis `tmp/<nom-composant>/`).
 
-3. **Écrire la description PR** dans `pr-description.md` à la racine du worktree :
+3. **Écrire `pr-description.md`** à la racine du worktree :
 
    Pour construire les URLs des images du gist :
    - Récupérer le gist ID depuis l'URL (dernière partie du path)
@@ -384,5 +386,5 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 - [ ] Screenshot ERB capturé dans `tmp/<nom-composant>/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
 - [ ] Screenshots pushés sur le gist (via `/screenshot-gist` Phase 2)
-- [ ] PR créée/mise à jour avec comparaison visuelle dans la description
+- [ ] `pr-description.md` écrit à la racine du worktree
 - [ ] Playwright fermé

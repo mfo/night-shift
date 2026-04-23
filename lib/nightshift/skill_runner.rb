@@ -6,7 +6,7 @@ module Nightshift
     module_function
 
     def run(skill_name, item:, worktree_path:)
-      prompt = "Utilise le skill #{skill_name} sur #{item}"
+      prompt = "/#{skill_name} #{item}"
 
       logdir = File.join(worktree_path, "tmp")
       FileUtils.mkdir_p(logdir)

@@ -118,7 +118,7 @@ module Nightshift
 
       # Send skill-run command
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
-      env_prefix = port ? "NIGHTSHIFT_PORT=#{port}" : ""
+      env_prefix = port ? "PORT=#{port}" : ""
       cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
       system("tmux", "send-keys", "-t", "#{session}:#{win_idx}.0", cmd, "Enter")
     end
@@ -161,6 +161,7 @@ module Nightshift
       in [_, :ci_red]
         @renderer.autofix(pr)
       in [_, :approved]
+        @renderer.show_comments(pr) if pr.review_count.to_i > 0
         @renderer.propose_merge(pr)
       in [_, :has_comments | :changes_requested]
         @renderer.show_comments(pr)

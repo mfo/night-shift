@@ -68,6 +68,17 @@ else
   echo "==> Procfile.sidekiq.dev déjà présent"
 fi
 
+# Copier data/routes-reference.txt depuis le repo principal
+routes_src="$main_repo/data/routes-reference.txt"
+routes_dst="$worktree_path/data"
+if [ -f "$routes_src" ]; then
+  mkdir -p "$routes_dst"
+  cp "$routes_src" "$routes_dst/"
+  echo "==> routes-reference.txt copié depuis le repo principal"
+else
+  echo "⚠️  Pas de data/routes-reference.txt trouvé dans le repo principal"
+fi
+
 echo "==> Configuration de la base de données: $db_name"
 
 # Crée ou met à jour .env.test.local avec le nom de DB unique
