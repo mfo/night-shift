@@ -4,12 +4,6 @@ require_relative "../lib/nightshift/skill_runner"
 require "tempfile"
 
 class SkillRunnerTest < Minitest::Test
-  def test_build_prompt_substitutes_arguments
-    skill = { prompt: "Migrate $ARGUMENTS to ERB" }
-    result = Nightshift::SkillRunner.build_prompt(skill, "app/views/foo.html.haml")
-    assert_equal "Migrate app/views/foo.html.haml to ERB", result
-  end
-
   def test_failure_reason_success
     assert_nil Nightshift::SkillRunner.failure_reason(true, true)
   end

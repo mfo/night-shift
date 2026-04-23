@@ -32,7 +32,7 @@ module Nightshift
         actionable.each do |pr|
           puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
           actions_for(pr).each { |line| puts "       #{line}" }
-          if pr.review_count.to_i > 0
+          if pr.review_count.to_i > 0 || pr.comment_count.to_i > 0
             fetch_review_comments(pr.number).each do |c|
               puts ""
               puts "          💬 #{c[:author]} — #{c[:path]}:#{c[:line]}"
@@ -116,7 +116,8 @@ module Nightshift
       lines << "CI rouge → autofix lancé" if pr.ci == "red"
       lines << "approved → nightshift merge #{pr.number}" if pr.review_decision == "APPROVED"
       lines << "changes requested → adresser les retours" if pr.review_decision == "CHANGES_REQUESTED"
-      lines << "💬 #{pr.review_count} comment(s) → gh pr view #{pr.number} --comments" if pr.review_count.to_i > 0
+      total = pr.review_count.to_i + pr.comment_count.to_i
+      lines << "💬 #{total} comment(s) → gh pr view #{pr.number} --comments" if total > 0
       lines
     end
 
@@ -127,7 +128,7 @@ module Nightshift
 
       actions_for(pr).each { |a| lines << "  → #{a}" }
 
-      if pr.review_count.to_i > 0
+      if pr.review_count.to_i > 0 || pr.comment_count.to_i > 0
         comments = fetch_review_comments(pr.number)
         comments.each do |c|
           lines << ""

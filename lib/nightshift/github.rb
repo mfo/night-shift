@@ -1,24 +1,24 @@
 require "open3"
+require "json"
 
 module Nightshift
   module GitHub
     module_function
 
-    # Fetch all PRs for the current user, merging 3 passes:
-    # Pass 1: lightweight (all PRs by author)
-    # Pass 2: rich (open PRs — CI, reviews, auto_merge)
-    # Pass 3: GraphQL (unresolved review threads)
+    # Fetch all PRs for the current user via a single GraphQL query
+    # + deployed PRs from releases (REST)
     # Returns Array<PR>
     def fetch_prs
       repo = gh_repo
       gh_user = ENV.fetch("NIGHTSHIFT_USER")
 
-      all_prs = fetch_all_lightweight(repo, gh_user)
-      rich_prs = fetch_open_rich(repo)
-      unresolved = fetch_unresolved_threads(repo)
+      raw_prs = fetch_prs_graphql(repo, gh_user)
       deployed_numbers = fetch_deployed_prs(repo)
 
-      merge_passes(all_prs, rich_prs, unresolved, deployed_numbers)
+      raw_prs.map do |data|
+        data[:deployed] = deployed_numbers.include?(data[:number])
+        PR.new(**data)
+      end
     end
 
     # Fetch PR numbers deployed in recent releases (last 5)
@@ -27,106 +27,122 @@ module Nightshift
       output.scan(/#(\d+)/).flatten.map(&:to_i).uniq
     end
 
-    # --- private helpers ---
+    # --- Single GraphQL query ---
 
-    # Pass 1: all user PRs (lightweight)
-    # Returns Hash { branch => { number:, state: } }
-    def fetch_all_lightweight(repo, gh_user)
-      jq = %([.[] | select(.author.login == "#{gh_user}")] | .[] | "\\(.headRefName)|\\(.number)|\\(.state)")
-      output = capture("gh", "pr", "list",
-                        "--repo", repo, "--state", "all", "--limit", "200",
-                        "--json", "number,headRefName,state,author",
-                        "--jq", jq)
-      result = {}
-      output.each_line do |line|
-        fields = line.strip.split("|")
-        next if fields.size < 3
-        branch, number, state = fields
-        result[branch] = { number: number.to_i, state: state }
-      end
-      result
-    end
-
-    # Pass 2: open PRs with CI + reviews
-    # Returns Hash { branch => raw_fields_hash }
-    def fetch_open_rich(repo)
-      jq = <<~JQ.gsub("\n", " ").strip
-        .[] | "\\(.headRefName)|\\(.number)|\\(.state)|\\(
-          if (.statusCheckRollup | length) == 0 then "none"
-          elif (.statusCheckRollup | all(.conclusion == "SUCCESS")) then "green"
-          elif (.statusCheckRollup | any(.conclusion == "FAILURE" or .conclusion == "ERROR" or .conclusion == "TIMED_OUT")) then "red"
-          elif (.statusCheckRollup | any(.status == "IN_PROGRESS" or .status == "QUEUED" or .status == "PENDING")) then "running"
-          else "unknown"
-          end
-        )|\\([.reviews[] | select(.state == "COMMENTED" or .state == "CHANGES_REQUESTED" or .state == "APPROVED")] | length)|\\(.reviewDecision // "")|\\(.updatedAt)|\\(
-          [.reviews[] | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "COMMENTED")] | last | .author.login // ""
-        )|\\(if .autoMergeRequest != null then "auto" else "" end)"
-      JQ
-      output = capture("gh", "pr", "list",
-                        "--repo", repo, "--state", "open", "--limit", "50",
-                        "--json", "number,headRefName,state,statusCheckRollup,reviewDecision,reviews,updatedAt,autoMergeRequest",
-                        "--jq", jq)
-      result = {}
-      output.each_line do |line|
-        fields = line.strip.split("|")
-        next if fields.size < 8
-        branch = fields[0]
-        result[branch] = {
-          number: fields[1].to_i, state: fields[2], ci: fields[3],
-          review_count: fields[4].to_i, review_decision: fields[5],
-          updated_at: fields[6], reviewer: fields[7],
-          auto_merge: fields[8] == "auto"
-        }
-      end
-      result
-    end
-
-    # Pass 3: unresolved review threads via GraphQL
-    # Returns Hash { branch => unresolved_count }
-    def fetch_unresolved_threads(repo)
+    def fetch_prs_graphql(repo, gh_user)
       owner, name = repo.split("/")
       query = <<~GQL
-        { repository(owner:"#{owner}", name:"#{name}") {
-          pullRequests(first:50, states:OPEN, orderBy:{field:UPDATED_AT, direction:DESC}) {
-            nodes { number headRefName
-              reviewThreads(first:100) { nodes { isResolved } }
+        {
+          repository(owner: "#{owner}", name: "#{name}") {
+            pullRequests(first: 100, states: [OPEN, MERGED, CLOSED], orderBy: {field: UPDATED_AT, direction: DESC}) {
+              nodes {
+                number
+                headRefName
+                state
+                updatedAt
+                author { login }
+                autoMergeRequest { enabledAt }
+                reviewDecision
+                reviews(last: 10) {
+                  nodes { state author { login } }
+                }
+                reviewThreads(first: 100) {
+                  nodes { isResolved }
+                }
+                comments { totalCount }
+                commits(last: 1) {
+                  nodes {
+                    commit {
+                      statusCheckRollup {
+                        contexts(first: 100) {
+                          nodes {
+                            ... on CheckRun { conclusion status }
+                            ... on StatusContext { state }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
-        }}
+        }
       GQL
-      jq = '.data.repository.pullRequests.nodes[] | "\(.headRefName)|\([.reviewThreads.nodes[] | select(.isResolved == false)] | length)"'
-      output = capture("gh", "api", "graphql", "-f", "query=#{query}", "--jq", jq)
-      result = {}
-      output.each_line do |line|
-        branch, count = line.strip.split("|")
-        result[branch] = count.to_i if branch
+
+      output = capture("gh", "api", "graphql", "-f", "query=#{query}")
+      data = JSON.parse(output, symbolize_names: true)
+      nodes = data.dig(:data, :repository, :pullRequests, :nodes) || []
+
+      nodes.filter_map do |node|
+        next unless node.dig(:author, :login) == gh_user
+        parse_pr_node(node)
       end
-      result
     end
 
-    # Merge 3 passes into Array<PR>
-    def merge_passes(all_prs, rich_prs, unresolved, deployed_numbers)
-      all_prs.map do |branch, lightweight|
-        if (rich = rich_prs[branch])
-          review_count = unresolved.fetch(branch, rich[:review_count])
-          PR.new(
-            number: rich[:number], branch: branch,
-            github_state: rich[:state], ci: rich[:ci],
-            review_decision: rich[:review_decision],
-            review_count: review_count,
-            auto_merge: rich[:auto_merge],
-            deployed: deployed_numbers.include?(rich[:number]),
-            reviewer: rich[:reviewer],
-            updated_at: rich[:updated_at]
-          )
+    def parse_pr_node(node)
+      # CI status from last commit's statusCheckRollup
+      contexts = node.dig(:commits, :nodes, 0, :commit, :statusCheckRollup, :contexts, :nodes) || []
+      ci = derive_ci(contexts)
+
+      # Reviews: find last reviewer
+      reviews = node.dig(:reviews, :nodes) || []
+      relevant = reviews.select { |r| %w[COMMENTED CHANGES_REQUESTED APPROVED].include?(r[:state]) }
+      reviewer = relevant.last&.dig(:author, :login) || ""
+
+      # Unresolved review threads
+      threads = node.dig(:reviewThreads, :nodes) || []
+      unresolved_count = threads.count { |t| !t[:isResolved] }
+
+      # review_count: prefer unresolved threads, fallback to review count
+      review_count = unresolved_count > 0 ? unresolved_count : relevant.size
+
+      # Issue comments count
+      comment_count = node.dig(:comments, :totalCount) || 0
+
+      {
+        number: node[:number],
+        branch: node[:headRefName],
+        github_state: node[:state],
+        ci: ci,
+        review_decision: node[:reviewDecision] || "",
+        review_count: review_count,
+        comment_count: comment_count,
+        auto_merge: !node[:autoMergeRequest].nil?,
+        reviewer: reviewer,
+        updated_at: node[:updatedAt]
+      }
+    end
+
+    def derive_ci(contexts)
+      return "none" if contexts.empty?
+
+      statuses = contexts.map do |c|
+        if c[:conclusion]
+          # CheckRun
+          { conclusion: c[:conclusion], status: c[:status] }
+        elsif c[:state]
+          # StatusContext
+          case c[:state]
+          when "SUCCESS" then { conclusion: "SUCCESS", status: "COMPLETED" }
+          when "FAILURE" then { conclusion: "FAILURE", status: "COMPLETED" }
+          when "ERROR"   then { conclusion: "ERROR",   status: "COMPLETED" }
+          when "PENDING" then { conclusion: nil,       status: "PENDING" }
+          else                { conclusion: nil,       status: c[:state] }
+          end
         else
-          PR.new(
-            number: lightweight[:number], branch: branch,
-            github_state: lightweight[:state], ci: "none",
-            review_count: 0,
-            deployed: deployed_numbers.include?(lightweight[:number])
-          )
+          { conclusion: nil, status: nil }
         end
+      end
+
+      if statuses.all? { |s| s[:conclusion] == "SUCCESS" }
+        "green"
+      elsif statuses.any? { |s| %w[FAILURE ERROR TIMED_OUT].include?(s[:conclusion]) }
+        "red"
+      elsif statuses.any? { |s| %w[IN_PROGRESS QUEUED PENDING].include?(s[:status]) }
+        "running"
+      else
+        "unknown"
       end
     end
 

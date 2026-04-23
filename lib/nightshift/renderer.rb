@@ -23,6 +23,7 @@ module Nightshift
 
     def pane_brief_line(pr)
       parts = ["##{pr.number}", pr.badge, pr.slug]
+      parts << "💬#{pr.comment_count}" if pr.comment_count.to_i > 0
       parts << "by:#{pr.reviewer}" if pr.reviewer && !pr.reviewer.empty?
       parts << pr.updated_at.to_s.slice(0, 10) if pr.updated_at
       parts.compact.join(" ")

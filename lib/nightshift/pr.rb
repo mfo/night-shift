@@ -11,8 +11,8 @@ module Nightshift
     }.freeze
 
     attr_accessor :number, :branch, :github_state, :ci,
-                  :review_decision, :review_count, :auto_merge,
-                  :deployed, :updated_at, :reviewer
+                  :review_decision, :review_count, :comment_count,
+                  :auto_merge, :deployed, :updated_at, :reviewer
 
     def initialize(**attrs)
       attrs.each { |k, v| send(:"#{k}=", v) }
@@ -63,6 +63,7 @@ module Nightshift
       {
         number:, branch:, state: state.to_s, github_state:, ci:,
         review_decision:, review_count: review_count.to_i,
+        comment_count: comment_count.to_i,
         auto_merge: auto_merge ? true : false,
         deployed: deployed ? true : false,
         reviewer:, updated_at:, synced_at: Time.now.to_i
@@ -75,6 +76,7 @@ module Nightshift
         github_state: row[:github_state], ci: row[:ci],
         review_decision: row[:review_decision],
         review_count: row[:review_count],
+        comment_count: row[:comment_count],
         auto_merge: row[:auto_merge], deployed: row[:deployed],
         reviewer: row[:reviewer], updated_at: row[:updated_at]
       )

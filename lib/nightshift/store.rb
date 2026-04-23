@@ -10,7 +10,8 @@ module Nightshift
       db[:prs].insert_conflict(target: :number, update: {
         branch: pr.branch, state: pr.state.to_s, github_state: pr.github_state,
         ci: pr.ci, review_decision: pr.review_decision,
-        review_count: pr.review_count.to_i, auto_merge: pr.auto_merge ? true : false,
+        review_count: pr.review_count.to_i, comment_count: pr.comment_count.to_i,
+        auto_merge: pr.auto_merge ? true : false,
         deployed: pr.deployed ? true : false, reviewer: pr.reviewer,
         updated_at: pr.updated_at, synced_at: Time.now.to_i
       }).insert(pr.to_db_hash)
@@ -154,6 +155,7 @@ module Nightshift
 
     def reconcile_pr(pr)
       old_state = get_state(pr.number)
+      old_comment_count = get_comment_count(pr.number)
       new_state = pr.state
 
       db.transaction do
@@ -163,7 +165,16 @@ module Nightshift
         end
       end
 
-      { old_state: old_state, new_state: new_state, changed: old_state && old_state != new_state }
+      comment_delta = old_comment_count ? (pr.comment_count.to_i - old_comment_count) : 0
+
+      { old_state: old_state, new_state: new_state,
+        changed: old_state && old_state != new_state,
+        comment_delta: [comment_delta, 0].max }
+    end
+
+    def get_comment_count(pr_number)
+      row = db[:prs].where(number: pr_number).first
+      row&.dig(:comment_count)
     end
 
     private

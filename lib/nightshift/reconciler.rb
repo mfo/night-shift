@@ -18,9 +18,18 @@ module Nightshift
 
       active_prs.each do |pr|
         result = @store.reconcile_pr(pr)
+
+        # 1. Comments FIRST — show if new comments detected
+        if result[:comment_delta] > 0
+          @renderer.show_comments(pr)
+        end
+
+        # 2. State transitions SECOND
         if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].to_s)
           on_transition(pr, result[:old_state], result[:new_state])
         end
+
+        # 3. Window update LAST
         @renderer.update_window(pr)
       end
       reconcile_skills(active_prs)
@@ -99,28 +108,26 @@ module Nightshift
         setup_worktree_server(wt_path, repo_path, port)
       end
 
-      system("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}", "-c", wt_path)
-
-      # Get the window index of the just-created window and tag it
-      out, = Open3.capture2("tmux", "list-windows", "-t", session, "-F", '#{window_index}')
-      win_idx = out.lines.last&.strip
-      system("tmux", "set-option", "-w", "-t", "#{session}:#{win_idx}", "@branch", branch)
+      win_id, = Open3.capture2("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}",
+                               "-c", wt_path, "-P", "-F", '#{window_id}')
+      win_id = win_id.strip
+      system("tmux", "set-option", "-w", "-t", win_id, "@branch", branch)
 
       # Launch server in background pane if needed
       if port
-        system("tmux", "split-window", "-t", "#{session}:#{win_idx}", "-v", "-l", "20%",
+        system("tmux", "split-window", "-t", win_id, "-v", "-l", "20%",
                "-c", wt_path)
-        system("tmux", "send-keys", "-t", "#{session}:#{win_idx}.1",
+        system("tmux", "send-keys", "-t", "#{win_id}.1",
                "overmind start -f Procfile.sidekiq.dev", "Enter")
         # Wait for server to be ready, then run skill in main pane
-        system("tmux", "select-pane", "-t", "#{session}:#{win_idx}.0")
+        system("tmux", "select-pane", "-t", "#{win_id}.0")
       end
 
       # Send skill-run command
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
       env_prefix = port ? "PORT=#{port}" : ""
       cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
-      system("tmux", "send-keys", "-t", "#{session}:#{win_idx}.0", cmd, "Enter")
+      system("tmux", "send-keys", "-t", "#{win_id}.0", cmd, "Enter")
     end
 
     def allocate_port
@@ -161,10 +168,7 @@ module Nightshift
       in [_, :ci_red]
         @renderer.autofix(pr)
       in [_, :approved]
-        @renderer.show_comments(pr) if pr.review_count.to_i > 0
         @renderer.propose_merge(pr)
-      in [_, :has_comments | :changes_requested]
-        @renderer.show_comments(pr)
       in [:ci_red, :ci_green]
         @renderer.notify_fixed(pr)
       in [_, :merged | :deployed]

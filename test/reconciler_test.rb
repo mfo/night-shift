@@ -60,7 +60,7 @@ class ReconcilerTest < Minitest::Test
     assert_includes @renderer.calls, [:propose_merge, 1]
   end
 
-  def test_transition_to_comments_triggers_show
+  def test_transition_to_comments_state_no_show_without_delta
     pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
@@ -69,10 +69,11 @@ class ReconcilerTest < Minitest::Test
     pr.review_count = 3
     pr.ci = nil
     @reconciler.reconcile([pr])
-    assert_includes @renderer.calls, [:show_comments, 1]
+    # show_comments is driven by comment_delta, not state transitions
+    refute @renderer.calls.any? { |c| c[0] == :show_comments }
   end
 
-  def test_transition_to_changes_requested_triggers_show
+  def test_transition_to_changes_requested_no_show_without_delta
     pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
@@ -80,7 +81,48 @@ class ReconcilerTest < Minitest::Test
 
     pr.review_decision = "CHANGES_REQUESTED"
     @reconciler.reconcile([pr])
+    # show_comments is driven by comment_delta, not state transitions
+    refute @renderer.calls.any? { |c| c[0] == :show_comments }
+  end
+
+  def test_comment_delta_triggers_show_comments
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green", comment_count: 0)
+    @reconciler.reconcile([pr])
+    @renderer.calls.clear
+
+    pr.comment_count = 3
+    @reconciler.reconcile([pr])
     assert_includes @renderer.calls, [:show_comments, 1]
+  end
+
+  def test_no_comment_delta_no_show_comments
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green", comment_count: 2)
+    @reconciler.reconcile([pr])
+    @renderer.calls.clear
+
+    # Same comment_count — no delta
+    @reconciler.reconcile([pr])
+    refute @renderer.calls.any? { |c| c[0] == :show_comments }
+  end
+
+  def test_comments_shown_before_transitions
+    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+                            github_state: "OPEN", ci: "green", comment_count: 0)
+    @reconciler.reconcile([pr])
+    @renderer.calls.clear
+
+    # Both comment delta AND state transition
+    pr.comment_count = 2
+    pr.ci = "red"
+    @reconciler.reconcile([pr])
+
+    comment_idx = @renderer.calls.index { |c| c[0] == :show_comments }
+    autofix_idx = @renderer.calls.index { |c| c[0] == :autofix }
+    assert comment_idx, "show_comments should be called"
+    assert autofix_idx, "autofix should be called"
+    assert comment_idx < autofix_idx, "show_comments should come before autofix"
   end
 
   def test_ci_red_to_green_triggers_notify
