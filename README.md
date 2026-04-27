@@ -80,7 +80,7 @@ nightshift merge <pr>          # Auto-merge squash via gh
 
 # Worktrees
 nightshift open <branch>       # Crée un worktree + fenêtre tmux
-nightshift close <branch>      # Supprime worktree, branche, DB test, fenêtre tmux
+nightshift close <branch>      # Supprime worktree, branche, DB test, puis fenêtre tmux
 
 # Backlog (skills auto)
 nightshift backlog list [skill]  # Liste les items du backlog
@@ -92,7 +92,7 @@ nightshift skill-run <skill> <item>  # Lance un skill dans le worktree courant (
 
 ### autofix
 
-Quand une PR est rouge, `autofix` prépare le déblocage :
+Quand une PR est rouge, `autofix` prépare le déblocage **dans le worktree de la PR** (résolu via `Worktree.path_for_branch`) :
 
 1. **System tests** — relance les jobs flaky (1 retry max)
 2. **Specs** — délègue le fix à `claude -p` (Read, Edit, rspec — max 20 turns)
@@ -137,7 +137,7 @@ night-shift/
 │   ├── cli.rb                         # Dispatch des commandes
 │   ├── reconciler.rb                  # Boucle reconciliation PR + skills auto
 │   ├── skill_runner.rb                # Lancement claude -p + kaizen auto sur échec
-│   ├── worktree.rb                    # Gestion worktrees (create, cleanup, DB)
+│   ├── worktree.rb                    # Gestion worktrees (create, cleanup, DB, path resolution)
 │   ├── store.rb                       # SQLite (backlog, PRs)
 │   └── ...
 ├── .claude/skills/                    # Skills (le livrable principal)

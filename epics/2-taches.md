@@ -95,7 +95,7 @@ Retours intégrés, basés sur l'analyse des 64 PRs produites :
 
 ### Livré
 
-- **`nightshift autofix <pr>`** — pipeline séquentiel : retry system tests → fix specs (`claude -p`) → fix linters (rubocop, herb, apostrophe, yaml) → vérification → diff coloré. Pas de commit/push automatique.
+- **`nightshift autofix <pr>`** — pipeline séquentiel dans le worktree de la PR (résolu via `Worktree.path_for_branch`) : retry system tests → fix specs (`claude -p`) → fix linters (rubocop, herb, apostrophe, yaml) → vérification → diff coloré. Pas de commit/push automatique.
 - **`nightshift brief`** — morning brief : actions requises, changements depuis le dernier brief, suggestions. Auto-lancé sur main à l'attach.
 - **`nightshift merge <pr>`** — auto-merge squash via `gh pr merge --auto --squash`
 - **Badges combinés** — `🔴💬(1)` au lieu d'un seul emoji, CI rouge prime sur les reviews.
@@ -124,7 +124,7 @@ Retours intégrés, basés sur l'analyse des 64 PRs produites :
 - **Backlog SQLite** — `backlog add/scan/list/skip`, lifecycle pending → running → pr_open → done/failed
 - **Reconciler** — boucle de réconciliation : PR merged → cleanup, zombie recovery, pick next item
 - **SkillRunner** — lance `claude -p` avec invocation naturelle du skill, `--permission-mode acceptEdits`
-- **Worktree lifecycle** — `open`, `close` avec `Worktree.cleanup` (supprime worktree, branche, DB test)
+- **Worktree lifecycle** — `open`, `close` avec `Worktree.cleanup` (supprime worktree, branche, DB test). `close` fait le cleanup avant de tuer la fenêtre tmux (évite SIGHUP sur le process en cours).
 - **Post-checkout hook** — DB isolée par worktree, copie `.claude/` depuis night-shift (sans agents)
 - **Short slugs** — noms de worktree lisibles et compatibles PostgreSQL (63 chars)
 - **Auto kaizen sur échec** — `analyze_failure` lit le log et écrit un kaizen
