@@ -83,6 +83,7 @@ module Nightshift
       loop do
         cmd_refresh([])
         sleep interval
+        Nightshift.reload!
       end
     end
 

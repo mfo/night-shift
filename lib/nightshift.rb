@@ -16,9 +16,17 @@ module Nightshift
         %r{/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer} => 2
       }
     }
-  }.freeze
+  }
 
   def self.skill_names = SKILLS.keys
+
+  def self.reload!
+    prev_verbose, $VERBOSE = $VERBOSE, nil
+    Dir.glob(File.join(__dir__, "nightshift", "*.rb")).each { |f| load f }
+    load __FILE__
+  ensure
+    $VERBOSE = prev_verbose
+  end
 
   def self.count_turns(log_path)
     return nil unless File.exist?(log_path)
