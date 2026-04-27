@@ -111,7 +111,6 @@ module Nightshift
     end
 
     def apply_patch(skill_name, patch_text)
-      nightshift_dir = File.expand_path("../..", __dir__)
       patterns_path = File.join(nightshift_dir, ".claude", "skills", skill_name, "patterns.md")
 
       unless File.exist?(patterns_path)
@@ -157,6 +156,12 @@ module Nightshift
         turns_used: turns,
         created_at: Time.now.to_i
       )
+    end
+
+    private
+
+    def nightshift_dir
+      File.expand_path("../..", __dir__)
     end
   end
 end
