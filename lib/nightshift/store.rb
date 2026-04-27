@@ -108,6 +108,7 @@ module Nightshift
       db.transaction do
         item = db[:backlog_items]
           .where(skill: skill, status: "pending")
+          .where { (retry_after =~ nil) | (retry_after < Time.now.to_i) }
           .order(Sequel.desc(:priority), :created_at)
           .first
         return nil unless item
@@ -120,7 +121,7 @@ module Nightshift
 
     def active_for_skill?(skill)
       db[:backlog_items]
-        .where(skill: skill, status: %w[running pr_open failed])
+        .where(skill: skill, status: %w[running pr_open])
         .count > 0
     end
 

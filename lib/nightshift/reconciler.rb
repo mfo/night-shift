@@ -47,8 +47,16 @@ module Nightshift
         when "running"
           # Zombie recovery: running item but worktree gone
           if item[:branch] && !active_branches.include?(item[:branch])
-            @store.update_backlog_status(item[:id], "failed",
-                                         failure_reason: "zombie_recovered")
+            retry_count = item[:retry_count].to_i
+            if retry_count < Judge::MAX_RETRIES
+              @store.update_backlog_status(item[:id], "pending",
+                                           branch: nil, failure_reason: nil)
+              @store.db[:backlog_items].where(id: item[:id])
+                .update(retry_count: Sequel.expr(:retry_count) + 1)
+            else
+              @store.update_backlog_status(item[:id], "skipped",
+                                           failure_reason: "zombie_exhausted")
+            end
           end
         end
       end

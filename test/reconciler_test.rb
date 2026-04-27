@@ -204,13 +204,13 @@ class ReconcilerTest < Minitest::Test
     assert @store.active_for_skill?("haml-migration")
   end
 
-  def test_failed_item_blocks_pick
+  def test_failed_item_does_not_block_pick
     @store.add_backlog("haml-migration", "a.haml")
     @store.add_backlog("haml-migration", "b.haml")
     item = @store.claim_next("haml-migration")
     @store.update_backlog_status(item[:id], "failed", failure_reason: "test")
-    assert @store.active_for_skill?("haml-migration"),
-           "failed item should block new picks until skipped"
+    refute @store.active_for_skill?("haml-migration"),
+           "failed item should not block new picks"
   end
 
   def test_skipped_item_unblocks_pick
@@ -250,21 +250,45 @@ class ReconcilerTest < Minitest::Test
 
   # --- Zombie recovery tests ---
 
-  def test_zombie_recovery_marks_running_item_failed
+  def test_zombie_recovery_resets_to_pending
     @store.add_backlog("haml-migration", "app/views/foo.html.haml")
     item = @store.claim_next("haml-migration")
     @store.update_backlog_status(item[:id], "running",
       branch: "auto/haml-migration/views-foo")
 
-    # Reconcile with worktree_branches that do NOT include the running branch
+    # Add a pr_open item to block pick_next_items from re-claiming
+    @store.add_backlog("haml-migration", "app/views/bar.html.haml")
+    bar = @store.claim_next("haml-migration")
+    @store.update_backlog_status(bar[:id], "pr_open",
+      branch: "auto/haml-migration/views-bar")
+
+    # Reconcile with worktree_branches that do NOT include the zombie branch
+    branches_without_zombie = Set.new(%w[fix/bug auto/haml-migration/views-bar])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches_without_zombie)
+    reconciler.reconcile([])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "pending", updated[:status]
+    assert_nil updated[:branch]
+    assert_equal 1, updated[:retry_count]
+  end
+
+  def test_zombie_recovery_skips_when_retries_exhausted
+    @store.add_backlog("haml-migration", "app/views/foo.html.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "running",
+      branch: "auto/haml-migration/views-foo")
+    @db[:backlog_items].where(id: item[:id]).update(retry_count: 3)
+
     branches_without_zombie = Set.new(%w[fix/bug fix/other])
     reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                             worktree_branches: branches_without_zombie)
     reconciler.reconcile([])
 
     updated = @db[:backlog_items].where(id: item[:id]).first
-    assert_equal "failed", updated[:status]
-    assert_equal "zombie_recovered", updated[:failure_reason]
+    assert_equal "skipped", updated[:status]
+    assert_equal "zombie_exhausted", updated[:failure_reason]
   end
 
   def test_zombie_recovery_ignores_running_with_active_worktree
@@ -365,34 +389,32 @@ class ReconcilerTest < Minitest::Test
     assert_equal "done", updated[:status]
   end
 
-  def test_full_backlog_lifecycle_zombie_to_skip
-    # pending → claim → running → zombie_recovered → skip → unblocked
+  def test_full_backlog_lifecycle_zombie_to_retry
+    # pending → claim → running → zombie_recovered (reset to pending) → re-claimable
     @store.add_backlog("haml-migration", "a.haml")
     @store.add_backlog("haml-migration", "b.haml")
     item = @store.claim_next("haml-migration")
     @store.update_backlog_status(item[:id], "running",
       branch: "auto/haml-migration/a")
 
-    # Worktree disappears
-    branches = Set.new(%w[fix/other])
+    # Add a pr_open blocker so pick_next_items doesn't interfere
+    blocker = @store.claim_next("haml-migration")
+    @store.update_backlog_status(blocker[:id], "pr_open",
+      branch: "auto/haml-migration/views-bar")
+
+    # Worktree for zombie disappears, blocker worktree stays
+    branches = Set.new(%w[fix/other auto/haml-migration/views-bar])
     reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                             worktree_branches: branches)
     reconciler.reconcile([])
 
     updated = @db[:backlog_items].where(id: item[:id]).first
-    assert_equal "failed", updated[:status]
-    assert_equal "zombie_recovered", updated[:failure_reason]
+    assert_equal "pending", updated[:status]
+    assert_nil updated[:branch]
+    assert_equal 1, updated[:retry_count]
 
-    # Still blocked
+    # pr_open still blocks
     assert @store.active_for_skill?("haml-migration")
-
-    # Skip it
-    @store.update_backlog_status(item[:id], "skipped")
-    refute @store.active_for_skill?("haml-migration")
-
-    # Next item claimable
-    next_item = @store.claim_next("haml-migration")
-    assert_equal "b.haml", next_item[:item]
   end
 
   # --- Multiple transitions in sequence ---

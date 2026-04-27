@@ -188,11 +188,12 @@ class StoreTest < Minitest::Test
     assert @store.active_for_skill?("haml-migration")
   end
 
-  def test_active_for_skill_failed_is_active
+  def test_active_for_skill_failed_not_active
     @store.add_backlog("haml-migration", "foo.haml")
     item = @store.claim_next("haml-migration")
     @store.update_backlog_status(item[:id], "failed", failure_reason: "no_diff")
-    assert @store.active_for_skill?("haml-migration")
+    refute @store.active_for_skill?("haml-migration"),
+           "failed item should not block pipeline"
   end
 
   def test_active_for_skill_done_not_active
@@ -279,6 +280,25 @@ class StoreTest < Minitest::Test
   def test_claim_next_fifo_within_same_priority
     @store.add_backlog("haml-migration", "a.haml", priority: 0)
     @store.add_backlog("haml-migration", "b.haml", priority: 0)
+    item = @store.claim_next("haml-migration")
+    assert_equal "a.haml", item[:item]
+  end
+
+  def test_claim_next_skips_items_with_future_retry_after
+    @store.add_backlog("haml-migration", "a.haml")
+    @store.add_backlog("haml-migration", "b.haml")
+    # Set a.haml retry_after to 30 min from now
+    @db[:backlog_items].where(item: "a.haml").update(retry_after: Time.now.to_i + 1800)
+
+    item = @store.claim_next("haml-migration")
+    assert_equal "b.haml", item[:item]
+  end
+
+  def test_claim_next_picks_items_with_past_retry_after
+    @store.add_backlog("haml-migration", "a.haml")
+    # Set retry_after to 1 second ago
+    @db[:backlog_items].where(item: "a.haml").update(retry_after: Time.now.to_i - 1)
+
     item = @store.claim_next("haml-migration")
     assert_equal "a.haml", item[:item]
   end
