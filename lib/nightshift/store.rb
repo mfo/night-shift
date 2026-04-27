@@ -140,6 +140,37 @@ module Nightshift
       ds.order(:skill, :created_at).all
     end
 
+    # --- Infra suggestions ---
+
+    def add_infra_suggestion(skill:, description:, source:, target: nil, backlog_item_id: nil)
+      # Dedup: si la meme suggestion existe deja en pending, incrementer le compteur
+      existing = db[:infra_suggestions]
+        .where(skill: skill, description: description, status: "pending")
+        .first
+      if existing
+        db[:infra_suggestions].where(id: existing[:id])
+          .update(occurrences: Sequel.expr(:occurrences) + 1)
+        return existing[:id]
+      end
+
+      db[:infra_suggestions].insert(
+        skill: skill, source: source, description: description,
+        target: target, backlog_item_id: backlog_item_id,
+        occurrences: 1, status: "pending", created_at: Time.now.to_i
+      )
+    end
+
+    def pending_infra_suggestions(skill: nil)
+      ds = db[:infra_suggestions].where(status: "pending")
+      ds = ds.where(skill: skill) if skill
+      ds.order(Sequel.desc(:occurrences), :created_at).all
+    end
+
+    def resolve_infra_suggestion(id, status:)
+      db[:infra_suggestions].where(id: id)
+        .update(status: status, resolved_at: Time.now.to_i)
+    end
+
     # --- PRs ---
 
     def all_prs(github_state: nil)

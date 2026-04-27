@@ -84,7 +84,7 @@ module Nightshift
     def launch_skill(skill_name, item)
       require "shellwords"
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      slug = short_slug(item[:item])
+      slug = short_slug(item[:item], skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
       wt_path = File.join(File.dirname(repo_path), wt_dir)
@@ -101,13 +101,6 @@ module Nightshift
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       skill_config = SKILLS[skill_name] || {}
 
-      # Allocate port for skills that need a local server
-      port = nil
-      if skill_config[:needs_server]
-        port = allocate_port
-        setup_worktree_server(wt_path, repo_path, port)
-      end
-
       # Reuse existing window if one already has this branch (e.g. from attach)
       win_id = find_window_by_branch(session, branch)
       unless win_id
@@ -117,13 +110,14 @@ module Nightshift
         system("tmux", "set-option", "-w", "-t", win_id, "@branch", branch)
       end
 
-      # Launch server in background pane if needed
-      if port
+      # Launch server in background pane if skill needs it
+      port = skill_config[:port]
+      if skill_config[:needs_server] && port
+        File.write(File.join(wt_path, ".overmind.env"), "PORT=#{port}\n")
         system("tmux", "split-window", "-t", win_id, "-v", "-l", "20%",
                "-c", wt_path)
         system("tmux", "send-keys", "-t", "#{win_id}.1",
                "overmind start -f Procfile.sidekiq.dev", "Enter")
-        # Wait for server to be ready, then run skill in main pane
         system("tmux", "select-pane", "-t", "#{win_id}.0")
       end
 
@@ -132,24 +126,6 @@ module Nightshift
       env_prefix = port ? "PORT=#{port}" : ""
       cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
       system("tmux", "send-keys", "-t", "#{win_id}.0", cmd, "Enter")
-    end
-
-    def allocate_port
-      # Find next available port based on active running skills
-      used_ports = @store.all_backlog.select { |i| i[:status] == "running" }.size
-      Nightshift::BASE_PORT + used_ports
-    end
-
-    def setup_worktree_server(wt_path, _repo_path, port)
-      vite_port = port + 100
-
-      # .env.development.local — overrides PORT for rails + vite
-      env_dev = File.join(wt_path, ".env.development.local")
-      File.write(env_dev, <<~ENV)
-        PORT=#{port}
-        VITE_RUBY_PORT=#{vite_port}
-        APP_HOST=localhost:#{port}
-      ENV
     end
 
     def find_window_by_branch(session, branch)
@@ -171,15 +147,8 @@ module Nightshift
       Worktree.branches
     end
 
-    # Fuzzy-readable slug: dir initials + filename
-    # spec/system/routing/rules_full_scenario_spec.rb → s-s-r-rules_full_scenario
-    # app/views/shared/dossiers/_demande.html.haml → v-s-d-_demande
-    def short_slug(path)
-      parts = path.sub(%r{^(app|spec)/}, "").split("/")
-      filename = parts.pop
-      filename = filename.sub(/(_spec)?\.rb$/, "").sub(/\.html\.haml$/, "")
-      dirs = parts.map { |d| d[0] }
-      (dirs + [filename]).join("-")
+    def short_slug(path, skill_name: nil)
+      Nightshift.short_slug(path, skill_name: skill_name)
     end
 
     def on_transition(pr, old_state, new_state)

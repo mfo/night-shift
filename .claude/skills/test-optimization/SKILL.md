@@ -7,6 +7,10 @@ allowed-tools:
   - Grep
   - Edit
   - Bash(bundle exec:*)
+  - Bash(DISABLE_SPRING=1 bundle exec:*)
+  - Bash(kill:*)
+  - Bash(pgrep:*)
+  - Bash(spring stop)
   - Bash(.claude/skills/test-optimization/coverage.sh:*)
   - Bash(git -C:*)
   - Bash(git add:*)
