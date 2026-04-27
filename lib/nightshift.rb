@@ -8,7 +8,8 @@ require "fileutils"
 module Nightshift
   SKILLS = {
     "haml-migration"    => { scan: "app/views/**/*.html.haml", needs_server: true, port: 3210 },
-    "test-optimization" => { scan: "spec/**/*_spec.rb" }
+    "test-optimization" => { scan: "spec/**/*_spec.rb" },
+    "i18n-hardcoded"    => { scan: "app/{mailers,components}/**/*.{rb,html.erb}" }
   }.freeze
 
   def self.skill_names = SKILLS.keys
