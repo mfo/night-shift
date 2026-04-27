@@ -2,3 +2,4 @@ specs/
 .env
 tmp/
 pr-description.md
+db/*.db

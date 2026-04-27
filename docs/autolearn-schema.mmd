@@ -1,0 +1,48 @@
+---
+title: Autolearn — Schema SQLite
+---
+erDiagram
+    backlog_items {
+        int id PK
+        string skill
+        string item
+        string status "pending|running|pr_open|done|failed|skipped"
+        string branch
+        int pr_number
+        string failure_reason
+        int priority
+        int retry_count "autolearn — tentatives effectuees"
+        string last_verdict "autolearn — dernier verdict du juge"
+        int created_at
+        int updated_at
+    }
+
+    autolearn_cycles {
+        int id PK
+        int backlog_item_id FK
+        int attempt "1..N"
+        string verdict "success|skill_defect|item_hard|infra_error|context_limit"
+        string root_cause
+        string suggested_patch
+        float confidence "0.0-1.0"
+        string skill_patch_sha "commit SHA du patch skill"
+        string outcome "improved|degraded|no_change|skipped"
+        string log_path
+        int turns_used
+        int created_at
+    }
+
+    infra_suggestions {
+        int id PK
+        string skill
+        string description
+        string source "judge|manual"
+        int backlog_item_id FK
+        string status "pending|resolved"
+        int occurrences "dedup counter"
+        int created_at
+        int resolved_at
+    }
+
+    backlog_items ||--o{ autolearn_cycles : "1 item → N cycles"
+    backlog_items ||--o{ infra_suggestions : "1 item → N suggestions"

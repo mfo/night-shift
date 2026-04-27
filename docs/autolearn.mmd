@@ -1,0 +1,53 @@
+---
+title: Autolearn — Flux reconciler-driven
+---
+flowchart TB
+    watch([Reconciler watch\n120s cycle])
+    watch --> fetch[GitHub.fetch_prs\nreconcile PR states]
+    fetch --> pick[pick_next_items\n1 item/skill max]
+
+    pick --> active{skill\nactive?}
+    active -->|oui| watch
+    active -->|non| claim[claim_next\nbacklog pending]
+    claim --> exists{item\nexists on main?}
+    exists -->|non| skip_file[skip\nfile_not_found] --> watch
+    exists -->|oui| launch[launch_skill\nworktree + tmux + serveur]
+
+    launch --> skillrun[cmd_skill_run\nSkillRunner.run\nclaude -p dans worktree]
+    skillrun --> success{succès?}
+
+    success -->|oui| pr_desc{pr-description.md\nexists?}
+    pr_desc -->|non| fail_desc[handle_skill_failure\nno_pr_description]
+    pr_desc -->|oui| push[git push + gh pr create]
+    push --> record_ok[(record_cycle\nverdict: success)]
+    record_ok --> pr_open([pr_open\nattend merge humain])
+    pr_open --> watch
+
+    success -->|non| judge[Judge.evaluate\nlog digest → claude -p\n→ verdict JSON]
+    fail_desc --> judge
+
+    judge --> retryable{Judge.retryable?\nretry < 3 &&\nskill_defect\|\|infra_error}
+
+    retryable -->|oui| defect{skill_defect\n&& confidence ≥ 0.5?}
+    defect -->|oui| cap{pitfalls\n< 5?}
+    cap -->|oui| patch[apply_skill_patch\nappend patterns.md\ngit commit]
+    cap -->|non| patch_cap([STOP — needs\nkaizen synth])
+    defect -->|non| reset_pending[reset to pending\nbranch: nil]
+    patch --> reset_pending
+    reset_pending --> inc[retry_count += 1]
+    inc --> watch
+
+    retryable -->|non| skip_reason{verdict?}
+    skip_reason -->|item_hard| skip_hard[skip — item_hard]
+    skip_reason -->|context_limit| skip_ctx[skip — context_limit]
+    skip_reason -->|exhausted| skip_exhaust[skip — autolearn_exhausted]
+    skip_hard --> watch
+    skip_ctx --> watch
+    skip_exhaust --> watch
+
+    style judge fill:#fff3e0,stroke:#e65100
+    style patch fill:#e8f5e9,stroke:#2e7d32
+    style skillrun fill:#e1f5fe,stroke:#0277bd
+    style patch_cap fill:#ffebee,stroke:#c62828
+    style watch fill:#f3e5f5,stroke:#6a1b9a
+    style pr_open fill:#e8f5e9,stroke:#2e7d32

@@ -1,0 +1,92 @@
+#!/usr/bin/env ruby
+# Usage: claude-log-reader <log-path> [--tail N]
+#
+# Lit un log stream-json de Claude et affiche une version lisible.
+
+require "json"
+
+file = ARGV[0] or abort("usage: claude-log-reader <log-path> [--tail N]")
+tail_n = ARGV.include?("--tail") ? (ARGV[ARGV.index("--tail") + 1] || 20).to_i : nil
+
+lines = File.readlines(file)
+lines = lines.last(tail_n) if tail_n
+
+lines.each do |line|
+  line.strip!
+  next if line.empty?
+
+  event = JSON.parse(line) rescue next
+
+  case event["type"]
+  when "system"
+    sub = event["subtype"]
+    case sub
+    when "init"
+      model = event["model"]
+      puts "\033[90m── init (#{model}) ──\033[0m"
+    when "task_started"
+      puts "\033[90m   ⏳ task: #{event['description']}\033[0m"
+    else
+      puts "\033[90m   [system:#{sub}]\033[0m"
+    end
+
+  when "assistant"
+    content = event.dig("message", "content")
+    next unless content.is_a?(Array)
+
+    content.each do |block|
+      case block["type"]
+      when "text"
+        text = block["text"].to_s.strip
+        next if text.empty?
+        puts "\033[36m🤖 #{text[0, 200]}\033[0m"
+      when "tool_use"
+        name = block["name"]
+        input = block["input"] || {}
+        detail = input["command"] || input["pattern"] || input["file_path"] || input["skill"] || "..."
+        detail = detail.to_s[0, 120]
+        puts "\033[33m   → #{name}(#{detail})\033[0m"
+      when "thinking"
+        # skip thinking blocks
+      end
+    end
+
+  when "user"
+    content = event.dig("message", "content")
+    next unless content.is_a?(Array)
+
+    content.each do |block|
+      if block["is_error"]
+        msg = block["content"].to_s[0, 150]
+        puts "\033[31m   ✗ #{msg}\033[0m"
+      elsif block["type"] == "tool_result"
+        result = block["content"].to_s
+        # Strip ANSI codes
+        result = result.gsub(/\e\[[0-9;]*m/, "").strip
+        next if result.empty?
+        lines_out = result.lines
+        if lines_out.size > 3
+          puts "\033[90m   ┆ #{lines_out.first.strip}\033[0m"
+          puts "\033[90m   ┆ ... (#{lines_out.size} lines)\033[0m"
+          puts "\033[90m   ┆ #{lines_out.last.strip}\033[0m"
+        else
+          lines_out.each { |l| puts "\033[90m   ┆ #{l.strip}\033[0m" }
+        end
+      end
+    end
+
+  when "result"
+    ok = event["subtype"] == "success" && !event["is_error"]
+    duration = (event["duration_ms"].to_i / 1000.0).round(1)
+    cost = event["total_cost_usd"]&.round(4)
+    turns = event["num_turns"]
+    icon = ok ? "✅" : "❌"
+    puts ""
+    puts "#{icon} \033[1m#{event['subtype']}\033[0m (#{duration}s, #{turns} turns, $#{cost})"
+    result_text = event["result"].to_s.strip
+    puts "   #{result_text[0, 200]}" unless result_text.empty?
+
+  when "rate_limit_event"
+    # skip
+  end
+end
