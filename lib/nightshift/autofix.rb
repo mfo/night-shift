@@ -21,6 +21,11 @@ module Nightshift
     end
 
     def run_pipeline(pr_number, store:, repo:, result: {})
+      # Resolve worktree path: use the PR's worktree if it exists, fallback to main repo
+      base_repo = ENV.fetch("NIGHTSHIFT_REPO")
+      row = store.db[:prs].where(number: pr_number.to_i).first
+      branch = row&.dig(:branch)
+      repo_path = (branch && Worktree.path_for_branch(branch, base_repo)) || base_repo
 
       # Get latest CI run
       run_id = Diagnose.extract_run_id(repo, pr_number)
@@ -69,7 +74,6 @@ module Nightshift
       }
       print_dashboard(st)
 
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       logdir = File.join(repo_path, "tmp")
       FileUtils.mkdir_p(logdir)
 
