@@ -9,7 +9,13 @@ module Nightshift
   SKILLS = {
     "haml-migration"    => { scan: "app/views/**/*.html.haml", needs_server: true, port: 3210 },
     "test-optimization" => { scan: "spec/**/*_spec.rb" },
-    "i18n-hardcoded"    => { scan: "app/{mailers,components}/**/*.{rb,html.erb}" }
+    "i18n-hardcoded"    => {
+      scan: "app/{mailers,components}/**/*.{rb,html.erb}",
+      priority_map: {
+        %r{/dossiers/|/users/|quotient_familial|notification_mailer|user_mailer|phishing_alert} => 3,
+        %r{/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer} => 2
+      }
+    }
   }.freeze
 
   def self.skill_names = SKILLS.keys

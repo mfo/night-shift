@@ -201,9 +201,22 @@ module Nightshift
       abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
 
+      priority_map = config[:priority_map]
       files = Dir.glob("#{repo_path}/#{config[:scan]}")
-      files.each { |f| store.add_backlog(skill, f.sub("#{repo_path}/", "")) }
+      files.each do |f|
+        relative = f.sub("#{repo_path}/", "")
+        priority = resolve_priority(relative, priority_map)
+        store.add_backlog(skill, relative, priority: priority)
+      end
       puts "nightshift: scanned #{files.size} files for #{skill}"
+    end
+
+    def resolve_priority(path, priority_map)
+      return 0 unless priority_map
+      priority_map.each do |pattern, prio|
+        return prio if path.match?(pattern)
+      end
+      1 # default: admin/other
     end
 
     def cmd_backlog_list(args)
