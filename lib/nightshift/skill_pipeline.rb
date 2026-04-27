@@ -58,6 +58,21 @@ module Nightshift
       failure_reason = result[:failure_reason]
       retry_count = backlog_item[:retry_count].to_i
 
+      # Rate limit: skip judge (would also be rate-limited), backoff 30min
+      if failure_reason == "rate_limited"
+        puts "nightshift: rate limited — backoff 30min"
+        record_cycle(backlog_item, verdict: "rate_limited",
+                     root_cause: "rate_limited", log_path: result[:log_path],
+                     turns: result[:turns_used])
+        branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
+                                 chdir: worktree_path)
+        Worktree.cleanup(branch.strip)
+        @store.update_backlog_status(backlog_item[:id], "pending",
+                                     branch: nil, failure_reason: nil,
+                                     retry_after: Time.now.to_i + 1800)
+        return
+      end
+
       puts "nightshift: skill failed (#{failure_reason}) — invoking judge"
 
       # Judge: analyze the failure
@@ -86,7 +101,13 @@ module Nightshift
       if Judge.retryable?(verdict, retry_count)
         # Apply patch if skill_defect with good confidence
         if verdict[:verdict] == "skill_defect" && verdict[:suggested_patch] && verdict[:confidence] >= 0.5
-          apply_patch(skill, verdict[:suggested_patch])
+          sha = apply_patch(skill, verdict[:suggested_patch])
+          if sha
+            @store.db[:autolearn_cycles]
+              .where(backlog_item_id: backlog_item[:id])
+              .order(Sequel.desc(:id)).limit(1)
+              .update(skill_patch_sha: sha)
+          end
         end
 
         # Clean up worktree before reset — the reconciler will create a fresh one
@@ -134,10 +155,22 @@ module Nightshift
       content += "\n### #{pitfall_id} (#{timestamp})\n\n#{patch_text.strip}\n"
 
       File.write(patterns_path, content)
-      system("git", "-C", nightshift_dir, "add", patterns_path.sub("#{nightshift_dir}/", ""))
-      system("git", "-C", nightshift_dir, "commit", "--no-gpg-sign",
-             "-m", "autolearn(#{skill_name}): add #{pitfall_id}")
-      puts "  📝 appended #{pitfall_id} to patterns.md"
+
+      relative_path = patterns_path.sub("#{nightshift_dir}/", "")
+      unless system("git", "-C", nightshift_dir, "add", relative_path)
+        puts "  ⚠️ git add failed — patch written but not committed"
+        return nil
+      end
+
+      unless system("git", "-C", nightshift_dir, "commit", "--no-gpg-sign",
+                     "-m", "autolearn(#{skill_name}): add #{pitfall_id}")
+        puts "  ⚠️ git commit failed"
+        return nil
+      end
+
+      sha, = Open3.capture2("git", "-C", nightshift_dir, "rev-parse", "HEAD")
+      puts "  📝 appended #{pitfall_id} to patterns.md (#{sha.strip[0, 7]})"
+      sha.strip
     end
 
     def record_cycle(backlog_item, verdict:, root_cause: nil,

@@ -1,3 +1,4 @@
+require "json"
 require "open3"
 require "shellwords"
 require "yaml"
@@ -23,6 +24,7 @@ module Nightshift
       cmd += ["--allowedTools", *allowed] if allowed.any?
 
       claude_ok = run_with_tee(*cmd, log_path: log_path, chdir: worktree_path)
+      rate_limited = !claude_ok && detect_rate_limit(log_path)
 
       commits, = Open3.capture2("git", "log", "main..HEAD", "--oneline",
                                 chdir: worktree_path)
@@ -30,7 +32,7 @@ module Nightshift
 
       {
         success: claude_ok && has_commits,
-        failure_reason: failure_reason(claude_ok, has_commits),
+        failure_reason: rate_limited ? "rate_limited" : failure_reason(claude_ok, has_commits),
         log_path: log_path,
         turns_used: Nightshift.count_turns(log_path),
         files_changed: has_commits ? commits.lines.size : 0
@@ -98,6 +100,17 @@ module Nightshift
         "--verbose", "--max-turns", "15",
         chdir: worktree_path
       )
+    end
+
+    def detect_rate_limit(log_path)
+      return false unless File.exist?(log_path)
+      File.foreach(log_path) do |line|
+        event = JSON.parse(line.strip) rescue next
+        return true if event["type"] == "rate_limit_event"
+      end
+      false
+    rescue StandardError
+      false
     end
 
     def failure_reason(claude_ok, has_commits)

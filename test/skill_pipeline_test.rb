@@ -49,16 +49,19 @@ class SkillPipelineTest < Minitest::Test
 
   # --- apply_patch ---
 
-  def test_apply_patch_creates_pitfall_section
+  def test_apply_patch_creates_pitfall_section_and_returns_sha
     dir = Dir.mktmpdir
     skill_dir = File.join(dir, ".claude", "skills", "test-skill")
     FileUtils.mkdir_p(skill_dir)
     patterns_path = File.join(skill_dir, "patterns.md")
     File.write(patterns_path, "# Patterns\n\nSome content.\n")
 
+    sha = nil
     @pipeline.stub(:nightshift_dir, dir) do
       @pipeline.stub(:system, true) do
-        @pipeline.apply_patch("test-skill", "Watch out for X")
+        Open3.stub(:capture2, ["abc1234def\n", nil]) do
+          sha = @pipeline.apply_patch("test-skill", "Watch out for X")
+        end
       end
     end
 
@@ -66,6 +69,26 @@ class SkillPipelineTest < Minitest::Test
     assert_includes content, "## Auto-discovered pitfalls"
     assert_includes content, "### AL-1"
     assert_includes content, "Watch out for X"
+    assert_equal "abc1234def", sha
+  ensure
+    FileUtils.rm_rf(dir) if dir
+  end
+
+  def test_apply_patch_returns_nil_when_git_add_fails
+    dir = Dir.mktmpdir
+    skill_dir = File.join(dir, ".claude", "skills", "test-skill")
+    FileUtils.mkdir_p(skill_dir)
+    patterns_path = File.join(skill_dir, "patterns.md")
+    File.write(patterns_path, "# Patterns\n\nSome content.\n")
+
+    result = nil
+    @pipeline.stub(:nightshift_dir, dir) do
+      @pipeline.stub(:system, false) do
+        result = @pipeline.apply_patch("test-skill", "Watch out for X")
+      end
+    end
+
+    assert_nil result
   ensure
     FileUtils.rm_rf(dir) if dir
   end
@@ -170,6 +193,26 @@ class SkillPipelineTest < Minitest::Test
     assert_equal "item_hard", cycle[:verdict]
     assert_equal "complex file", cycle[:root_cause]
     assert_equal 5, cycle[:turns_used]
+  end
+
+  def test_handle_failure_rate_limited_skips_judge_and_backs_off
+    item = add_backlog_item("haml-migration", "a.haml", status: "running")
+    result = { failure_reason: "rate_limited", log_path: "/tmp/test.log", turns_used: 2 }
+
+    Nightshift::Worktree.stub(:cleanup, nil) do
+      Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
+        @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
+      end
+    end
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "pending", updated[:status]
+    assert_nil updated[:branch]
+    assert updated[:retry_after] > Time.now.to_i,
+           "retry_after should be in the future"
+
+    cycle = @db[:autolearn_cycles].first
+    assert_equal "rate_limited", cycle[:verdict]
   end
 
   def test_handle_failure_infra_error_creates_suggestion
