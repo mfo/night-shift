@@ -103,10 +103,12 @@ module Nightshift
         if verdict[:verdict] == "skill_defect" && verdict[:suggested_patch] && verdict[:confidence] >= 0.5
           sha = apply_patch(skill, verdict[:suggested_patch])
           if sha
-            @store.db[:autolearn_cycles]
+            last_cycle_id = @store.db[:autolearn_cycles]
               .where(backlog_item_id: backlog_item[:id])
-              .order(Sequel.desc(:id)).limit(1)
-              .update(skill_patch_sha: sha)
+              .order(Sequel.desc(:id)).get(:id)
+            @store.db[:autolearn_cycles]
+              .where(id: last_cycle_id)
+              .update(skill_patch_sha: sha) if last_cycle_id
           end
         end
 
