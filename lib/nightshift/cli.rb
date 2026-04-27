@@ -155,309 +155,25 @@ module Nightshift
       cmd_watch([])
     end
 
+    # --- Delegated to SkillPipeline ---
+
     def cmd_skill_run(args)
       skill = args.shift or abort("usage: nightshift skill-run <skill> <item>")
       item_path = args.shift or abort("usage: nightshift skill-run <skill> <item>")
-      worktree_path = Dir.pwd
-
-      result = SkillRunner.run(skill, item: item_path, worktree_path: worktree_path)
-
-      branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
-                               chdir: worktree_path)
-      branch = branch.strip
-      backlog_item = store.backlog_by_branch(branch)
-
-      unless backlog_item
-        puts "nightshift: no backlog item for branch #{branch}"
-        return
-      end
-
-      unless result[:success]
-        handle_skill_failure(skill, item_path, worktree_path, backlog_item, result)
-        return
-      end
-
-      # Check pr-description.md
-      desc_path = File.join(worktree_path, "pr-description.md")
-      unless File.exist?(desc_path)
-        handle_skill_failure(skill, item_path, worktree_path, backlog_item,
-                             result.merge(failure_reason: "no_pr_description"))
-        return
-      end
-
-      # Push
-      unless system("git", "push", "-u", "origin", branch, chdir: worktree_path)
-        store.update_backlog_status(backlog_item[:id], "failed",
-                                   failure_reason: "push_error")
-        puts "nightshift: push failed"
-        return
-      end
-
-      # Create PR
-      body = File.read(desc_path)
-      pr_url, = Open3.capture2("gh", "pr", "create", "--head", branch,
-                               "--fill", "--body", body, chdir: worktree_path)
-      pr_number = pr_url.strip.split("/").last.to_i
-
-      store.update_backlog_status(backlog_item[:id], "pr_open",
-                                 pr_number: pr_number, branch: branch)
-      puts "nightshift: PR ##{pr_number} created"
-
-      # Record success in autolearn_cycles
-      record_autolearn_cycle(backlog_item, verdict: "success", outcome: "improved",
-                             log_path: result[:log_path], turns: result[:turns_used])
+      SkillPipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd)
     end
 
-    def handle_skill_failure(skill, item_path, worktree_path, backlog_item, result)
-      failure_reason = result[:failure_reason]
-      retry_count = backlog_item[:retry_count].to_i
-
-      puts "nightshift: skill failed (#{failure_reason}) — invoking judge"
-
-      # Judge: analyze the failure
-      verdict = Judge.evaluate(skill, item: item_path,
-                               log_path: result[:log_path],
-                               failure_reason: failure_reason)
-
-      puts "  ┌─ verdict: #{verdict[:verdict]} (confidence: #{verdict[:confidence]})"
-      puts "  │  cause: #{verdict[:root_cause]}"
-      puts "  └─ patch: #{verdict[:suggested_patch] ? 'yes' : 'none'}"
-
-      # Record the cycle
-      record_autolearn_cycle(backlog_item, verdict: verdict[:verdict],
-                             root_cause: verdict[:root_cause],
-                             suggested_patch: verdict[:suggested_patch],
-                             log_path: result[:log_path], turns: result[:turns_used])
-
-      # Store infra suggestion if infra_error
-      if verdict[:verdict] == "infra_error" && verdict[:root_cause]
-        store.add_infra_suggestion(skill: skill, description: verdict[:root_cause],
-                                   source: "judge", backlog_item_id: backlog_item[:id])
-        puts "  💡 infra suggestion enregistree"
-      end
-
-      # Decide: retry or stop
-      if Judge.retryable?(verdict, retry_count)
-        # Apply patch if skill_defect with good confidence
-        if verdict[:verdict] == "skill_defect" && verdict[:suggested_patch] && verdict[:confidence] >= 0.5
-          apply_skill_patch(skill, verdict[:suggested_patch])
-        end
-
-        # Clean up worktree before reset — the reconciler will create a fresh one
-        branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
-                                 chdir: worktree_path)
-        Worktree.cleanup(branch.strip)
-
-        # Reset to pending — the reconciler will re-launch on next cycle
-        store.update_backlog_status(backlog_item[:id], "pending",
-                                   branch: nil, failure_reason: nil,
-                                   last_verdict: verdict[:verdict])
-        store.db[:backlog_items].where(id: backlog_item[:id])
-          .update(retry_count: Sequel.expr(:retry_count) + 1)
-        puts "  🔄 reset to pending (retry #{retry_count + 1}/#{Judge::MAX_RETRIES}) — reconciler will re-launch"
-      else
-        status = retry_count >= Judge::MAX_RETRIES ? "skipped" : "skipped"
-        reason = retry_count >= Judge::MAX_RETRIES ? "autolearn_exhausted" : verdict[:verdict]
-        store.update_backlog_status(backlog_item[:id], "skipped",
-                                   failure_reason: reason,
-                                   last_verdict: verdict[:verdict])
-        puts "  ⏭ skipped (#{reason})"
-      end
-    end
-
-    def apply_skill_patch(skill_name, patch_text)
-      nightshift_dir = File.expand_path("../..", __dir__)
-      patterns_path = File.join(nightshift_dir, ".claude", "skills", skill_name, "patterns.md")
-
-      unless File.exist?(patterns_path)
-        puts "  ⚠️ patterns.md not found for #{skill_name}"
-        return
-      end
-
-      content = File.read(patterns_path)
-      unless content.include?("## Auto-discovered pitfalls")
-        content += "\n\n## Auto-discovered pitfalls\n\n<!-- Managed by autolearn. Review via kaizen synth. -->\n"
-      end
-
-      pitfall_count = content.scan(/^### AL-\d+/).size
-      if pitfall_count >= 5
-        puts "  🛑 5 auto-pitfalls cap reached — needs kaizen synth"
-        return
-      end
-
-      pitfall_id = "AL-#{pitfall_count + 1}"
-      timestamp = Time.now.strftime("%Y-%m-%d %H:%M")
-      content += "\n### #{pitfall_id} (#{timestamp})\n\n#{patch_text.strip}\n"
-
-      File.write(patterns_path, content)
-      system("git", "-C", nightshift_dir, "add", patterns_path.sub("#{nightshift_dir}/", ""))
-      system("git", "-C", nightshift_dir, "commit", "--no-gpg-sign",
-             "-m", "autolearn(#{skill_name}): add #{pitfall_id}")
-      puts "  📝 appended #{pitfall_id} to patterns.md"
-    end
-
-    def record_autolearn_cycle(backlog_item, verdict:, root_cause: nil,
-                               suggested_patch: nil, log_path: nil, turns: nil, outcome: nil)
-      retry_count = backlog_item[:retry_count].to_i
-      store.db[:autolearn_cycles].insert(
-        backlog_item_id: backlog_item[:id],
-        attempt: retry_count + 1,
-        verdict: verdict.to_s,
-        root_cause: root_cause,
-        suggested_patch: suggested_patch,
-        outcome: outcome,
-        log_path: log_path,
-        turns_used: turns,
-        created_at: Time.now.to_i
-      )
-    end
+    # --- Delegated to AutolearnMonitor ---
 
     def cmd_autolearn_status(args)
-      skill = args.shift
-
-      puts ""
-      puts "━━ autolearn status ━━"
-
-      skills = skill ? [skill] : Nightshift.skill_names
-      skills.each do |sk|
-        items = store.all_backlog(skill: sk)
-        next if items.empty?
-
-        counts = items.group_by { |i| i[:status] }.transform_values(&:size)
-        total = items.size
-        done = counts["done"] || 0
-        failed = counts["failed"] || 0
-        skipped = counts["skipped"] || 0
-        pending = counts["pending"] || 0
-        running = counts["running"] || 0
-
-        cycles = store.db[:autolearn_cycles]
-          .where(backlog_item_id: items.map { |i| i[:id] })
-          .order(Sequel.desc(:created_at))
-          .limit(5).all
-
-        puts ""
-        puts "  #{sk} (#{total} items)"
-        puts "  ✅ #{done}  🔄 #{running}  ⬜ #{pending}  ❌ #{failed}  ⏭ #{skipped}"
-
-        if cycles.any?
-          puts ""
-          puts "  Last cycles:"
-          cycles.each do |c|
-            t = Time.at(c[:created_at]).strftime("%H:%M")
-            puts "    #{t} attempt=#{c[:attempt]} verdict=#{c[:verdict]} outcome=#{c[:outcome] || '-'}"
-            puts "         cause: #{c[:root_cause]}" if c[:root_cause]
-          end
-        end
-
-        # Suggestions infra pending
-        suggestions = store.pending_infra_suggestions(skill: sk)
-        if suggestions.any?
-          puts ""
-          puts "  💡 Infra suggestions (#{suggestions.size}):"
-          suggestions.each do |s|
-            occ = s[:occurrences] > 1 ? " (x#{s[:occurrences]})" : ""
-            puts "    ##{s[:id]} [#{s[:source]}]#{occ} #{s[:description][0, 80]}"
-          end
-        end
-      end
-      puts ""
+      AutolearnMonitor.new(store: store).status(skill: args.shift)
     end
 
     def cmd_autolearn_report(_args)
-      cutoff = Time.now.to_i - 86_400 # 24h
-      cycles = store.db[:autolearn_cycles]
-        .where { created_at > cutoff }
-        .order(:created_at).all
-
-      if cycles.empty?
-        puts "\n  Aucun cycle autolearn dans les dernieres 24h.\n"
-        return
-      end
-
-      # Agreger par verdict
-      by_verdict = cycles.group_by { |c| c[:verdict] }
-      item_ids = cycles.map { |c| c[:backlog_item_id] }.uniq
-      items = store.db[:backlog_items].where(id: item_ids).all
-      items_by_id = items.to_h { |i| [i[:id], i] }
-
-      # Items uniques traites
-      success_ids = cycles.select { |c| c[:verdict] == "success" }.map { |c| c[:backlog_item_id] }.uniq
-      failed_ids = (item_ids - success_ids)
-
-      # Patches appliques
-      patches = cycles.select { |c| c[:skill_patch_sha] }.map { |c| c[:skill_patch_sha] }.uniq
-
-      # Suggestions infra
-      suggestions = store.pending_infra_suggestions
-
-      # Tokens / turns
-      total_turns = cycles.sum { |c| c[:turns_used].to_i }
-
-      puts ""
-      puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      puts "  AUTOLEARN REPORT — #{Time.now.strftime('%Y-%m-%d %H:%M')}"
-      puts "  Periode : dernières 24h (depuis #{Time.at(cutoff).strftime('%H:%M')})"
-      puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      puts ""
-      puts "  Items traites : #{item_ids.size}"
-      puts "  ✅ Succes     : #{success_ids.size}"
-      puts "  ❌ Echecs     : #{failed_ids.size}"
-      puts "  🔄 Cycles     : #{cycles.size}"
-      puts "  🧠 Turns LLM  : #{total_turns}"
-      puts ""
-
-      # Repartition des verdicts
-      puts "  Verdicts :"
-      by_verdict.each do |verdict, cs|
-        puts "    #{verdict}: #{cs.size} cycle(s)"
-      end
-      puts ""
-
-      # Patches appliques
-      if patches.any?
-        puts "  📝 Patches skill appliques : #{patches.size}"
-        patches.each { |sha| puts "    #{sha[0, 7]}" }
-        puts ""
-      end
-
-      # Items en succes
-      if success_ids.any?
-        puts "  ✅ Items reussis :"
-        success_ids.each do |id|
-          item = items_by_id[id]
-          pr = item[:pr_number] ? " PR##{item[:pr_number]}" : ""
-          puts "    ##{id} #{item[:item]}#{pr}"
-        end
-        puts ""
-      end
-
-      # Items en echec avec cause
-      if failed_ids.any?
-        puts "  ❌ Items en echec :"
-        failed_ids.each do |id|
-          item = items_by_id[id]
-          last_cycle = cycles.select { |c| c[:backlog_item_id] == id }.last
-          cause = last_cycle[:root_cause] || last_cycle[:verdict]
-          puts "    ##{id} #{item[:item]}"
-          puts "         #{cause[0, 100]}"
-        end
-        puts ""
-      end
-
-      # Suggestions infra
-      if suggestions.any?
-        puts "  💡 Suggestions infra en attente (#{suggestions.size}) :"
-        suggestions.each do |s|
-          occ = s[:occurrences] > 1 ? " (x#{s[:occurrences]})" : ""
-          puts "    ##{s[:id]} [#{s[:source]}]#{occ} #{s[:description][0, 100]}"
-        end
-        puts ""
-      end
-
-      puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      puts ""
+      AutolearnMonitor.new(store: store).report
     end
+
+    # --- Backlog ---
 
     def cmd_backlog(args)
       sub = args.shift
@@ -512,6 +228,7 @@ module Nightshift
       puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
       puts ""
     end
+
     def cmd_backlog_skip(args)
       id = args.shift or abort("usage: nightshift backlog skip <id>")
       item = store.db[:backlog_items].where(id: id.to_i).first
