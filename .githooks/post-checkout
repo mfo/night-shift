@@ -40,8 +40,14 @@ worktree_name=$(basename "$worktree_path")
 
 # Transforme le nom en format compatible DB (remplace - par _)
 # Exemple: demarches-simplifiees.fr-poc-haml → poc_haml
+# PostgreSQL limite les identifiants à 63 chars — on tronque + hash si nécessaire
 db_suffix=$(echo "$worktree_name" | sed 's/demarches-simplifiees\.fr-//' | sed 's/-/_/g')
 db_name="tps_test_${db_suffix}"
+
+if [ ${#db_name} -gt 63 ]; then
+  hash=$(echo "$worktree_name" | shasum | cut -c1-8)
+  db_name="tps_test_${db_suffix:0:45}_${hash}"
+fi
 
 echo "==> Worktree détecté: $worktree_name"
 
@@ -71,37 +77,6 @@ if [ ! -e "$procfile_dev" ]; then
   fi
 else
   echo "==> Procfile.sidekiq.dev déjà présent"
-fi
-
-# Copier data/routes-reference.txt depuis le repo principal
-routes_src="$main_repo/data/routes-reference.txt"
-routes_dst="$worktree_path/data"
-if [ -f "$routes_src" ]; then
-  mkdir -p "$routes_dst"
-  cp "$routes_src" "$routes_dst/"
-  echo "==> routes-reference.txt copié depuis le repo principal"
-else
-  echo "⚠️  Pas de data/routes-reference.txt trouvé dans le repo principal"
-fi
-
-# Écrire .env.development.local avec PORT extrait de APP_HOST
-env_dev_local="$worktree_path/.env.development.local"
-if [ ! -e "$env_dev_local" ]; then
-  app_host=$(grep '^APP_HOST=' "$main_repo/.env" | head -1 | sed 's/APP_HOST="//' | sed 's/"//')
-  port=$(echo "$app_host" | grep -o ':[0-9]*$' | tr -d ':')
-  port="${port:-3000}"
-
-  cat > "$env_dev_local" <<EOF
-PORT=${port}
-APP_HOST="localhost:${port}"
-EOF
-
-  # Overmind lit .overmind.env, pas .env.development.local
-  echo "PORT=${port}" > "$worktree_path/.overmind.env"
-
-  echo "==> .env.development.local + .overmind.env créés (PORT=${port})"
-else
-  echo "==> .env.development.local déjà présent"
 fi
 
 echo "==> Configuration de la base de données: $db_name"
@@ -143,7 +118,7 @@ fi
 nightshift_claude="${NIGHTSHIFT_DIR:-$HOME/dev/night-shift}/.claude"
 claude_target="$worktree_path/.claude"
 
-if [ -d "$nightshift_claude" ]; then
+if [ -d "$nightshift_claude" ] && [ ! -d "$claude_target" ]; then
   mkdir -p "$claude_target"
   for item in "$nightshift_claude"/*; do
     name=$(basename "$item")
@@ -151,6 +126,8 @@ if [ -d "$nightshift_claude" ]; then
     cp -r "$item" "$claude_target/"
   done
   echo "==> .claude/ copié depuis night-shift (skills, settings — sans agents)"
+elif [ -d "$claude_target" ]; then
+  echo "==> .claude/ déjà présent"
 else
   echo "⚠️  night-shift/.claude/ non trouvé ($nightshift_claude)"
 fi

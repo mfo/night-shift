@@ -106,6 +106,8 @@ Retours intégrés, basés sur l'analyse des 64 PRs produites :
 - Circuit breaker : max 2 autofix par PR par heure
 - Claude -p : allowedTools restrictif (Read, Edit, Bash rspec), max 20 turns
 - Logs dans `tmp/claude.log`
+- **1 PR par skill max** : `active_for_skill?` bloque sur `pr_open` — le goulet c'est la review d'équipe, pas la production de PRs
+- **Budget IA** : plan Claude Max (forfait mensuel), pas de risque financier
 
 ### Reporté
 

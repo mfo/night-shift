@@ -125,7 +125,15 @@ export NIGHTSHIFT_WATCH_INTERVAL=120           # Intervalle de refresh en second
 export NIGHTSHIFT_DEBUG=1                      # Mode debug (verbose, bypass circuit breaker)
 ```
 
-Dépendances : `tmux`, `gh`, `git`. Optionnel : `claude` (pour autofix specs).
+Dépendances : `tmux`, `gh`, `git`. Optionnel : `claude` (pour autofix specs et skills auto).
+
+### Budget IA
+
+Plan Claude Max (forfait mensuel). Pas de facturation au token — au pire, rate limit.
+
+### Goulet d'étranglement
+
+La review d'équipe, pas la production de PRs. Le pipeline est limité à **1 PR par skill** tant que la PR en cours n'est pas approved/merged (`active_for_skill?` bloque sur `pr_open`). Pas de flood de PRs la nuit.
 
 ## Structure
 
