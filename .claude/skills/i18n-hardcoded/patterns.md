@@ -113,3 +113,16 @@ Les fichiers `app/mailers/devise_*_mailer.rb` contiennent souvent uniquement des
 
 ### Règle générale : items sans texte hardcodé
 Si après analyse le fichier ne contient aucun texte français hardcodé, ce n'est PAS un échec du skill. Créer un commit vide avec un message expliquant pourquoi aucune extraction n'était nécessaire, ou configurer le pipeline pour accepter no_diff comme résultat valide pour ces cas.
+
+### AL-2 (2026-04-28 05:24)
+
+## Mailers et templates associés
+
+Quand l'item cible est un mailer (`app/mailers/**/*.rb`), le fichier Ruby ne contient généralement que de la logique (appels `super`, constantes, headers). Les textes français hardcodés se trouvent dans les **templates de vue associés** :
+- `app/views/<mailer_name>/*.html.erb`
+- `app/views/<mailer_name>/*.html.haml`
+- `app/views/<mailer_name>/*.text.erb`
+
+Exemple : pour `app/mailers/devise_user_mailer.rb`, inspecter `app/views/devise_mailer/` et tous ses templates.
+
+**Action obligatoire** : toujours lister et inspecter les templates de vue associés au mailer. Si le fichier .rb ne contient pas de texte hardcodé, les templates en contiennent presque certainement. Extraire les textes français des templates vers les fichiers i18n YAML.
