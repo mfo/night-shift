@@ -1,7 +1,7 @@
 ---
 name: i18n-hardcoded
 description: "Extract hardcoded French strings to i18n YAML. Use when user says 'extract i18n', 'translate hardcoded', or provides a .rb/.erb file with French text."
-allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(echo:*), Bash(stat:*), Bash(touch:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md)
+allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_close
 ---
 
 # Extraction i18n : textes francais hardcodes
@@ -18,6 +18,24 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
 - Pas de pipes complexes
 - 1 commande simple = 1 appel Bash
 - Ne JAMAIS utiliser `git -C` — le working directory est deja le repo cible
+
+---
+
+## Setup (avant le workflow)
+
+**1. Serveur** — verifier que le serveur tourne (`.overmind.sock` ou process Rails).
+
+**2. Auto-login** — verifier :
+```bash
+grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
+```
+Si absent → appliquer le skill `/dev-auto-login`.
+
+**3. Playwright** — naviguer sur `localhost:$PORT` pour verifier que Playwright fonctionne. Si Chrome est deja ouvert → demander a l'utilisateur de le fermer.
+
+**4. Viewport** — toujours appeler `browser_resize` (1280x800) juste apres le premier `browser_navigate`.
+
+**5. Gist** — lancer le skill `/screenshot-gist <NomFichier>` pour creer le gist et cloner dans `tmp/<nom>/`.
 
 ---
 
@@ -40,7 +58,62 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
    - Constantes techniques (`"application/pdf"`, `"text/html"`)
 4. **Si aucun texte hardcode trouve** : ecrire `pr-description.md` avec "Aucun texte hardcode trouve" et terminer (le pipeline marquera `no_diff`).
 
-### Etape 2 : Determiner la structure i18n cible
+### Etape 2 : Screenshot AVANT (preuve visuelle)
+
+Capturer le rendu actuel AVANT toute modification.
+
+**Trouver la page de preview :**
+
+- **Mailer** (`app/mailers/`) : `localhost:$PORT/rails/mailers/<mailer_name>/<action>`
+  - Exemple : `localhost:$PORT/rails/mailers/notification_mailer/send_accepte_notification`
+  - Consulter `spec/mailers/previews/<mailer_name>_preview.rb` pour la liste des actions disponibles
+  - Si le preview n'existe pas ou crash → skip le screenshot, documenter dans la PR
+
+- **ViewComponent** (`app/components/`) : chercher dans cet ordre :
+  1. Page reelle utilisant le composant (consulter `data/routes-reference.txt`)
+  2. Preview ViewComponent : `localhost:$PORT/rails/view_components/<nom>/<variant>`
+  3. Si aucun preview → skip le screenshot, documenter dans la PR
+
+- **Vue ERB** (`app/views/`) : page reelle via `data/routes-reference.txt`
+
+**Capturer avec Playwright** (jusqu'a 3 points d'entree) :
+
+Pour les mailers, capturer le body de l'email :
+```javascript
+async (page) => {
+  // Les mail previews Rails affichent le mail dans un iframe ou directement
+  const body = await page.$('body');
+  if (body) {
+    await page.screenshot({ path: `tmp/<nom>/before-1.png`, fullPage: true });
+  }
+}
+```
+
+Pour les composants, cibler le selecteur CSS :
+```javascript
+async (page) => {
+  const elements = await page.$$('.component-selector');
+  const padding = 50;
+  const vp = page.viewportSize() || { width: 1280, height: 800 };
+  for (let i = 0; i < elements.length; i++) {
+    if (await elements[i].isVisible()) {
+      const box = await elements[i].boundingBox();
+      if (!box) continue;
+      const clip = {
+        x: Math.max(0, box.x - padding),
+        y: Math.max(0, box.y - padding),
+        width: Math.min(box.width + padding * 2, vp.width - Math.max(0, box.x - padding)),
+        height: box.height + padding * 2
+      };
+      await page.screenshot({ path: `tmp/<nom>/before-${i+1}.png`, clip });
+    }
+  }
+}
+```
+
+Nommage : `before-1.png`, `before-2.png`, etc.
+
+### Etape 3 : Determiner la structure i18n cible
 
 **Convention de l'app** (a respecter strictement) :
 
@@ -97,7 +170,7 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
 - Fichier YAML : le plus proche fichier `fr.yml` existant dans `config/locales/`
 - Scope : chemin complet `I18n.t("controllers.<controller>.<action>.<key>")`
 
-### Etape 3 : Verifier la structure YAML existante
+### Etape 4 : Verifier la structure YAML existante
 
 **CRITIQUE** : avant d'ecrire, lire le fichier YAML cible s'il existe.
 
@@ -106,7 +179,7 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
 3. **Si une cle identique existe avec une valeur differente** → ne PAS ecraser, choisir un nom de cle different (suffixe `_v2` ou plus descriptif)
 4. **Si le fichier YAML n'existe pas** : le creer avec la bonne structure
 
-### Etape 4 : Extraction
+### Etape 5 : Extraction
 
 Pour chaque texte hardcode identifie :
 
@@ -125,7 +198,7 @@ Pour chaque texte hardcode identifie :
    - `"#{count} dossier(s)"` → cle avec `count:` pour pluralisation Rails
    - Interpolation complexe (HTML, helpers) → skip, ne pas extraire
 
-### Etape 5 : Validation
+### Etape 6 : Validation
 
 **OBLIGATOIRE — ne JAMAIS skip**
 
@@ -149,7 +222,7 @@ Pour chaque texte hardcode identifie :
    bundle exec rubocop <fichier_modifie.rb>
    ```
 
-### Etape 6 : Commit
+### Etape 7 : Commit
 
 ```bash
 git add <fichier_modifie>
@@ -160,43 +233,78 @@ git commit -m "i18n(<scope>): extract hardcoded strings from <NomFichier>"
 
 Un seul commit par fichier traite. Inclure le fichier source + YAML + specs modifiees.
 
-### Etape 7 : pr-description.md
+### Etape 8 : Screenshot APRES + comparaison
 
-Ecrire `pr-description.md` a la racine du worktree :
+1. **Reprendre les memes pages** que l'etape 2 (memes URLs, meme ordre)
+2. **Capturer les screenshots APRES** : memes scripts Playwright, path `tmp/<nom>/after-1.png`, `after-2.png`, etc.
+3. **Comparer avant/apres** :
+   - `stat -f%z` sur chaque paire before/after (1 appel Bash par fichier)
+   - Identique au byte = le rendu n'a pas change (preuve forte)
+   - Si difference : comparer visuellement avec `Read` sur les PNG
+     - i18n ne devrait RIEN changer visuellement (meme texte, juste la source change)
+     - Si regression visible → c'est un bug d'extraction (cle manquante, interpolation cassee) → **fixer**
 
-```markdown
-## Probleme
+4. **Si fix necessaire** :
+   - Corriger le fichier source ou YAML
+   - Relancer validation (etape 6)
+   - Reprendre screenshot after
+   - Commit le fix : `git commit -m "fix(i18n): fix extraction <NomFichier> — <description>"`
 
-Textes francais en dur dans `<fichier>` — non internationalisable, non maintenable.
+### Etape 9 : Push gist + pr-description.md
 
-## Solution
+**1. Pousser les screenshots sur le gist** : lancer `push-gist.sh` avec tous les PNG de `tmp/<nom>/`.
 
-Extraction de N cles i18n vers `<fichier_yaml>`.
+**2. Ecrire `pr-description.md`** a la racine du worktree :
 
-### Changements
+   Pour construire les URLs des images du gist :
+   - Recuperer le gist ID depuis l'URL (derniere partie du path)
+   - Format des URLs raw : `https://gist.githubusercontent.com/<user>/<gist-id>/raw/<filename>`
 
-| Fichier | Modification |
-|---------|-------------|
-| `<fichier_source>` | N appels `t()` remplaces |
-| `<fichier_yaml>` | N cles ajoutees |
-| `<spec_file>` | Assertions mises a jour (si applicable) |
+   **Template :**
+   ```markdown
+   ## Probleme
 
-### Cles extraites
+   Textes francais en dur dans `<fichier>` — non internationalisable, non maintenable.
 
-| Cle | Valeur |
-|-----|--------|
-| `scope.cle1` | "Texte francais" |
-| `scope.cle2` | "Autre texte" |
+   ## Solution
 
-### Validation
+   Skill [`/i18n-hardcoded`](https://github.com/mfo/night-shift/blob/main/.claude/skills/i18n-hardcoded/SKILL.md)
 
-- [x] Chaque `t()` a sa cle YAML correspondante
-- [x] Apostrophes typographiques verifiees
-- [x] Tests passes
-- [x] Rubocop OK
+   Extraction de N cles i18n vers `<fichier_yaml>`.
 
-Generated with [Claude Code](https://claude.com/claude-code)
-```
+   ### Cles extraites
+
+   | Cle | Valeur |
+   |-----|--------|
+   | `scope.cle1` | "Texte francais" |
+   | `scope.cle2` | "Autre texte" |
+
+   ### Validation visuelle — RESULTAT
+
+   **Avant :**
+   ![before](https://gist.githubusercontent.com/<user>/<gist-id>/raw/before-1.png)
+
+   **Apres :**
+   ![after](https://gist.githubusercontent.com/<user>/<gist-id>/raw/after-1.png)
+
+   **Couverture :**
+   - ✅ `localhost:$PORT/rails/mailers/...` — preview mail
+   - ⏭️ raison du skip (si applicable)
+
+   [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
+
+   ### Validation technique
+
+   - [x] Chaque `t()` a sa cle YAML correspondante
+   - [x] Apostrophes typographiques verifiees
+   - [x] Tests passes
+   - [x] Rubocop OK
+   - [x] Screenshots avant/apres identiques
+
+   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   ```
+
+**3. Fermer Playwright** : appeler `mcp__playwright__browser_close`
 
 ---
 
