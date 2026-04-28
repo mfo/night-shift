@@ -126,3 +126,17 @@ Quand l'item cible est un mailer (`app/mailers/**/*.rb`), le fichier Ruby ne con
 Exemple : pour `app/mailers/devise_user_mailer.rb`, inspecter `app/views/devise_mailer/` et tous ses templates.
 
 **Action obligatoire** : toujours lister et inspecter les templates de vue associés au mailer. Si le fichier .rb ne contient pas de texte hardcodé, les templates en contiennent presque certainement. Extraire les textes français des templates vers les fichiers i18n YAML.
+
+### AL-3 (2026-04-28 05:27)
+
+## Mailers et fichiers avec vues associées
+
+Quand l'item cible est un mailer (`app/mailers/*_mailer.rb`), le fichier .rb ne contient généralement PAS de strings en dur — les textes sont dans les templates de vues associées.
+
+**Étapes obligatoires pour un mailer :**
+1. Identifier le dossier de vues associé : pour `app/mailers/foo_mailer.rb`, chercher `app/views/foo_mailer/` (attention : `DeviseUserMailer` utilise `template_paths ['devise_mailer']` donc ses vues sont dans `app/views/devise_mailer/`)
+2. Lister TOUS les templates `.html.haml` et `.html.erb` dans ce dossier (exclure les variantes `.en.html.*` qui sont les traductions anglaises)
+3. Extraire les strings françaises en dur de CHAQUE template vers des clés i18n
+4. Ne JAMAIS conclure `no_diff` sur un mailer sans avoir inspecté ses templates de vues
+
+Cette règle s'applique aussi aux controllers avec vues : toujours vérifier les fichiers de vue associés, pas seulement le fichier .rb ciblé.
