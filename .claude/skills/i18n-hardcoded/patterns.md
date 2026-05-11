@@ -151,3 +151,14 @@ Avant de commencer l'extraction, vérifier si le fichier cible ET ses templates 
 - Reporter le statut `already_i18n` au lieu de `no_diff`
 
 Un `no_diff` après analyse complète signifie que l'item était déjà correct — ce n'est PAS un échec du skill.
+
+### AL-5 (2026-05-11 09:38)
+
+## Gestion des items déjà internationalisés
+
+Avant de commencer l'extraction, vérifier rapidement si le fichier cible contient des chaînes françaises hardcodées. Si le fichier et ses templates associés utilisent déjà exclusivement `t()` / `I18n.t()` avec des sidecar YAML existants :
+1. Ne pas considérer cela comme un échec
+2. Terminer avec un exit code 0 et un message explicite : 'SKIP: already_i18n'
+3. Le orchestrateur doit traiter 'already_i18n' comme un succès (pas un no_diff failure)
+
+Dans le script d'orchestration/batching, filtrer en amont les fichiers qui n'ont aucune chaîne française hardcodée (grep -L pour les patterns courants de texte français hors t()) avant de les soumettre au skill.
