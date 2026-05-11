@@ -140,3 +140,14 @@ Quand l'item cible est un mailer (`app/mailers/*_mailer.rb`), le fichier .rb ne 
 4. Ne JAMAIS conclure `no_diff` sur un mailer sans avoir inspecté ses templates de vues
 
 Cette règle s'applique aussi aux controllers avec vues : toujours vérifier les fichiers de vue associés, pas seulement le fichier .rb ciblé.
+
+### AL-4 (2026-05-11 09:35)
+
+## Gestion des items déjà i18n-isés
+
+Avant de commencer l'extraction, vérifier si le fichier cible ET ses templates associés (HAML/ERB) contiennent des textes français hardcodés. Si tous les textes sont déjà traduits via `t('...')` avec des fichiers YAML sidecar en place :
+- Marquer l'item comme `already_i18n` (succès, pas un échec)
+- Ne PAS créer de branche ni de PR
+- Reporter le statut `already_i18n` au lieu de `no_diff`
+
+Un `no_diff` après analyse complète signifie que l'item était déjà correct — ce n'est PAS un échec du skill.
