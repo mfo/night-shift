@@ -6,7 +6,7 @@ allowed-tools: Bash(grep:*), Bash(touch:*), Edit(config/*), Write(config/*)
 
 # Auto-login dev
 
-**Contexte :** Certains skills ont besoin de naviguer sur `localhost:3000` en étant authentifié (screenshots, tests visuels, démo). Plutôt que de patcher `ApplicationController` et risquer de commiter le patch, on utilise un initializer séparé qui rouvre la classe — git-ignoré.
+**Contexte :** Certains skills ont besoin de naviguer sur le serveur de dev local en étant authentifié (screenshots, tests visuels, démo). Plutôt que de patcher `ApplicationController` et risquer de commiter le patch, on utilise un initializer séparé qui rouvre la classe — git-ignoré.
 
 **Fichier :** `config/initializers/dev_auto_login.rb`
 

@@ -23,7 +23,7 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
 
 ## Setup (avant le workflow)
 
-**1. Serveur** — verifier que le serveur tourne (`.overmind.sock` ou process Rails).
+**1. Serveur** — identifier le port : `echo $PORT`. Le serveur tourne sur ce port. Si vide, utiliser 3000 par défaut. Utiliser `http://localhost:$PORT/...` pour toutes les URLs.
 
 **2. Auto-login** — verifier :
 ```bash
@@ -118,7 +118,8 @@ Nommage : `before-1.png`, `before-2.png`, etc.
 **Convention de l'app** (a respecter strictement) :
 
 #### Pour les vues (`app/views/`)
-- Fichier YAML : `config/locales/views/<controller>/<action>.fr.yml` (s'il existe deja) OU `config/locales/views/<controller>/fr.yml`
+- Fichier YAML FR : `config/locales/views/<controller>/<action>.fr.yml` (s'il existe deja) OU `config/locales/views/<controller>/fr.yml`
+- Fichier YAML EN : meme chemin avec `.en.yml` au lieu de `.fr.yml`
 - Scope : lazy lookup `.key` → resolu en `<controller>.<action>.<key>`
 - Exemple :
   ```yaml
@@ -129,12 +130,21 @@ Nommage : `before-1.png`, `before-2.png`, etc.
         show:
           submit_button: "Envoyer le dossier"
   ```
+  ```yaml
+  # config/locales/views/users/dossiers/en.yml
+  en:
+    users:
+      dossiers:
+        show:
+          submit_button: "Submit the file"
+  ```
   ```erb
   <%= t(".submit_button") %>
   ```
 
 #### Pour les composants ViewComponent (`app/components/`)
 - Fichier YAML : `app/components/<nom>/<nom>_component.yml` (fichier sidecar du composant)
+- Ce fichier contient **les deux locales** (`fr:` et `en:`) dans le meme fichier
 - Scope : lazy lookup `.key` (ViewComponent resout automatiquement)
 - Exemple :
   ```yaml
@@ -142,13 +152,17 @@ Nommage : `before-1.png`, `before-2.png`, etc.
   fr:
     error_prefix: "Erreur : "
     info_prefix: "Information : "
+  en:
+    error_prefix: "Error: "
+    info_prefix: "Information: "
   ```
   ```ruby
   when :error then t(".error_prefix")
   ```
 
 #### Pour les mailers (`app/mailers/`)
-- Fichier YAML : `config/locales/views/<mailer_name>/<action>.fr.yml` OU le fichier existant le plus proche
+- Fichier YAML FR : `config/locales/views/<mailer_name>/<action>.fr.yml` OU le fichier existant le plus proche
+- Fichier YAML EN : meme chemin avec `.en.yml`
 - Sujets : utiliser `default_i18n_subject` quand possible, sinon `I18n.t("<mailer>.<action>.subject")`
 - Corps : les textes dans les templates `.html.erb` / `.text.erb` associes suivent la convention views
 - Exemple :
@@ -158,6 +172,13 @@ Nommage : `before-1.png`, `before-2.png`, etc.
     user_mailer:
       archive_available:
         subject: "Votre archive est disponible"
+  ```
+  ```yaml
+  # config/locales/views/user_mailer/en.yml
+  en:
+    user_mailer:
+      archive_available:
+        subject: "Your archive is available"
   ```
   ```ruby
   # Avant
@@ -187,13 +208,17 @@ Pour chaque texte hardcode identifie :
    - `"Envoyer le dossier"` → `submit_dossier`
    - `"Erreur : "` → `error_prefix`
    - `"Votre archive est disponible"` → `archive_available` (ou `subject` si c'est un sujet mail)
-2. **Ajouter la cle au YAML** avec la valeur francaise
-3. **Remplacer dans le code** :
+2. **Ajouter la cle au YAML francais** (`fr.yml` ou section `fr:`) avec la valeur francaise
+3. **Ajouter la cle au YAML anglais** (`en.yml` ou section `en:`) avec la traduction anglaise
+   - Traduire le texte francais en anglais naturel (pas du mot-a-mot)
+   - Conserver les interpolations `%{variable}` identiques
+   - Pour les sidecar ViewComponent (`.yml` unique) : ajouter la section `en:` en miroir de `fr:`
+5. **Remplacer dans le code** :
    - Vue ERB : `<%= t(".cle") %>`
    - Ruby (vue lazy) : `t(".cle")`
    - Ruby (scope explicite) : `I18n.t("scope.cle")`
    - Mailer subject : `default_i18n_subject` ou `I18n.t("mailer.action.subject")`
-4. **Gerer l'interpolation** :
+6. **Gerer l'interpolation** :
    - `"Dossier #{dossier.number}"` → cle `dossier_number: "Dossier %{number}"` + `t(".dossier_number", number: dossier.number)`
    - `"#{count} dossier(s)"` → cle avec `count:` pour pluralisation Rails
    - Interpolation complexe (HTML, helpers) → skip, ne pas extraire
@@ -202,7 +227,7 @@ Pour chaque texte hardcode identifie :
 
 **OBLIGATOIRE — ne JAMAIS skip**
 
-1. **Verifier chaque cle i18n** : relire le YAML et confirmer que CHAQUE `t(".cle")` insere dans le code a bien une entree correspondante dans le YAML. Si une cle manque → **FAIL** (corriger avant de continuer).
+1. **Verifier chaque cle i18n** : relire les YAML FR et EN et confirmer que CHAQUE `t(".cle")` insere dans le code a bien une entree correspondante dans les deux fichiers. Si une cle manque (FR ou EN) → **FAIL** (corriger avant de continuer).
 
 2. **Linter apostrophes** :
    ```bash
@@ -226,12 +251,13 @@ Pour chaque texte hardcode identifie :
 
 ```bash
 git add <fichier_modifie>
-git add <fichier_yaml>
+git add <fichier_yaml_fr>
+git add <fichier_yaml_en>
 git add <specs_modifiees>  # si applicable
 git commit -m "i18n(<scope>): extract hardcoded strings from <NomFichier>"
 ```
 
-Un seul commit par fichier traite. Inclure le fichier source + YAML + specs modifiees.
+Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN + specs modifiees.
 
 ### Etape 8 : Screenshot APRES + comparaison
 
@@ -274,10 +300,10 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML + specs modi
 
    ### Cles extraites
 
-   | Cle | Valeur |
-   |-----|--------|
-   | `scope.cle1` | "Texte francais" |
-   | `scope.cle2` | "Autre texte" |
+   | Cle | FR | EN |
+   |-----|----|----|
+   | `scope.cle1` | "Texte francais" | "English text" |
+   | `scope.cle2` | "Autre texte" | "Other text" |
 
    ### Validation visuelle — RESULTAT
 
@@ -314,6 +340,6 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML + specs modi
 2. **Respecter la structure existante** : ne pas creer une nouvelle hierarchie YAML si une existe deja. S'inserer dedans.
 3. **Idempotence** : si une cle existe deja avec la meme valeur, skip. Ne pas dupliquer.
 4. **1 fichier = 1 run** : traiter un seul fichier par execution. Ne pas elargir le scope.
-5. **Francais uniquement** : ne pas creer de fichier `en.yml`. V1 = extraction francais.
+5. **Toujours les deux locales** : chaque cle extraite doit exister en FR et EN. Ne jamais creer un `fr.yml` sans son `en.yml` correspondant (ou section `en:` pour les sidecar ViewComponent).
 6. **Pas de texte technique** : ne pas extraire les constantes, chemins, formats techniques.
 7. **Interpolation simple uniquement** : `#{variable}` → `%{variable}`. Si l'interpolation contient du HTML ou des helpers complexes → skip cette string.

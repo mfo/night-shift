@@ -63,11 +63,11 @@ Les screenshots ne sont JAMAIS commités dans le repo cible. Ils vivent dans `tm
 
 ### Étape 0 : Vérifications + lancement Playwright + préparation gist
 
-**1. Vérifier que le serveur tourne dans ce repo** :
+**1. Identifier le port du serveur** :
 ```bash
-stat .overmind.sock
+echo $PORT
 ```
-Si le fichier n'existe pas → demander à l'utilisateur : *"Le serveur ne tourne pas dans ce workspace (.overmind.sock absent). Peux-tu le lancer ici avant qu'on continue ?"* — attendre sa confirmation avant de poursuivre.
+Le serveur tourne sur le port défini par `$PORT`. Utiliser cette valeur pour **toutes** les URLs : `http://localhost:$PORT/...`. Si `$PORT` est vide, utiliser 3000 par défaut.
 
 **2. Vérifier que les routes sont disponibles** :
 ```bash
