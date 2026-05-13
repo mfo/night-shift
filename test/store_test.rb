@@ -303,6 +303,64 @@ class StoreTest < Minitest::Test
     assert_equal "a.haml", item[:item]
   end
 
+  # --- Inspect / Retry ---
+
+  def test_get_backlog_item
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @db[:backlog_items].first
+    found = @store.get_backlog_item(item[:id])
+    assert_equal "foo.haml", found[:item]
+  end
+
+  def test_get_backlog_item_not_found
+    assert_nil @store.get_backlog_item(999)
+  end
+
+  def test_get_backlog_item_coerces_string_id
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @db[:backlog_items].first
+    found = @store.get_backlog_item(item[:id].to_s)
+    assert_equal "foo.haml", found[:item]
+  end
+
+  def test_cycles_for_item
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @db[:backlog_items].first
+    2.times do |i|
+      @db[:autolearn_cycles].insert(
+        backlog_item_id: item[:id], attempt: i + 1,
+        verdict: "skill_defect", created_at: Time.now.to_i + i
+      )
+    end
+    cycles = @store.cycles_for_item(item[:id])
+    assert_equal 2, cycles.size
+    assert_equal 1, cycles.first[:attempt]
+    assert_equal 2, cycles.last[:attempt]
+  end
+
+  def test_cycles_for_item_empty
+    assert_equal [], @store.cycles_for_item(999)
+  end
+
+  def test_retry_backlog_item
+    @store.add_backlog("haml-migration", "foo.haml")
+    item = @store.claim_next("haml-migration")
+    @store.update_backlog_status(item[:id], "skipped",
+                                  failure_reason: "autolearn_exhausted",
+                                  last_verdict: "skill_defect")
+    @db[:backlog_items].where(id: item[:id]).update(retry_count: 3)
+
+    @store.retry_backlog_item(item[:id])
+
+    updated = @db[:backlog_items].where(id: item[:id]).first
+    assert_equal "pending", updated[:status]
+    assert_equal 0, updated[:retry_count]
+    assert_nil updated[:last_verdict]
+    assert_nil updated[:failure_reason]
+    assert_nil updated[:branch]
+    assert_nil updated[:retry_after]
+  end
+
   # --- Lock tests ---
 
   def test_acquire_lock_succeeds

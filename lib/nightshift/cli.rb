@@ -2,7 +2,7 @@ require "open3"
 
 module Nightshift
   module CLI
-    COMMANDS = %w[attach refresh status watch diagnose autofix brief merge open close backlog auto skill-run reset autolearn-status autolearn-report].freeze
+    COMMANDS = %w[attach refresh status watch diagnose autofix brief merge open close backlog auto skill-run reset inspect autolearn-status autolearn-report].freeze
 
     BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
 
@@ -29,6 +29,7 @@ module Nightshift
       when "backlog"   then cmd_backlog(args)
       when "auto"      then cmd_auto(args)
       when "skill-run" then cmd_skill_run(args)
+      when "inspect"   then cmd_inspect(args)
       when "autolearn-status" then cmd_autolearn_status(args)
       when "autolearn-report" then cmd_autolearn_report(args)
       else
@@ -164,6 +165,43 @@ module Nightshift
       SkillPipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd)
     end
 
+    # --- Inspect ---
+
+    def cmd_inspect(args)
+      id = args.shift or abort("usage: nightshift inspect <item-id>")
+      item = store.get_backlog_item(id)
+      abort "nightshift: backlog item ##{id} not found" unless item
+
+      puts ""
+      puts "  ##{item[:id]} [#{item[:skill]}] #{item[:item]}"
+      puts "  Status: #{item[:status]}#{item[:failure_reason] ? " (#{item[:failure_reason]})" : ""}"
+      puts "  Retries: #{item[:retry_count]}/#{Judge::MAX_RETRIES}  Last verdict: #{item[:last_verdict] || '-'}"
+      puts "  Branch: #{item[:branch] || '-'}"
+      puts "  PR: #{item[:pr_number] ? "##{item[:pr_number]}" : '-'}"
+
+      cycles = store.cycles_for_item(item[:id])
+      if cycles.empty?
+        puts "\n  No autolearn cycles."
+      else
+        puts "\n  Cycles (#{cycles.size}):"
+        cycles.each do |c|
+          t = Time.at(c[:created_at]).strftime("%Y-%m-%d %H:%M")
+          conf = c[:confidence] ? format("%.1f", c[:confidence]) : "?"
+          patch_status = if c[:skill_patch_sha]
+                           "applied (#{c[:skill_patch_sha][0, 7]})"
+                         elsif c[:suggested_patch]
+                           "suggested but NOT applied"
+                         else
+                           "none"
+                         end
+          puts "    ##{c[:id]}  attempt=#{c[:attempt]}  #{c[:verdict]}  confidence=#{conf}  patch=#{patch_status}"
+          puts "         cause: #{c[:root_cause][0, 100]}" if c[:root_cause]
+          puts "         outcome: #{c[:outcome]}" if c[:outcome]
+        end
+      end
+      puts ""
+    end
+
     # --- Delegated to AutolearnMonitor ---
 
     def cmd_autolearn_status(args)
@@ -179,12 +217,13 @@ module Nightshift
     def cmd_backlog(args)
       sub = args.shift
       case sub
-      when "add"  then cmd_backlog_add(args)
-      when "scan" then cmd_backlog_scan(args)
-      when "list" then cmd_backlog_list(args)
-      when "skip" then cmd_backlog_skip(args)
+      when "add"   then cmd_backlog_add(args)
+      when "scan"  then cmd_backlog_scan(args)
+      when "list"  then cmd_backlog_list(args)
+      when "skip"  then cmd_backlog_skip(args)
+      when "retry" then cmd_backlog_retry(args)
       else
-        abort "usage: nightshift backlog <add|scan|list|skip>"
+        abort "usage: nightshift backlog <add|scan|list|skip|retry>"
       end
     end
 
@@ -241,6 +280,17 @@ module Nightshift
       counts = items.group_by { |i| i[:status] }.transform_values(&:size)
       puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
       puts ""
+    end
+
+    def cmd_backlog_retry(args)
+      id = args.shift or abort("usage: nightshift backlog retry <id>")
+      item = store.get_backlog_item(id)
+      abort "nightshift: backlog item ##{id} not found" unless item
+      unless %w[failed skipped].include?(item[:status])
+        abort "nightshift: can only retry failed/skipped items (current: #{item[:status]})"
+      end
+      store.retry_backlog_item(item[:id])
+      puts "nightshift: ⬜ ##{id} #{item[:item]} → pending (retry_count reset)"
     end
 
     def cmd_backlog_skip(args)

@@ -141,6 +141,24 @@ module Nightshift
       ds.order(:skill, :created_at).all
     end
 
+    def get_backlog_item(id)
+      db[:backlog_items].where(id: id.to_i).first
+    end
+
+    def cycles_for_item(backlog_item_id)
+      db[:autolearn_cycles]
+        .where(backlog_item_id: backlog_item_id)
+        .order(:attempt)
+        .all
+    end
+
+    def retry_backlog_item(id)
+      db[:backlog_items].where(id: id.to_i)
+        .update(status: "pending", retry_count: 0, last_verdict: nil,
+                failure_reason: nil, branch: nil, retry_after: nil,
+                updated_at: Time.now.to_i)
+    end
+
     # --- Infra suggestions ---
 
     def add_infra_suggestion(skill:, description:, source:, target: nil, backlog_item_id: nil)
