@@ -29,6 +29,7 @@ Application Rails, ~30 000 commits, contraintes fortes (RGAA, sécurité, GraphQ
 | 3 | `bugfix` | Investigation + correction bugs |
 | 4 | `feature-*` | Workflow features en 4 phases (spec → plan → impl → review) |
 | 5 | `harden-*` | Sécurité applicative (pentest → audit → fix) |
+| 6 | `i18n-hardcoded` | Extraction strings FR en dur → i18n YAML |
 
 ## Utiliser un skill
 
@@ -87,7 +88,14 @@ nightshift backlog list [skill]  # Liste les items du backlog
 nightshift backlog add <skill> <item>   # Ajoute un item au backlog
 nightshift backlog scan <skill>  # Scan le repo et alimente le backlog
 nightshift backlog skip <id>     # Marque un item failed comme skipped
+nightshift backlog retry <id>    # Remet un item failed/skipped en pending (reset retries)
 nightshift skill-run <skill> <item>  # Lance un skill dans le worktree courant (usage interne)
+nightshift reset <skill>         # Reset items running/failed → pending (cleanup worktrees)
+
+# Diagnostic
+nightshift inspect <item-id>         # Histoire complète d'un item : cycles, verdicts, patches
+nightshift autolearn-status [skill]  # Dashboard cycles par skill
+nightshift autolearn-report          # Rapport 24h : verdicts, patches, suggestions
 ```
 
 ### autofix
@@ -101,6 +109,43 @@ Quand une PR est rouge, `autofix` prépare le déblocage **dans le worktree de l
 5. **Résumé** — diff coloré des fichiers modifiés
 
 Le commit et le push restent manuels. Se lance automatiquement dans le pane tmux quand une PR passe au rouge.
+
+### autolearn — Boucle auto-améliorante
+
+Quand un skill échoue en mode auto, un **juge LLM** analyse l'échec et décide de la suite. Si le skill est en cause, il patche `patterns.md` et relance. Le skill s'améliore au fil des échecs.
+
+```
+Reconciler (watch 120s)
+  └─ pick_next_items → launch_skill
+       └─ SkillRunner.run (claude -p)
+            ├─ succès → git push + gh pr create → pr_open
+            └─ échec → Judge.evaluate
+                 ├─ skill_defect → patch patterns.md + retry
+                 ├─ infra_error → retry sans patch
+                 ├─ item_hard → skip
+                 └─ context_limit → skip
+```
+
+**Verdicts du juge :**
+
+| Verdict | Action |
+|---|---|
+| `skill_defect` | Patch `patterns.md` + retry (le prompt manque une instruction) |
+| `infra_error` | Retry sans patch (serveur, DB, réseau) |
+| `item_hard` | Skip (item trop complexe pour le skill) |
+| `context_limit` | Skip (max turns atteint sans convergence) |
+
+**Garde-fous :**
+
+- Max 3 retries par item
+- Seul `patterns.md` est modifié (SKILL.md = constitution, read-only)
+- Cap de 5 auto-pitfalls avant review humaine (`kaizen synth`)
+- Pas de patch si confiance du juge < 0.5
+- Chaque patch est un commit git (rollback possible)
+
+Chaque cycle est tracé en SQLite (`autolearn_cycles`). Consulter avec `autolearn-status` et `autolearn-report`.
+
+Documentation détaillée : [`docs/autolearn.md`](docs/autolearn.md)
 
 ### Iconographie
 
@@ -144,9 +189,13 @@ night-shift/
 ├── lib/nightshift/                    # Code Ruby
 │   ├── cli.rb                         # Dispatch des commandes
 │   ├── reconciler.rb                  # Boucle reconciliation PR + skills auto
-│   ├── skill_runner.rb                # Lancement claude -p + kaizen auto sur échec
+│   ├── skill_runner.rb                # Lancement claude -p (exécution brute)
+│   ├── skill_pipeline.rb              # Pipeline complet : run → push/PR ou judge → retry/skip
+│   ├── judge.rb                       # Juge LLM post-échec (verdict + patch suggestion)
+│   ├── autolearn_monitor.rb           # Dashboard et rapport autolearn
+│   ├── skill_loader.rb                # Chargement SKILL.md + parsing frontmatter
 │   ├── worktree.rb                    # Gestion worktrees (create, cleanup, DB, path resolution)
-│   ├── store.rb                       # SQLite (backlog, PRs)
+│   ├── store.rb                       # SQLite (backlog, PRs, autolearn_cycles)
 │   └── ...
 ├── .claude/skills/                    # Skills (le livrable principal)
 │   ├── haml-migration/                # POC 1
@@ -159,10 +208,15 @@ night-shift/
 │   ├── harden-pentest/                # POC 5 — Explorer une surface d'attaque
 │   ├── harden-audit/                  # POC 5 — Qualifier une faille
 │   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
+│   ├── i18n-hardcoded/                # POC 6 — Extraction strings FR → i18n YAML
 │   ├── pr-description/                # Transversal — Génère pr-description.md
 │   ├── create-pr/                     # Transversal — Push + gh pr create
 │   ├── kaizen/                        # Transversal — write + synth
-│   └── review-3-amigos/              # Transversal — Review PM+UX+Dev
+│   ├── review-3-amigos/              # Transversal — Review PM+UX+Dev
+│   ├── til/                           # Transversal — TIL sur une PR
+│   ├── screenshot-gist/              # Interne — Gist GitHub pour screenshots
+│   ├── rails-routes/                  # Utilitaire — Génère routes-reference.txt
+│   └── dev-auto-login/               # Utilitaire — Auto-login dev localhost
 │
 ├── hooks/worktree/post-checkout       # Hook : DB isolée + copie .claude/ dans les worktrees
 ├── epics/                             # Vision et roadmap
@@ -170,7 +224,8 @@ night-shift/
 ├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix)
 ├── kaizen/                            # Learnings par itération
 ├── specs/                             # Specs techniques ponctuelles
-└── docs/                              # Diagrammes (reconciler.mmd)
+├── docs/                              # Documentation (autolearn.md, diagrammes mermaid)
+└── db/migrations/                     # Migrations SQLite (schema, backlog, autolearn)
 ```
 
 Chaque POC a un numéro aligné entre skills, pocs/ et kaizen/ (ex: `2-test-optimization`).
