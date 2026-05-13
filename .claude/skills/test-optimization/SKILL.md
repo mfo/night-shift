@@ -120,11 +120,35 @@ perf(tests): [technique] — fichier_spec.rb
 
 ### Étape 5 : Description PR
 
-Utiliser le skill `pr-description` pour generer `pr-description.md`. Inclure dans le contexte :
-- Fichier traité
-- Techniques appliquées
-- Gains (temps avant/après, %)
-- Coverage maintenue
+Ecrire `pr-description.md` a la racine du worktree.
+
+**Template :**
+```markdown
+---
+title: "Tech: optimiser les tests de <fichier_spec>"
+---
+
+## Probleme
+
+Tests lents dans `<fichier_spec>` — temps baseline : Xs (mediane locale, 3 runs).
+
+## Solution
+
+Skill [`/test-optimization`](https://github.com/mfo/night-shift/blob/main/.claude/skills/test-optimization/SKILL.md)
+
+### Techniques appliquees
+
+| Technique | Avant | Apres | Gain |
+|-----------|-------|-------|------|
+| <technique1> | Xs | Ys | -Z% |
+| <technique2> | Ys | Ws | -Z% |
+
+**Resultat final : Xs → Ys (gain total Z%)**
+
+Coverage : X% → Y% (maintenue)
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
 
 ---
 
