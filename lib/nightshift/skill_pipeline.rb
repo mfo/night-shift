@@ -88,6 +88,7 @@ module Nightshift
       record_cycle(backlog_item, verdict: verdict[:verdict],
                    root_cause: verdict[:root_cause],
                    suggested_patch: verdict[:suggested_patch],
+                   confidence: verdict[:confidence],
                    log_path: result[:log_path], turns: result[:turns_used])
 
       # Store infra suggestion if infra_error
@@ -126,8 +127,14 @@ module Nightshift
         puts "  🔄 reset to pending (retry #{retry_count + 1}/#{Judge::MAX_RETRIES}) — reconciler will re-launch"
       else
         reason = retry_count >= Judge::MAX_RETRIES ? "autolearn_exhausted" : verdict[:verdict]
+
+        # Clean up worktree before marking as skipped
+        branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
+                                 chdir: worktree_path)
+        Worktree.cleanup(branch.strip)
+
         @store.update_backlog_status(backlog_item[:id], "skipped",
-                                     failure_reason: reason,
+                                     failure_reason: reason, branch: nil,
                                      last_verdict: verdict[:verdict])
         puts "  ⏭ skipped (#{reason})"
       end
@@ -136,12 +143,12 @@ module Nightshift
     def apply_patch(skill_name, patch_text)
       patterns_path = File.join(nightshift_dir, ".claude", "skills", skill_name, "patterns.md")
 
-      unless File.exist?(patterns_path)
-        puts "  ⚠️ patterns.md not found for #{skill_name}"
-        return
+      if File.exist?(patterns_path)
+        content = File.read(patterns_path)
+      else
+        content = "# Patterns #{skill_name}\n"
       end
 
-      content = File.read(patterns_path)
       unless content.include?("## Auto-discovered pitfalls")
         content += "\n\n## Auto-discovered pitfalls\n\n<!-- Managed by autolearn. Review via kaizen synth. -->\n"
       end
@@ -177,7 +184,7 @@ module Nightshift
 
     def record_cycle(backlog_item, verdict:, root_cause: nil,
                      suggested_patch: nil, log_path: nil, turns: nil,
-                     outcome: nil, skill_patch_sha: nil)
+                     outcome: nil, skill_patch_sha: nil, confidence: nil)
       retry_count = backlog_item[:retry_count].to_i
       @store.db[:autolearn_cycles].insert(
         backlog_item_id: backlog_item[:id],
@@ -185,6 +192,7 @@ module Nightshift
         verdict: verdict.to_s,
         root_cause: root_cause,
         suggested_patch: suggested_patch,
+        confidence: confidence,
         skill_patch_sha: skill_patch_sha,
         outcome: outcome,
         log_path: log_path,
