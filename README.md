@@ -167,7 +167,10 @@ Documentation détaillée : [`docs/autolearn.md`](docs/autolearn.md)
 export NIGHTSHIFT_REPO=~/dev/mon-projet       # Repo cible (défaut: ~/dev/demarches-simplifiees.fr)
 export NIGHTSHIFT_SESSION=nightshift           # Nom de session tmux
 export NIGHTSHIFT_WATCH_INTERVAL=120           # Intervalle de refresh en secondes
-export NIGHTSHIFT_DEBUG=1                      # Mode debug (verbose, bypass circuit breaker)
+export NIGHTSHIFT_DB_PATH=~/.nightshift.db     # Base SQLite (backlog, PRs, cycles)
+export NIGHTSHIFT_USER=mfo                     # Utilisateur GitHub (filtrage PRs)
+export NIGHTSHIFT_AUTOFIX_MAX=3                # Autofix max par PR par fenêtre
+export NIGHTSHIFT_AUTOFIX_WINDOW=3600          # Fenêtre autofix en secondes
 ```
 
 Dépendances : `tmux`, `gh`, `git`. Optionnel : `claude` (pour autofix specs et skills auto).
@@ -221,7 +224,7 @@ night-shift/
 ├── hooks/worktree/post-checkout       # Hook : DB isolée + copie .claude/ dans les worktrees
 ├── epics/                             # Vision et roadmap
 ├── pocs/                              # Data projet par POC (setup, specs, inventaires)
-├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix)
+├── audits/                            # Fichiers d'audit sécurité (contrat harden-audit → harden-fix, créé à l'usage)
 ├── kaizen/                            # Learnings par itération
 ├── specs/                             # Specs techniques ponctuelles
 ├── docs/                              # Documentation (autolearn.md, diagrammes mermaid)
