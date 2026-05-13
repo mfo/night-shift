@@ -96,10 +96,8 @@ PORT=${port}
 APP_HOST="localhost:${port}"
 EOF
 
-  # Overmind lit .overmind.env, pas .env.development.local
-  echo "PORT=${port}" > "$worktree_path/.overmind.env"
-
-  echo "==> .env.development.local + .overmind.env créés (PORT=${port})"
+  echo "==> .env.development.local créé (PORT=${port})"
+  echo "    (le reconciler surchargera avec le bon port si skill auto)"
 else
   echo "==> .env.development.local déjà présent"
 fi
