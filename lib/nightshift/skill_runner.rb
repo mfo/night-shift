@@ -49,7 +49,9 @@ module Nightshift
       return [] unless match
 
       frontmatter = YAML.safe_load(match[1], permitted_classes: [Symbol]) || {}
-      Array(frontmatter["allowed-tools"])
+      tools = Array(frontmatter["allowed-tools"])
+      # YAML may return a single comma-separated string — split into individual tools
+      tools.flat_map { |t| t.include?(",") ? t.split(/,\s*/) : t }
     rescue StandardError
       []
     end

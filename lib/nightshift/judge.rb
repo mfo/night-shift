@@ -102,9 +102,11 @@ module Nightshift
         1. Analyse le log ci-dessus
         2. Identifie la cause racine de l'echec
         3. Classifie le verdict :
-           - `skill_defect` : le prompt/skill est mal configure, il manque une instruction, un piege non documente
+           - `skill_defect` : le prompt/skill est mal configure, il manque une instruction, un piege non documente.
+             Inclut : tools bloques par "requires approval" (= allowed-tools manquants dans le SKILL.md),
+             boucle sur une commande non autorisee, mauvaise instruction dans le prompt.
            - `item_hard` : cet item specifique est trop complexe ou a des particularites que le skill ne peut pas gerer
-           - `infra_error` : erreur d'infrastructure (permission denied, serveur non demarre, DB non disponible, timeout)
+           - `infra_error` : erreur d'infrastructure EXTERNE au skill (serveur non demarre, DB non disponible, timeout reseau, rate limit API, disque plein)
            - `context_limit` : le modele a atteint la limite de turns/tokens sans converger
 
         4. Si le verdict est `skill_defect`, propose un patch concret (texte a ajouter dans patterns.md)
