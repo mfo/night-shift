@@ -121,18 +121,25 @@ module Nightshift
       # Launch server in background pane if skill needs it
       port = skill_config[:port]
       if skill_config[:needs_server] && port
-        File.write(File.join(wt_path, ".overmind.env"), "PORT=#{port}\n")
+        File.write(File.join(wt_path, ".env.development.local"),
+                   "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
         system("tmux", "split-window", "-t", win_id, "-v", "-l", "20%",
                "-c", wt_path)
         system("tmux", "send-keys", "-t", "#{win_id}.1",
-               "overmind start -f Procfile.sidekiq.dev", "Enter")
+               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", "Enter")
         system("tmux", "select-pane", "-t", "#{win_id}.0")
       end
 
-      # Send skill-run command
+      # Send skill-run command (wait for server if needed)
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
       env_prefix = port ? "PORT=#{port}" : ""
-      cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
+      skill_cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
+      if skill_config[:needs_server] && port
+        wait_cmd = "while ! nc -z localhost #{port} 2>/dev/null; do sleep 2; done"
+        cmd = "#{wait_cmd} && #{skill_cmd}"
+      else
+        cmd = skill_cmd
+      end
       system("tmux", "send-keys", "-t", "#{win_id}.0", cmd, "Enter")
     end
 
