@@ -161,3 +161,16 @@ Si Prosopite ne détecte aucun N+1 mais que l'item est dans le backlog, ne pas c
 2. Que les tests créent suffisamment d'enregistrements associés (au moins 3 records liés)
 3. Relire le code du contrôleur pour identifier manuellement les includes manquants avant de skip
 4. Si aucun N+1 n'est confirmé après vérification manuelle du code, alors skip est légitime
+
+### AL-2 (2026-05-14 12:24)
+
+## Skip légitime — controller déjà optimisé
+
+Si après triage des résultats Prosopite :
+- Tous les N+1 PROD sont dans du code model profond (concerns, preloaders) et non dans le controller
+- Le controller utilise déjà includes/preload/DossierPreloader correctement
+- Les N+1 détectés ont un faible nombre de queries (2-3) et ne scalent pas avec les collections
+
+Alors : émettre un verdict SKIP avec le signal approprié (`skip:already_optimized`) dans le pr-description.md ET créer un commit vide ou un fichier .skip pour éviter le classement en `no_diff`. Le backlog doit traiter ce résultat comme un succès, pas un échec.
+
+Alternativement, le harness appelant doit reconnaître qu'un pr-description.md contenant 'Skip' sans diff est un résultat valide et ne pas le classifier comme `no_diff` failure.
