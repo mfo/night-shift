@@ -174,3 +174,30 @@ Si après triage des résultats Prosopite :
 Alors : émettre un verdict SKIP avec le signal approprié (`skip:already_optimized`) dans le pr-description.md ET créer un commit vide ou un fichier .skip pour éviter le classement en `no_diff`. Le backlog doit traiter ce résultat comme un succès, pas un échec.
 
 Alternativement, le harness appelant doit reconnaître qu'un pr-description.md contenant 'Skip' sans diff est un résultat valide et ne pas le classifier comme `no_diff` failure.
+
+### AL-3 (2026-05-14 12:30)
+
+## Pattern: Enrichir les factories avant de conclure "no N+1"
+
+Quand Prosopite ne détecte aucun N+1 avec les factories par défaut, NE PAS abandonner immédiatement.
+Les N+1 ne se manifestent qu'avec >= 3 enregistrements associés (ex: 3+ dossiers avec champs, 3+ champs par dossier).
+
+### Étapes obligatoires avant de conclure "no N+1" :
+1. Identifier les actions listées dans `.skill-context.json` avec un score N+1
+2. Pour chaque action, écrire un test dédié avec des factories enrichies :
+   - Créer >= 3 enregistrements de l'association suspectée (ex: 3 dossiers avec 3 champs chacun)
+   - S'assurer que `render_views` est activé dans le contexte
+3. Relancer Prosopite sur ces tests enrichis uniquement
+4. Seulement si aucun N+1 n'est détecté APRÈS enrichissement, alors abandonner l'item
+
+### Exemple de test enrichi :
+```ruby
+context 'N+1 detection with enriched data' do
+  render_views
+  let!(:dossiers) { create_list(:dossier, 3, :with_all_champs, procedure: procedure, user: user) }
+  
+  it 'does not trigger N+1 on index' do
+    get :index
+  end
+end
+```
