@@ -215,9 +215,18 @@ title: "Tech: fix N+1 sur <association> dans <Controller>"
 
 # Probleme
 
-Requetes N+1 **de production** detectees sur `<model>` par Prosopite et Skylight.
+N+1 detecte par [Prosopite](https://github.com/charkost/prosopite) (scan des tests) et confirme par [Skylight](https://www.skylight.io/) (production).
 
-Triage : N patterns PROD (call stack dans app/) / M patterns TEST ignores.
+**Donnees de production** (depuis `.skill-context.json`) :
+
+| Endpoint | RPM | P95 | Score |
+|----------|-----|-----|-------|
+| `Controller#action` | X | Yms | Z |
+
+<!-- Si RPM < 1 ou score < 10, expliquer pourquoi le fix vaut quand meme le coup,
+     ou conclure que l'impact est faible et le mentionner honnement. -->
+
+**Triage Prosopite** : N patterns PROD (call stack dans `app/`) / M patterns TEST ignores.
 
 # Solution
 
@@ -225,9 +234,9 @@ Skill [`/n1-query-fix`](https://github.com/mfo/night-shift/blob/main/.claude/ski
 
 ### Patterns corriges (PROD uniquement)
 
-| Association | Table | Strategy | Endpoint impacte | RPM | Waste estime |
-|-------------|-------|----------|------------------|-----|--------------|
-| `etablissement` | etablissements | `includes` dans scope | DossiersController#index | 1836 | ~2700ms/req |
+| Association | Table | Strategy | Call site (app/) |
+|-------------|-------|----------|------------------|
+| `etablissement` | etablissements | `includes` dans scope | `app/controllers/x_controller.rb:42` |
 
 ### Validation
 
