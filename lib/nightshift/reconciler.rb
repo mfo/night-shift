@@ -70,6 +70,20 @@ module Nightshift
       @store.update_backlog_status(item[:id], "done")
       Worktree.cleanup(item[:branch])
       @renderer.close_worktree(item[:branch])
+
+      maybe_reprioritize(item[:skill])
+    end
+
+    def maybe_reprioritize(skill_name)
+      config = SKILLS[skill_name]
+      return unless config&.dig(:scan_proc) # only for skills with dynamic scan
+
+      completed = @store.db[:backlog_items]
+        .where(skill: skill_name, status: "done").count
+      return unless completed > 0 && (completed % 5).zero?
+
+      puts "nightshift: triggering reprioritize for #{skill_name} (#{completed} completed)"
+      Reprioritizer.run(skill_name, store: @store)
     end
 
     def pick_next_items
@@ -105,6 +119,10 @@ module Nightshift
         return
       end
       @store.update_backlog_status(item[:id], "running", branch: branch)
+
+      # Ensure gitignored dirs exist + clean logs for fresh investigation
+      %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
+      Dir.glob(File.join(wt_path, "log", "*.log")).each { |f| File.truncate(f, 0) }
 
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       skill_config = SKILLS[skill_name] || {}
