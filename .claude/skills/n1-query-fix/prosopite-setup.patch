@@ -1,0 +1,177 @@
+From 0839e7dbacdb37380901d4ca8f4d83733f2a514f Mon Sep 17 00:00:00 2001
+From: mfo <mfo@users.noreply.github.com>
+Date: Wed, 13 May 2026 09:16:34 +0200
+Subject: [PATCH] stash
+
+---
+ Gemfile                            |  3 +++
+ Gemfile.lock                       | 22 ++++++++++++++++++++++
+ config/environments/development.rb |  1 +
+ config/environments/test.rb        |  5 ++++-
+ config/initializers/prosopite.rb   |  4 ++++
+ config/initializers/sidekiq.rb     |  7 +++++++
+ spec/spec_helper.rb                |  8 ++++++++
+ 7 files changed, 49 insertions(+), 1 deletion(-)
+
+diff --git a/Gemfile b/Gemfile
+index 9264cf5a2c..d68791bee9 100644
+--- a/Gemfile
++++ b/Gemfile
+@@ -168,6 +168,9 @@ group :development, :test do
+   gem 'graphql-schema_comparator'
+   gem 'irb'
+   gem 'mina', require: false # Deploy
++  gem 'pg_query'
++  gem 'prosopite'
+   gem 'rspec-rails'
+   gem 'simple_xlsx_reader'
++  gem 'skylight-mcp'
+ end
+diff --git a/Gemfile.lock b/Gemfile.lock
+index 9d6d5159f5..c7979a6924 100644
+--- a/Gemfile.lock
++++ b/Gemfile.lock
+@@ -328,6 +328,18 @@ GEM
+       i18n (>= 0.7)
+       multi_json
+       request_store (>= 1.0)
++    google-protobuf (4.34.1-arm64-darwin)
++      bigdecimal
++      rake (~> 13.3)
++    google-protobuf (4.34.1-x86_64-darwin)
++      bigdecimal
++      rake (~> 13.3)
++    google-protobuf (4.34.1-x86_64-linux-gnu)
++      bigdecimal
++      rake (~> 13.3)
++    google-protobuf (4.34.1-x86_64-linux-musl)
++      bigdecimal
++      rake (~> 13.3)
+     graphql (2.5.23)
+       base64
+       fiber-storage
+@@ -567,6 +579,8 @@ GEM
+     pdf-core (0.9.0)
+     pg (1.6.2)
+     pg (1.6.2-arm64-darwin)
++    pg_query (6.2.2)
++      google-protobuf (>= 3.25.3)
+     phonelib (0.10.12)
+     playwright-ruby-client (1.55.0)
+       concurrent-ruby (>= 1.1.6)
+@@ -597,6 +611,7 @@ GEM
+     prometheus-client (4.2.5)
+       base64
+     promise.rb (0.7.4)
++    prosopite (2.2.0)
+     psych (5.3.1)
+       date
+       stringio
+@@ -861,6 +876,10 @@ GEM
+       activemodel (~> 7.0)
+     skylight (6.0.4)
+       activesupport (>= 5.2.0)
++    skylight-mcp (0.1.0-arm64-darwin)
++    skylight-mcp (0.1.0-x86_64-darwin)
++    skylight-mcp (0.1.0-x86_64-linux-gnu)
++    skylight-mcp (0.1.0-x86_64-linux-musl)
+     smarter_csv (1.14.4)
+     snaky_hash (2.0.3)
+       hashie (>= 0.1.0, < 6)
+@@ -1078,10 +1097,12 @@ DEPENDENCIES
+   openid_connect
+   parsby
+   pg
++  pg_query
+   phonelib
+   prawn (= 2.4.0)
+   prawn-rails
+   premailer-rails
++  prosopite
+   puma
+   pundit
+   rack-attack
+@@ -1124,6 +1145,7 @@ DEPENDENCIES
+   simplecov-cobertura
+   siret_validator
+   skylight
++  skylight-mcp
+   smarter_csv
+   spreadsheet_architect
+   spring
+diff --git a/config/environments/development.rb b/config/environments/development.rb
+index c7c4b42bfe..9e69d9cca6 100644
+--- a/config/environments/development.rb
++++ b/config/environments/development.rb
+@@ -104,6 +104,7 @@
+ 
+   Rails.application.config.after_initialize do # allow attachment.url with disk service
+     ActiveStorage::Current.url_options = { host: ENV.fetch("APP_HOST") }
++    Prosopite.rails_logger = true
+   end
+ 
+   # Use Content-Security-Policy-Report-Only headers
+diff --git a/config/environments/test.rb b/config/environments/test.rb
+index 41fa751484..4d82f12e66 100644
+--- a/config/environments/test.rb
++++ b/config/environments/test.rb
+@@ -35,7 +35,10 @@
+ 
+   # Store uploaded files on the local file system in a temporary directory.
+   config.active_storage.service = :test
+-
++  config.after_initialize do
++    Prosopite.rails_logger = true
++    Prosopite.raise = true
++  end
+   # Disable caching for Action Mailer templates even if Action Controller
+   # caching is enabled.
+   config.action_mailer.perform_caching = false
+diff --git a/config/initializers/prosopite.rb b/config/initializers/prosopite.rb
+new file mode 100644
+index 0000000000..a1b2c3d4e5
+--- /dev/null
++++ b/config/initializers/prosopite.rb
+@@ -0,0 +1,4 @@
++unless Rails.env.production?
++  require 'prosopite/middleware/rack'
++  Rails.configuration.middleware.use(Prosopite::Middleware::Rack)
++end
+diff --git a/config/initializers/sidekiq.rb b/config/initializers/sidekiq.rb
+index d49703e1d4..9a5bad82ac 100644
+--- a/config/initializers/sidekiq.rb
++++ b/config/initializers/sidekiq.rb
+@@ -36,6 +36,13 @@
+ 
+     Sidekiq::ReliableFetch.setup_reliable_fetch!(config)
+   end
++
++  unless Rails.env.production?
++    config.server_middleware do |chain|
++      require 'prosopite/middleware/sidekiq'
++      chain.add(Prosopite::Middleware::Sidekiq)
++    end
++  end
+ end
+ 
+ Sidekiq.configure_client do |config|
+diff --git a/spec/spec_helper.rb b/spec/spec_helper.rb
+index 799a9a0f67..f68c6c20c1 100644
+--- a/spec/spec_helper.rb
++++ b/spec/spec_helper.rb
+@@ -94,4 +94,12 @@
+       Capybara.reset!
+     end
+   end
++
++  config.before(:each) do
++    Prosopite.scan
++  end
++
++  config.after(:each) do
++    Prosopite.finish
++  end
+ end
+-- 
+2.50.1 (Apple Git-155)
+
