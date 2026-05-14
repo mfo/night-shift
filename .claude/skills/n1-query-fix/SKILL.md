@@ -217,11 +217,14 @@ title: "Tech: fix N+1 sur <association> dans <Controller>"
 
 N+1 detecte par [Prosopite](https://github.com/charkost/prosopite) (scan des tests) et confirme par [Skylight](https://www.skylight.io/) (production).
 
-**Donnees de production** (depuis `.skill-context.json`) :
+**Donnees de production** (depuis `.skill-context.json` / [Skylight](<skylight_app_url du context>)) :
 
 | Endpoint | RPM | P95 | Score |
 |----------|-----|-----|-------|
 | `Controller#action` | X | Yms | Z |
+
+Lien Skylight : utiliser `skylight_app_url` du `.skill-context.json` pour lier vers le dashboard.
+Le reviewer pourra chercher le controller dans la barre de recherche Skylight.
 
 <!-- Si RPM < 1 ou score < 10, expliquer pourquoi le fix vaut quand meme le coup,
      ou conclure que l'impact est faible et le mentionner honnement. -->

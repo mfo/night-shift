@@ -2,6 +2,8 @@ require "json"
 
 module Nightshift
   module N1Scanner
+    SKYLIGHT_APP_URL = "https://oss.skylight.io/app/applications/auuzqe8XhJIx/recent/6h/endpoints"
+
     module_function
 
     # Scan Prosopite log + Skylight snapshot to build the N+1 backlog.
@@ -138,7 +140,8 @@ module Nightshift
       {
         source_file: source_file,
         n1_patterns: n1_patterns.uniq { |p| p[:table] },
-        total_waste_ms: total_waste
+        total_waste_ms: total_waste,
+        skylight_app_url: SKYLIGHT_APP_URL
       }
     end
 
