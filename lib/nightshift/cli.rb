@@ -162,7 +162,13 @@ module Nightshift
     def cmd_skill_run(args)
       skill = args.shift or abort("usage: nightshift skill-run <skill> <item>")
       item_path = args.shift or abort("usage: nightshift skill-run <skill> <item>")
-      SkillPipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd)
+
+      # Look up context from backlog item (if launched via reconciler)
+      branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD", chdir: Dir.pwd)
+      backlog_item = store.backlog_by_branch(branch.strip)
+      context = backlog_item&.dig(:context)
+
+      SkillPipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd, context: context)
     end
 
     # --- Inspect ---
@@ -240,6 +246,12 @@ module Nightshift
       config = Nightshift::SKILLS[skill]
       abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
+
+      if config[:scan_proc]
+        count = config[:scan_proc].call(repo_path, store)
+        puts "nightshift: scan_proc added #{count} items for #{skill}"
+        return
+      end
 
       priority_map = config[:priority_map]
       files = Dir.glob("#{repo_path}/#{config[:scan]}")

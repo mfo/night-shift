@@ -16,7 +16,14 @@ module Nightshift
         %r{/dossiers/|/users/|quotient_familial|notification_mailer|user_mailer|phishing_alert} => 3,
         %r{/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer} => 2
       }
-    }
+    },
+    "n1-query-fix"      => {
+      scan_proc: ->(repo_path, store) {
+        require_relative "nightshift/n1_scanner"
+        N1Scanner.scan(repo_path, store)
+      }
+    },
+    "reprioritize"      => { meta: true }
   }
 
   def self.skill_names = SKILLS.keys
@@ -79,4 +86,6 @@ require_relative "nightshift/skill_pipeline"
 require_relative "nightshift/autolearn_monitor"
 require_relative "nightshift/renderer"
 require_relative "nightshift/attach"
+require_relative "nightshift/n1_scanner"
+require_relative "nightshift/reprioritizer"
 require_relative "nightshift/cli"
