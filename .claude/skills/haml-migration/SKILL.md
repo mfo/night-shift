@@ -327,11 +327,15 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 
    **Template :**
    ```markdown
-   ## Problème
+   ---
+   title: "Tech: migrer <NomDuComposant> de HAML vers ERB"
+   ---
+
+   # Probleme
 
    On migre HAML → ERB. C'est lent, pénible, et c'est une charge mentale.
 
-   ## Solution
+   # Solution
 
    Skill [`/haml-migration`](https://github.com/mfo/night-shift/blob/main/.claude/skills/haml-migration/SKILL.md)
 
@@ -359,7 +363,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 
    [Voir tous les screenshots](https://gist.github.com/<user>/<gist-id>)
 
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
 4. **Fermer Playwright** (libère Chrome pour ne pas bloquer un autre skill) :

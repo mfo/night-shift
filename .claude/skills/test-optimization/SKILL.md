@@ -128,11 +128,11 @@ Ecrire `pr-description.md` a la racine du worktree.
 title: "Tech: optimiser les tests de <fichier_spec>"
 ---
 
-## Probleme
+# Probleme
 
 Tests lents dans `<fichier_spec>` — temps baseline : Xs (mediane locale, 3 runs).
 
-## Solution
+# Solution
 
 Skill [`/test-optimization`](https://github.com/mfo/night-shift/blob/main/.claude/skills/test-optimization/SKILL.md)
 
@@ -147,7 +147,7 @@ Skill [`/test-optimization`](https://github.com/mfo/night-shift/blob/main/.claud
 
 Coverage : X% → Y% (maintenue)
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 ---

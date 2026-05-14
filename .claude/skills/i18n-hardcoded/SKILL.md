@@ -288,11 +288,15 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
 
    **Template :**
    ```markdown
-   ## Probleme
+   ---
+   title: "Tech: extraire les textes en dur de <NomFichier> vers i18n"
+   ---
 
-   Textes francais en dur dans `<fichier>` — non internationalisable, non maintenable.
+   # Probleme
 
-   ## Solution
+   Textes francais en dur dans `<fichier>` — bloque l'internationalisation et l'accessibilite (les lecteurs d'ecran dependent des traductions structurees).
+
+   # Solution
 
    Skill [`/i18n-hardcoded`](https://github.com/mfo/night-shift/blob/main/.claude/skills/i18n-hardcoded/SKILL.md)
 
@@ -327,7 +331,7 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
    - [x] Rubocop OK
    - [x] Screenshots avant/apres identiques
 
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
 **3. Fermer Playwright** : appeler `mcp__playwright__browser_close`
