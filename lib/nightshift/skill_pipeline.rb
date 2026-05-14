@@ -6,8 +6,8 @@ module Nightshift
       @store = store
     end
 
-    def execute(skill, item_path, worktree_path:)
-      result = SkillRunner.run(skill, item: item_path, worktree_path: worktree_path)
+    def execute(skill, item_path, worktree_path:, context: nil)
+      result = SkillRunner.run(skill, item: item_path, worktree_path: worktree_path, context: context)
 
       branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
                                chdir: worktree_path)
@@ -40,10 +40,17 @@ module Nightshift
         return
       end
 
-      # Create PR
-      body = File.read(desc_path)
-      pr_url, = Open3.capture2("gh", "pr", "create", "--head", branch,
-                               "--fill", "--body", body, chdir: worktree_path)
+      # Create PR — parse frontmatter title if present
+      raw = File.read(desc_path)
+      title, body = parse_pr_description(raw)
+
+      pr_args = ["gh", "pr", "create", "--head", branch, "--body", body]
+      if title
+        pr_args.push("--title", title)
+      else
+        pr_args.push("--fill")
+      end
+      pr_url, = Open3.capture2(*pr_args, chdir: worktree_path)
       pr_number = pr_url.strip.split("/").last.to_i
 
       @store.update_backlog_status(backlog_item[:id], "pr_open",
@@ -199,6 +206,21 @@ module Nightshift
         turns_used: turns,
         created_at: Time.now.to_i
       )
+    end
+
+    # Parse pr-description.md: extract frontmatter title and body
+    def parse_pr_description(raw)
+      if raw.start_with?("---\n")
+        parts = raw.split("---\n", 3)
+        if parts.length >= 3
+          frontmatter = parts[1]
+          body = parts[2].strip
+          title_match = frontmatter.match(/^title:\s*"?(.+?)"?\s*$/m)
+          title = title_match[1] if title_match
+          return [title, body]
+        end
+      end
+      [nil, raw]
     end
 
     private
