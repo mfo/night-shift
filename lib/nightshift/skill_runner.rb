@@ -7,8 +7,14 @@ module Nightshift
   module SkillRunner
     module_function
 
-    def run(skill_name, item:, worktree_path:)
+    def run(skill_name, item:, worktree_path:, context: nil)
       prompt = "/#{skill_name} #{item}"
+
+      # Write context file if provided (consumed by the skill prompt)
+      if context
+        ctx_path = File.join(worktree_path, ".skill-context.json")
+        File.write(ctx_path, context)
+      end
 
       logdir = File.join(worktree_path, "tmp")
       FileUtils.mkdir_p(logdir)
