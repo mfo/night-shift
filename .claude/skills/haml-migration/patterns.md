@@ -21,3 +21,14 @@ Dans patterns.md ou le prompt du skill haml-migration, ajouter :
 1. Convertir le fichier HAML en ERB (OBLIGATOIRE)
 2. Lancer les linters et tests (OBLIGATOIRE)
 3. Tenter les screenshots AVANT/APRÈS (OPTIONNEL - ne pas bloquer si échec)
+
+### AL-2 (2026-05-15 08:38)
+
+## Dev Server in Worktree
+
+- Le skill doit configurer un PORT unique par worktree (ex: PORT=3000+hash du nom de branche) AVANT de lancer bin/dev
+- Ajouter `Bash(bin/dev:*)` et `Bash(bin/setup:*)` dans les allowed-tools du skill
+- Ne JAMAIS supposer que le port 3000 ou 3210 est libre : toujours vérifier avec `lsof -i :PORT` avant de lancer
+- Si un serveur tourne déjà sur le port cible depuis un AUTRE worktree, choisir un port libre (3100-3999) et configurer .env.development.local avec ce port
+- Le fichier config/initializers/dev_auto_login.rb peut ne pas exister : vérifier son existence avant de grep dedans, et le créer si nécessaire pour le auto-login dev
+- Ajouter `Bash(stat:*)`, `Bash(lsof:*)` dans les allowed-tools pour le diagnostic serveur
