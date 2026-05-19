@@ -201,3 +201,20 @@ context 'N+1 detection with enriched data' do
   end
 end
 ```
+
+### AL-4 (2026-05-19 13:18)
+
+## Pattern: Prosopite aveugle sur controllers avec DossierPreloader ou N=1 records
+
+### Probleme
+Prosopite ne detecte pas les N+1 quand :
+- Les tests operent sur un seul record (N=1)
+- Le controller utilise un preloader (ex: DossierPreloader.load_one) qui masque les N+1 en test mais pas en prod (ex: actions de liste vs actions individuelles)
+
+### Solution
+Quand Prosopite retourne 0 N+1 mais que Skylight montre des scores eleves :
+1. **Ne pas abandonner immediatement.** Verifier si les specs testent avec suffisamment de records.
+2. **Creer des specs de detection** : ecrire un test temporaire qui cree 3+ dossiers et appelle les actions de liste (index, terminer, etc.) pour provoquer les N+1.
+3. **Analyse statique** : lire le code des actions a haut score Skylight, chercher des `.map { |d| d.association }`, des renders de collections sans includes, des appels dans les vues qui traversent des associations non preloadees.
+4. **Exploiter Skylight MCP** : utiliser get_endpoint_detail et get_trace_node_detail pour identifier les queries SQL repetees en production et remonter a l'association Rails correspondante.
+5. Seulement apres ces 3 tentatives, si aucun N+1 n'est identifie, marquer comme skip avec la raison detaillee.
