@@ -30,6 +30,7 @@ Application Rails, ~30 000 commits, contraintes fortes (RGAA, sécurité, GraphQ
 | 4 | `feature-*` | Workflow features en 4 phases (spec → plan → impl → review) |
 | 5 | `harden-*` | Sécurité applicative (pentest → audit → fix) |
 | 6 | `i18n-hardcoded` | Extraction strings FR en dur → i18n YAML |
+| 7 | `n1-query-fix` | Fix N+1 queries (Prosopite + Skylight) |
 
 ## Utiliser un skill
 
@@ -41,6 +42,7 @@ Les skills sont des slash commands. Lancer Claude Code dans le projet cible :
 /bugfix <description ou lien Sentry>
 /feature-spec → /feature-plan → /feature-implementation → /feature-review
 /harden-pentest <surface d'attaque> → /harden-audit → /harden-fix audits/YYYY-MM-DD-slug-audit.md
+/n1-query-fix app/controllers/users/dossiers_controller.rb
 ```
 
 Après une session : `/kaizen write`. Pour améliorer les skills : `/kaizen synth`.
@@ -212,6 +214,7 @@ night-shift/
 │   ├── harden-audit/                  # POC 5 — Qualifier une faille
 │   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
 │   ├── i18n-hardcoded/                # POC 6 — Extraction strings FR → i18n YAML
+│   ├── n1-query-fix/                  # POC 7 — Fix N+1 queries (Prosopite + Skylight)
 │   ├── pr-description/                # Transversal — Génère pr-description.md
 │   ├── create-pr/                     # Transversal — Push + gh pr create
 │   ├── kaizen/                        # Transversal — write + synth
