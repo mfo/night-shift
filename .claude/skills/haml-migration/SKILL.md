@@ -65,9 +65,9 @@ Les screenshots ne sont JAMAIS commités dans le repo cible. Ils vivent dans `tm
 
 **1. Identifier le port du serveur** :
 ```bash
-echo $PORT
+grep '^PORT=' .env.development.local
 ```
-Le serveur tourne sur le port défini par `$PORT`. Utiliser cette valeur pour **toutes** les URLs : `http://localhost:$PORT/...`. Si `$PORT` est vide, utiliser 3000 par défaut.
+Lire le port depuis `.env.development.local` (source de vérité). Utiliser cette valeur pour **toutes** les URLs : `http://localhost:<PORT>/...`. Si le fichier n'existe pas, utiliser 3000 par défaut.
 
 **2. Vérifier que les routes sont disponibles** :
 ```bash

@@ -23,7 +23,7 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
 
 ## Setup (avant le workflow)
 
-**1. Serveur** — identifier le port : `echo $PORT`. Le serveur tourne sur ce port. Si vide, utiliser 3000 par défaut. Utiliser `http://localhost:$PORT/...` pour toutes les URLs.
+**1. Serveur** — identifier le port : `grep '^PORT=' .env.development.local`. Le serveur tourne sur ce port. Si le fichier n'existe pas, utiliser 3000 par défaut. Utiliser `http://localhost:<PORT>/...` pour toutes les URLs.
 
 **2. Auto-login** — verifier :
 ```bash
