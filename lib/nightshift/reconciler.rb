@@ -148,17 +148,11 @@ module Nightshift
         system("tmux", "select-pane", "-t", "#{win_id}.0")
       end
 
-      # Send skill-run command (wait for server if needed)
+      # Send skill-run command
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
       env_prefix = port ? "PORT=#{port}" : ""
-      skill_cmd = "#{env_prefix} #{binstub} skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
-      if skill_config[:needs_server] && port
-        wait_cmd = "while ! nc -z localhost #{port} 2>/dev/null; do sleep 2; done"
-        cmd = "#{wait_cmd} && #{skill_cmd}"
-      else
-        cmd = skill_cmd
-      end
-      system("tmux", "send-keys", "-t", "#{win_id}.0", cmd, "Enter")
+      skill_cmd = "#{env_prefix} '#{binstub}' skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
+      system("tmux", "send-keys", "-t", "#{win_id}.0", skill_cmd, "Enter")
     end
 
     def find_window_by_branch(session, branch)
