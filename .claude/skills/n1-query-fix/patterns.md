@@ -202,33 +202,6 @@ context 'N+1 detection with enriched data' do
 end
 ```
 
-### AL-4 (2026-05-19 13:18)
+### AL-4 (2026-05-20)
 
-## Pattern: Prosopite aveugle sur controllers avec DossierPreloader ou N=1 records
-
-### Probleme
-Prosopite ne detecte pas les N+1 quand :
-- Les tests operent sur un seul record (N=1)
-- Le controller utilise un preloader (ex: DossierPreloader.load_one) qui masque les N+1 en test mais pas en prod (ex: actions de liste vs actions individuelles)
-
-### Solution
-Quand Prosopite retourne 0 N+1 mais que Skylight montre des scores eleves :
-1. **Ne pas abandonner immediatement.** Verifier si les specs testent avec suffisamment de records.
-2. **Creer des specs de detection** : ecrire un test temporaire qui cree 3+ dossiers et appelle les actions de liste (index, terminer, etc.) pour provoquer les N+1.
-3. **Analyse statique** : lire le code des actions a haut score Skylight, chercher des `.map { |d| d.association }`, des renders de collections sans includes, des appels dans les vues qui traversent des associations non preloadees.
-4. **Exploiter Skylight MCP** : utiliser get_endpoint_detail et get_trace_node_detail pour identifier les queries SQL repetees en production et remonter a l'association Rails correspondante.
-5. Seulement apres ces 3 tentatives, si aucun N+1 n'est identifie, marquer comme skip avec la raison detaillee.
-
-### AL-5 (2026-05-20 13:22)
-
-## Pattern: Prosopite détecte 0 N+1 — ne jamais conclure 'skip'
-
-Quand Prosopite ne détecte aucun N+1 dans les tests existants, cela signifie généralement que les factories créent des données insuffisantes (1 seul record au lieu de N). Ne JAMAIS conclure 'pas de N+1' sur cette seule base.
-
-Étapes obligatoires avant de skip :
-1. **Analyse statique du controller** : chercher les boucles sur des collections (`.each`, `.map`, `.select`, `.find_each`) qui accèdent à des associations non préchargées. Chercher aussi les appels dans les vues/partials rendues par chaque action.
-2. **Vérifier les données Skylight** : si un score N+1 Skylight est disponible dans le backlog, les endpoints concernés DOIVENT être investigués — le N+1 existe en production.
-3. **Enrichir les factories** : pour chaque action suspecte, écrire un test avec au minimum 3 records dans la collection itérée, puis relancer avec Prosopite.
-4. **Analyser les preloaders existants** : vérifier que `DossierPreloader` ou `includes()` couvrent TOUTES les associations accédées dans les vues, pas seulement celles du controller.
-
-Si après analyse statique + enrichissement des factories aucun N+1 n'est trouvé, alors le skip est justifié — mais documenter l'analyse dans le pr-description.md.
+Consolidé : les patterns AL-4 et AL-5 (enrichissement des fixtures, analyse statique quand Prosopite = 0 N+1) sont maintenant intégrés dans le SKILL.md étape 2b. Voir aussi AL-3.

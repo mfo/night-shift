@@ -116,15 +116,41 @@ N+1 queries detected:
     spec/spec_helper.rb:12
 ```
 
-**Regle** : si AUCUN N+1 PROD n'est identifie → **abandonner l'item**.
-Ecrire `pr-description.md` avec la raison :
-```markdown
-## Skip
+**Regle** : si AUCUN N+1 PROD n'est identifie → **NE PAS abandonner immediatement**. Passer a l'etape 2b.
 
-Aucun N+1 de production detecte. Les N+1 proviennent uniquement du setup de test (factories, before blocks).
-Prosopite detecte N patterns, tous dans spec/.
-```
-Puis ne PAS commiter et terminer.
+## Etape 2b : Enrichir les fixtures (obligatoire si 0 N+1 PROD)
+
+Prosopite ne detecte les N+1 que si N >= 2 records. Les specs existantes utilisent souvent 1 seul record.
+
+1. **Lire `.skill-context.json`** : identifier les endpoints avec un score N+1 Skylight eleve
+2. **Analyse statique du controller** : pour chaque action a haut score, chercher :
+   - Les boucles sur collections (`.each`, `.map`, `.find_each`) qui accedent a des associations
+   - Les `render partial: ..., collection:` dans les vues
+   - Les associations non couvertes par les `includes`/`preload` existants
+3. **Ecrire un test temporaire** dans `spec/controllers/` avec des factories enrichies :
+   ```ruby
+   context 'N+1 detection' do
+     render_views
+     let!(:records) { create_list(:dossier, 3, :with_all_champs, procedure: procedure) }
+
+     it 'index' do
+       get :index, params: { procedure_id: procedure.id }
+     end
+   end
+   ```
+   Creer >= 3 records avec les associations suspectees.
+4. **Relancer Prosopite** sur ce test enrichi uniquement
+5. **Re-trier** les resultats : si des N+1 PROD apparaissent → continuer a l'etape 3
+6. **Si toujours 0 N+1 PROD apres enrichissement** → abandonner l'item.
+   Ecrire `pr-description.md` avec la raison :
+   ```markdown
+   ## Skip
+
+   Aucun N+1 de production detecte apres enrichissement des fixtures (3+ records).
+   Analyse statique du controller : aucune association non preloadee identifiee.
+   Prosopite detecte N patterns, tous dans spec/.
+   ```
+   Puis ne PAS commiter et terminer.
 
 ## Etape 3 : Analyser les N+1 PROD
 
