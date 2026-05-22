@@ -32,6 +32,16 @@ module Nightshift
         return
       end
 
+      # Read pr-description.md BEFORE removing it from git
+      raw = File.read(desc_path)
+      title, body = parse_pr_description(raw)
+
+      # Remove pr-description.md from git before push (it's a pipeline artifact, not source code)
+      if system("git", "ls-files", "--error-unmatch", "pr-description.md", chdir: worktree_path, err: File::NULL)
+        system("git", "rm", "-f", "pr-description.md", chdir: worktree_path)
+        system("git", "commit", "--no-gpg-sign", "-m", "chore: remove pr-description.md", chdir: worktree_path)
+      end
+
       # Push
       unless system("git", "push", "-u", "origin", branch, chdir: worktree_path)
         @store.update_backlog_status(backlog_item[:id], "failed",
@@ -40,9 +50,7 @@ module Nightshift
         return
       end
 
-      # Create PR — parse frontmatter title if present
-      raw = File.read(desc_path)
-      title, body = parse_pr_description(raw)
+      # Create PR
 
       pr_args = ["gh", "pr", "create", "--head", branch, "--body", body]
       if title
