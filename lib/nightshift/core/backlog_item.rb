@@ -1,12 +1,15 @@
+# frozen_string_literal: true
 # typed: true
 
 module Nightshift
   module Core
     class BacklogItem < T::Struct
+      extend T::Sig
+
       const :id, Integer
-      const :skill, String
-      const :item, String
-      const :status, String
+      const :skill, SkillName
+      const :item, Pathname
+      const :status, BacklogStatus
       const :branch, T.nilable(String), default: nil
       const :pr_number, T.nilable(Integer), default: nil
       const :failure_reason, T.nilable(String), default: nil
@@ -22,8 +25,8 @@ module Nightshift
       sig { params(row: T::Hash[Symbol, T.untyped]).returns(BacklogItem) }
       def self.from_row(row)
         new(
-          id: row[:id], skill: row[:skill], item: row[:item],
-          status: row[:status], branch: row[:branch],
+          id: row[:id], skill: SkillName.deserialize(row[:skill]), item: Pathname.new(row[:item]),
+          status: BacklogStatus.deserialize(row[:status]), branch: row[:branch],
           pr_number: row[:pr_number], failure_reason: row[:failure_reason],
           priority: row[:priority] || 0, retry_count: row[:retry_count] || 0,
           last_verdict: row[:last_verdict], retry_after: row[:retry_after],

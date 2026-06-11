@@ -1,7 +1,7 @@
+# frozen_string_literal: true
 # typed: false
 
-require "open3"
-require "set"
+require 'open3'
 
 module Nightshift
   class Reconciler
@@ -26,12 +26,10 @@ module Nightshift
         result = @store.reconcile_pr(pr)
 
         # 1. Comments FIRST — show if new comments detected
-        if result[:comment_delta] > 0
-          @renderer.show_comments(pr)
-        end
+        @renderer.show_comments(pr) if result[:comment_delta].positive?
 
         # 2. State transitions SECOND
-        if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].to_s)
+        if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].serialize)
           on_transition(pr, result[:old_state], result[:new_state])
         end
 
@@ -48,21 +46,21 @@ module Nightshift
 
       @store.all_backlog.each do |item|
         case item.status
-        when "pr_open"
+        when BacklogStatus::PrOpen
           pr = pr_by_branch[item.branch]
-          handle_done(item) if pr&.github_state == "MERGED"
-        when "running"
+          handle_done(item) if pr&.github_state == 'MERGED'
+        when BacklogStatus::Running
           # Zombie recovery: running item but worktree gone
           if item.branch && !active_branches.include?(item.branch)
             retry_count = item.retry_count.to_i
             if retry_count < CI::Judge::MAX_RETRIES
-              @store.update_backlog_status(item.id, "pending",
+              @store.update_backlog_status(item.id, BacklogStatus::Pending,
                                            branch: nil, failure_reason: nil)
               @store.db[:backlog_items].where(id: item.id)
-                .update(retry_count: Sequel.expr(:retry_count) + 1)
+                    .update(retry_count: Sequel.expr(:retry_count) + 1)
             else
-              @store.update_backlog_status(item.id, "skipped",
-                                           failure_reason: "zombie_exhausted")
+              @store.update_backlog_status(item.id, BacklogStatus::Skipped,
+                                           failure_reason: FailureReason::ZombieExhausted.serialize)
             end
           end
         end
@@ -75,11 +73,11 @@ module Nightshift
 
     sig { params(item: Core::BacklogItem).void }
     def handle_done(item)
-      @store.update_backlog_status(item.id, "done")
+      @store.update_backlog_status(item.id, BacklogStatus::Done)
       Integrations::Worktree.cleanup(item.branch)
       @renderer.close_worktree(item.branch)
 
-      maybe_reprioritize(item.skill)
+      maybe_reprioritize(item.skill.serialize)
     end
 
     sig { params(skill_name: String).void }
@@ -88,8 +86,8 @@ module Nightshift
       return unless config&.dig(:scan_proc) # only for skills with dynamic scan
 
       completed = @store.db[:backlog_items]
-        .where(skill: skill_name, status: "done").count
-      return unless completed > 0 && (completed % 5).zero?
+                        .where(skill: skill_name, status: Core::Store::DONE_S).count
+      return unless completed.positive? && (completed % 5).zero?
 
       Log.info "triggering reprioritize for #{skill_name} (#{completed} completed)"
       CI::Reprioritizer.run(skill_name, store: @store)
@@ -97,15 +95,16 @@ module Nightshift
 
     sig { void }
     def pick_next_items
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
+      repo_path = ENV.fetch('NIGHTSHIFT_REPO')
       SKILLS.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
+
         item = @store.claim_next(skill_name)
         next unless item
 
         # Guard: skip if the target file no longer exists on main
-        unless system("git", "-C", repo_path, "cat-file", "-e", "HEAD:#{item.item}", err: File::NULL)
-          @store.update_backlog_status(item.id, "skipped", failure_reason: "file_not_found")
+        unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{item.item}", err: File::NULL)
+          @store.update_backlog_status(item.id, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound.serialize)
           next
         end
 
@@ -115,8 +114,8 @@ module Nightshift
 
     sig { params(skill_name: String, item: Core::BacklogItem).void }
     def launch_skill(skill_name, item)
-      require "shellwords"
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
+      require 'shellwords'
+      repo_path = ENV.fetch('NIGHTSHIFT_REPO')
       slug = short_slug(item.item, skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
@@ -125,58 +124,59 @@ module Nightshift
       # Clean up stale branch/dir from previous failed attempts
       Integrations::Worktree.cleanup(branch)
 
-      unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
-        @store.update_backlog_status(item.id, "failed", failure_reason: "worktree_error")
+      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
+        @store.update_backlog_status(item.id, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError.serialize)
         return
       end
-      @store.update_backlog_status(item.id, "running", branch: branch)
+      @store.update_backlog_status(item.id, BacklogStatus::Running, branch: branch)
 
       # Ensure gitignored dirs exist + clean logs for fresh investigation
       %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
-      Dir.glob(File.join(wt_path, "log", "*.log")).each { |f| File.truncate(f, 0) }
+      Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
 
-      session = ENV.fetch("NIGHTSHIFT_SESSION")
+      session = ENV.fetch('NIGHTSHIFT_SESSION')
       skill_config = SKILLS[skill_name] || {}
 
       # Reuse existing window if one already has this branch (e.g. from attach)
       win_id = find_window_by_branch(session, branch)
       unless win_id
-        win_id, = Open3.capture2("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}-#{slug}",
-                                 "-c", wt_path, "-P", "-F", '#{window_id}')
+        win_id, = Open3.capture2('tmux', 'new-window', '-t', session, '-n', "🤖 #{skill_name}-#{slug}",
+                                 '-c', wt_path, '-P', '-F', window_id.to_s)
         win_id = win_id.strip
-        system("tmux", "set-option", "-w", "-t", win_id, "@branch", branch)
+        system('tmux', 'set-option', '-w', '-t', win_id, '@branch', branch)
       end
 
       # Launch server in background pane if skill needs it
       port = skill_config[:port]
       if skill_config[:needs_server] && port
-        File.write(File.join(wt_path, ".env.development.local"),
+        File.write(File.join(wt_path, '.env.development.local'),
                    "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
-        system("tmux", "split-window", "-t", win_id, "-v", "-l", "20%",
-               "-c", wt_path)
-        system("tmux", "send-keys", "-t", "#{win_id}.1",
-               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", "Enter")
-        system("tmux", "select-pane", "-t", "#{win_id}.0")
+        system('tmux', 'split-window', '-t', win_id, '-v', '-l', '20%',
+               '-c', wt_path)
+        system('tmux', 'send-keys', '-t', "#{win_id}.1",
+               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", 'Enter')
+        system('tmux', 'select-pane', '-t', "#{win_id}.0")
       end
 
       # Send skill-run command
-      binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
-      env_prefix = port ? "PORT=#{port}" : ""
+      binstub = File.expand_path('../../bin/nightshift-rb', __dir__)
+      env_prefix = port ? "PORT=#{port}" : ''
       skill_cmd = "#{env_prefix} '#{binstub}' skill-run #{skill_name} #{Shellwords.escape(item.item)}".strip
-      system("tmux", "send-keys", "-t", "#{win_id}.0", skill_cmd, "Enter")
+      system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
     end
 
     sig { params(session: String, branch: String).returns(T.nilable(String)) }
     def find_window_by_branch(session, branch)
       return nil unless branch
+
       out, _, status = Open3.capture3(
-        "tmux", "list-windows", "-t", session,
-        "-F", '#{window_id} #{@branch}'
+        'tmux', 'list-windows', '-t', session,
+        '-F', "#{window_id} #{@branch}"
       )
       return nil unless status.success?
 
       out.each_line do |line|
-        win_id, win_branch = line.strip.split(" ", 2)
+        win_id, win_branch = line.strip.split(' ', 2)
         return win_id if win_branch == branch
       end
       nil
@@ -192,16 +192,16 @@ module Nightshift
       Nightshift.short_slug(path, skill_name: skill_name)
     end
 
-    sig { params(pr: Core::PR, old_state: T.nilable(Symbol), new_state: Symbol).void }
+    sig { params(pr: Core::PR, old_state: T.nilable(PRState), new_state: PRState).void }
     def on_transition(pr, old_state, new_state)
       case [old_state, new_state]
-      in [_, :ci_red]
+      in [_, PRState::CiRed]
         @renderer.autofix(pr)
-      in [_, :approved]
+      in [_, PRState::Approved]
         @renderer.propose_merge(pr)
-      in [:ci_red, :ci_green]
+      in [PRState::CiRed, PRState::CiGreen]
         @renderer.notify_fixed(pr)
-      in [_, :merged | :deployed]
+      in [_, PRState::Merged | PRState::Deployed]
         @renderer.propose_cleanup(pr)
       else
         # noop

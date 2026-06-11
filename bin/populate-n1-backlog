@@ -1,21 +1,23 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # Populate n1-query-fix backlog from Prosopite scan + Skylight data.
 # Usage: bin/populate-n1-backlog <prosopite-log> <skylight-json>
 
-require_relative "../lib/nightshift"
+require_relative '../lib/nightshift'
 
-log_path = ARGV[0] || abort("usage: bin/populate-n1-backlog <prosopite-log> [skylight-json]")
+log_path = ARGV[0] || abort('usage: bin/populate-n1-backlog <prosopite-log> [skylight-json]')
 skylight_path = ARGV[1]
 
 abort("File not found: #{log_path}") unless File.exist?(log_path)
 
 # --- Parse Prosopite log (same logic as bin/parse-prosopite-log) ---
-raw = File.read(log_path).gsub(/\e\[[0-9;]*m/, "")
+raw = File.read(log_path).gsub(/\e\[[0-9;]*m/, '')
 
 failures = []
 raw.each_line do |line|
   line = line.strip
-  if line.start_with?("rspec ./")
+  if line.start_with?('rspec ./')
     match = line.match(%r{rspec \./(.+?):(\d+)\s+#\s+(.+)})
     failures << { file: match[1], line: match[2].to_i, description: match[3] } if match
   end
@@ -26,18 +28,21 @@ controller_actions = {}
 failures.each do |f|
   desc = f[:description]
   if (m = desc.match(/^([\w:]+Controller)#(\w+)/))
-    controller, action = m[1], m[2]
+    controller = m[1]
+    action = m[2]
   elsif (m = desc.match(/^([\w:]+Controller)\s+(?:GET|POST|PUT|PATCH|DELETE)\s+#(\w+)/))
-    controller, action = m[1], m[2]
+    controller = m[1]
+    action = m[2]
   elsif (m = desc.match(/^([\w:]+Controller)\s+(\w+)\s/))
-    controller, action = m[1], m[2]
+    controller = m[1]
+    action = m[2]
   else
     next
   end
 
   key = "#{controller}##{action}"
   controller_actions[key] ||= { controller: controller, action: action, count: 0,
-                                 spec_file: f[:file], specs: [] }
+                                spec_file: f[:file], specs: [] }
   controller_actions[key][:count] += 1
   controller_actions[key][:specs] << "#{f[:file]}:#{f[:line]}" if controller_actions[key][:specs].size < 5
 end
@@ -51,23 +56,23 @@ end
 # --- Load Skylight data (optional) ---
 skylight_by_action = {}
 if skylight_path && File.exist?(skylight_path)
-  require "json"
+  require 'json'
   data = JSON.parse(File.read(skylight_path))
-  endpoints = data["endpoints"] || data["data"] || (data.is_a?(Array) ? data : [])
-  duration_hours = (data["duration"] || 21600) / 3600.0
+  endpoints = data['endpoints'] || data['data'] || (data.is_a?(Array) ? data : [])
+  duration_hours = (data['duration'] || 21_600) / 3600.0
 
   endpoints.each do |ep|
-    name = (ep["name"] || "").gsub(/<sk-segment>.*?<\/sk-segment>/, "")
+    name = (ep['name'] || '').gsub(%r{<sk-segment>.*?</sk-segment>}, '')
     existing = skylight_by_action[name]
     if existing
-      existing[:count] += ep["count"].to_i
-      existing[:p95] = [existing[:p95], ep["latencyP95"].to_i].max
-      existing[:n1_score] = [existing[:n1_score], ep.dig("inspections", "nPlusOneQuery").to_i].max
+      existing[:count] += ep['count'].to_i
+      existing[:p95] = [existing[:p95], ep['latencyP95'].to_i].max
+      existing[:n1_score] = [existing[:n1_score], ep.dig('inspections', 'nPlusOneQuery').to_i].max
     else
       skylight_by_action[name] = {
-        count: ep["count"].to_i,
-        p95: ep["latencyP95"].to_i,
-        n1_score: ep.dig("inspections", "nPlusOneQuery").to_i,
+        count: ep['count'].to_i,
+        p95: ep['latencyP95'].to_i,
+        n1_score: ep.dig('inspections', 'nPlusOneQuery').to_i,
         duration_hours: duration_hours
       }
     end
@@ -84,7 +89,7 @@ def persona_weight(controller)
 end
 
 # --- Score and build backlog ---
-require "json"
+require 'json'
 
 store = Nightshift::Store.new
 items = []
@@ -95,7 +100,7 @@ controller_actions.each do |key, ca|
   # Find Skylight match
   sky = skylight_by_action[key]
   unless sky
-    ctrl_only = key.split("#").first
+    ctrl_only = key.split('#').first
     sky = skylight_by_action.find { |k, _| k.start_with?("#{ctrl_only}#") }&.last
   end
 
@@ -105,7 +110,7 @@ controller_actions.each do |key, ca|
 
   # Score: persona_weight * (RPM * P95_seconds * test_freq + test_freq)
   # The +test_freq ensures items without Skylight data still get scored
-  score = if rpm > 0
+  score = if rpm.positive?
             (pw * rpm * (p95 / 1000.0) * ca[:count]).round(0)
           else
             pw * ca[:count]
@@ -113,9 +118,9 @@ controller_actions.each do |key, ca|
 
   # Map spec file to controller file
   controller_file = ca[:spec_file]
-    .sub("spec/controllers/", "app/controllers/")
-    .sub("spec/requests/", "app/controllers/")
-    .sub("_spec.rb", ".rb")
+                    .sub('spec/controllers/', 'app/controllers/')
+                    .sub('spec/requests/', 'app/controllers/')
+                    .sub('_spec.rb', '.rb')
 
   # Normalize to a single item per controller file (not per action)
   # Multiple actions on the same controller go into one backlog item
@@ -145,27 +150,27 @@ end
 
 # Normalize priority to 0-10 scale
 max_score = by_file.values.map { |v| v[:priority] }.max.to_f
-max_score = 1 if max_score == 0
+max_score = 1 if max_score.zero?
 
 added = 0
 by_file.sort_by { |_, v| -v[:priority] }.each do |file, data|
   normalized = ((data[:priority] / max_score) * 10).round.clamp(1, 10)
 
   context_json = JSON.generate({
-    source_file: file,
-    n1_patterns: data[:contexts].sort_by { |c| -c[:score] },
-    total_score: data[:priority],
-    skylight_app_url: "https://oss.skylight.io/app/applications/auuzqe8XhJIx/recent/6h/endpoints"
-  })
+                                 source_file: file,
+                                 n1_patterns: data[:contexts].sort_by { |c| -c[:score] },
+                                 total_score: data[:priority],
+                                 skylight_app_url: 'https://oss.skylight.io/app/applications/auuzqe8XhJIx/recent/6h/endpoints'
+                               })
 
-  store.add_backlog("n1-query-fix", file, priority: normalized, context: context_json)
+  store.add_backlog('n1-query-fix', file, priority: normalized, context: context_json)
   added += 1
 end
 
 puts "nightshift: populated #{added} items for n1-query-fix"
-puts "  top 10:"
+puts '  top 10:'
 by_file.sort_by { |_, v| -v[:priority] }.first(10).each_with_index do |(file, data), i|
   normalized = ((data[:priority] / max_score) * 10).round.clamp(1, 10)
-  actions = data[:contexts].map { |c| c[:action] }.join(", ")
+  actions = data[:contexts].map { |c| c[:action] }.join(', ')
   puts "  #{i + 1}. p:#{normalized} #{file} (#{actions})"
 end

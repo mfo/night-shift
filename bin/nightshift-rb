@@ -1,9 +1,10 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
-require "dotenv"
-Dotenv.load(File.expand_path("../.env", __dir__))
+require 'dotenv'
+Dotenv.load(File.expand_path('../.env', __dir__))
 
-require_relative "../lib/nightshift"
+require_relative '../lib/nightshift'
 
 %w[
   NIGHTSHIFT_REPO

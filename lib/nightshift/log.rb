@@ -1,4 +1,6 @@
-require "logger"
+# frozen_string_literal: true
+
+require 'logger'
 
 module Nightshift
   module Log
@@ -17,19 +19,19 @@ module Nightshift
 
     def build_logger
       l = ::Logger.new($stdout)
-      l.level = ENV.fetch("NIGHTSHIFT_LOG_LEVEL", "INFO")
+      l.level = ENV.fetch('NIGHTSHIFT_LOG_LEVEL', 'INFO')
       l.formatter = method(:format_line)
       l
     end
     module_function :build_logger
 
     def format_line(severity, time, _progname, msg)
-      ts = time.strftime("%H:%M:%S")
+      ts = time.strftime('%H:%M:%S')
       case severity
-      when "INFO"  then "#{ts} #{msg}\n"
-      when "DEBUG" then "#{ts} [DBG] #{msg}\n"
-      when "WARN"  then "#{ts} [WARN] #{msg}\n"
-      when "ERROR" then "#{ts} [ERROR] #{msg}\n"
+      when 'INFO'  then "#{ts} #{msg}\n"
+      when 'DEBUG' then "#{ts} [DBG] #{msg}\n"
+      when 'WARN'  then "#{ts} [WARN] #{msg}\n"
+      when 'ERROR' then "#{ts} [ERROR] #{msg}\n"
       else              "#{ts} [#{severity}] #{msg}\n"
       end
     end

@@ -1,4 +1,6 @@
+# frozen_string_literal: true
 # typed: false
+
 #
 # CLI — Point d'entrée Thor pour nightshift-rb
 #
@@ -11,12 +13,12 @@
 #   cli/worktree.rb   — Gestion worktrees + tmux (open, close, reset)
 #   cli/autolearn.rb  — Monitoring autolearn (status, report, inspect)
 
-require "open3"
-require "thor"
+require 'open3'
+require 'thor'
 
 module Nightshift
   class CLI < Thor
-    BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
+    BINSTUB = File.expand_path('../../bin/nightshift-rb', __dir__).freeze
 
     def self.exit_on_failure? = true
 
@@ -30,16 +32,16 @@ module Nightshift
 
     # --- Entry point ---
 
-    desc "attach", "Create/attach tmux session and start watching PRs"
+    desc 'attach', 'Create/attach tmux session and start watching PRs'
     def attach
       UI::Attach.run
     end
 
     # --- Internal (called inside tmux panes by attach/reconciler) ---
 
-    desc "watch", "Refresh and watch PRs periodically (internal, runs in tmux pane)", hide: true
+    desc 'watch', 'Refresh and watch PRs periodically (internal, runs in tmux pane)', hide: true
     def watch
-      interval = ENV.fetch("NIGHTSHIFT_WATCH_INTERVAL").to_i
+      interval = ENV.fetch('NIGHTSHIFT_WATCH_INTERVAL').to_i
       loop do
         refresh
         sleep interval
@@ -47,9 +49,9 @@ module Nightshift
       end
     end
 
-    desc "skill_run SKILL ITEM", "Run a skill pipeline on an item (internal)", hide: true
+    desc 'skill_run SKILL ITEM', 'Run a skill pipeline on an item (internal)', hide: true
     def skill_run(skill, item_path)
-      branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD", chdir: Dir.pwd)
+      branch, = Open3.capture2('git', 'rev-parse', '--abbrev-ref', 'HEAD', chdir: Dir.pwd)
       backlog_item = store.backlog_by_branch(branch.strip)
       context = backlog_item&.context
 
@@ -58,17 +60,17 @@ module Nightshift
 
     # --- Subcommands ---
 
-    desc "backlog SUBCOMMAND ...ARGS", "Manage backlog items"
-    subcommand "backlog", Backlog
+    desc 'backlog SUBCOMMAND ...ARGS', 'Manage backlog items'
+    subcommand 'backlog', Backlog
 
-    desc "pr SUBCOMMAND ...ARGS", "PR lifecycle (merge, brief, diagnose, autofix)"
-    subcommand "pr", PR
+    desc 'pr SUBCOMMAND ...ARGS', 'PR lifecycle (merge, brief, diagnose, autofix)'
+    subcommand 'pr', PR
 
-    desc "worktree SUBCOMMAND ...ARGS", "Manage git worktrees and tmux windows"
-    subcommand "worktree", Worktree
+    desc 'worktree SUBCOMMAND ...ARGS', 'Manage git worktrees and tmux windows'
+    subcommand 'worktree', Worktree
 
-    desc "autolearn SUBCOMMAND ...ARGS", "Autolearn monitoring and inspection"
-    subcommand "autolearn", Autolearn
+    desc 'autolearn SUBCOMMAND ...ARGS', 'Autolearn monitoring and inspection'
+    subcommand 'autolearn', Autolearn
 
     no_commands do
       def store

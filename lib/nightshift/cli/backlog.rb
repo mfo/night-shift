@@ -1,4 +1,6 @@
+# frozen_string_literal: true
 # typed: false
+
 #
 # CLI::Backlog — CRUD sur le backlog de skills
 #
@@ -24,78 +26,77 @@ module Nightshift
     class Backlog < Thor
       def self.exit_on_failure? = true
 
-      desc "add SKILL ITEM", "Add item to skill backlog"
+      desc 'add SKILL ITEM', 'Add item to skill backlog'
       def add(skill, item)
         store.add_backlog(skill, item)
-        puts "nightshift: added #{item} to #{skill} backlog"
+        say_status :add, "#{item} to #{skill} backlog", :green
       end
 
-      desc "scan SKILL", "Scan repo for backlog items"
+      desc 'scan SKILL', 'Scan repo for backlog items'
       def scan(skill)
         config = Nightshift::SKILLS[skill]
         abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
-        repo_path = ENV.fetch("NIGHTSHIFT_REPO")
+        repo_path = ENV.fetch('NIGHTSHIFT_REPO')
 
         if config[:scan_proc]
           count = config[:scan_proc].call(repo_path, store)
-          puts "nightshift: scan_proc added #{count} items for #{skill}"
+          say_status :scan, "#{count} items added for #{skill}", :green
           return
         end
 
         priority_map = config[:priority_map]
         files = Dir.glob("#{repo_path}/#{config[:scan]}")
         files.each do |f|
-          relative = f.sub("#{repo_path}/", "")
+          relative = f.sub("#{repo_path}/", '')
           priority = resolve_priority(relative, priority_map)
           store.add_backlog(skill, relative, priority: priority)
         end
-        puts "nightshift: scanned #{files.size} files for #{skill}"
+        say_status :scan, "#{files.size} files for #{skill}", :green
       end
 
-      desc "list [SKILL]", "List backlog items, optionally filtered by skill"
+      desc 'list [SKILL]', 'List backlog items, optionally filtered by skill'
       def list(skill_filter = nil)
         items = store.all_backlog(skill: skill_filter)
 
-        icons = { "pending" => "⬜", "running" => "🔄", "pr_open" => "🔵",
-                  "done" => "✅", "failed" => "❌", "skipped" => "⏭" }
+        icons = { BacklogStatus::Pending => '⬜', BacklogStatus::Running => '🔄',
+                  BacklogStatus::PrOpen => '🔵', BacklogStatus::Done => '✅',
+                  BacklogStatus::Failed => '❌', BacklogStatus::Skipped => '⏭' }
 
-        puts ""
+        say ''
         items.each do |item|
-          icon = icons[item.status] || "?"
-          extra = ""
+          icon = icons[item.status] || '?'
+          extra = ''
           extra = " PR##{item.pr_number}" if item.pr_number
           extra += " (#{item.failure_reason})" if item.failure_reason
-          prio = item.priority.to_i > 0 ? " p:#{item.priority}" : ""
-          puts "  #{icon} ##{item.id} [#{item.skill}] #{item.item}#{extra}#{prio}"
+          prio = item.priority.to_i.positive? ? " p:#{item.priority}" : ''
+          say "  #{icon} ##{item.id} [#{item.skill.serialize}] #{item.item}#{extra}#{prio}"
         end
-        puts ""
+        say ''
         counts = items.group_by(&:status).transform_values(&:size)
-        puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
-        puts ""
+        say "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k.serialize}" }.join(', ')}"
+        say ''
       end
 
-      desc "skip ID", "Skip a failed backlog item"
+      desc 'skip ID', 'Skip a failed backlog item'
       def skip(id)
         item = store.get_backlog_item(id)
         abort "nightshift: backlog item ##{id} not found" unless item
-        unless item.status == "failed"
-          abort "nightshift: can only skip failed items (current: #{item.status})"
-        end
-        store.update_backlog_status(item.id, "skipped")
-        puts "nightshift: skipped backlog item ##{id} (#{item.item})"
+        abort "nightshift: can only skip failed items (current: #{item.status.serialize})" unless item.status == BacklogStatus::Failed
+        store.update_backlog_status(item.id, BacklogStatus::Skipped)
+        say_status :skip, "##{id} #{item.item}", :yellow
       end
 
-      desc "retry ID", "Retry a failed/skipped backlog item"
+      desc 'retry ID', 'Retry a failed/skipped backlog item'
       def retry_item(id)
         item = store.get_backlog_item(id)
         abort "nightshift: backlog item ##{id} not found" unless item
-        unless %w[failed skipped].include?(item.status)
-          abort "nightshift: can only retry failed/skipped items (current: #{item.status})"
+        unless [BacklogStatus::Failed, BacklogStatus::Skipped].include?(item.status)
+          abort "nightshift: can only retry failed/skipped items (current: #{item.status.serialize})"
         end
         store.retry_backlog_item(item.id)
-        puts "nightshift: ⬜ ##{id} #{item.item} → pending (retry_count reset)"
+        say_status :retry, "##{id} #{item.item} → pending (retry_count reset)", :green
       end
-      map "retry" => :retry_item
+      map 'retry' => :retry_item
 
       private
 
@@ -103,6 +104,7 @@ module Nightshift
 
       def resolve_priority(path, priority_map)
         return 0 unless priority_map
+
         priority_map.each do |pattern, prio|
           return prio if path.match?(pattern)
         end

@@ -1,8 +1,11 @@
+# frozen_string_literal: true
 # typed: true
 
 module Nightshift
   module Core
     class AutolearnCycle < T::Struct
+      extend T::Sig
+
       const :id, Integer
       const :backlog_item_id, Integer
       const :attempt, Integer

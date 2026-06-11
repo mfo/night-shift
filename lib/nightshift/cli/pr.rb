@@ -1,4 +1,6 @@
+# frozen_string_literal: true
 # typed: false
+
 #
 # CLI::PR — Cycle de vie des Pull Requests
 #
@@ -19,23 +21,23 @@ module Nightshift
     class PR < Thor
       def self.exit_on_failure? = true
 
-      desc "merge PR_NUMBER", "Merge a PR with auto-squash"
+      desc 'merge PR_NUMBER', 'Merge a PR with auto-squash'
       def merge(pr_number)
-        system("gh", "pr", "merge", pr_number, "--auto", "--squash",
-               chdir: ENV.fetch("NIGHTSHIFT_REPO"))
+        system('gh', 'pr', 'merge', pr_number, '--auto', '--squash',
+               chdir: ENV.fetch('NIGHTSHIFT_REPO'))
       end
 
-      desc "brief", "Generate brief of open PRs"
+      desc 'brief', 'Generate brief of open PRs'
       def brief
         Monitoring::Brief.generate(store)
       end
 
-      desc "diagnose PR_NUMBER", "Diagnose CI failure for a PR"
+      desc 'diagnose PR_NUMBER', 'Diagnose CI failure for a PR'
       def diagnose(pr_number)
         Monitoring::Diagnose.run(pr_number)
       end
 
-      desc "autofix PR_NUMBER", "Auto-fix CI failure for a PR"
+      desc 'autofix PR_NUMBER', 'Auto-fix CI failure for a PR'
       def autofix(pr_number)
         CI::Autofix.run(pr_number, store: store)
       end

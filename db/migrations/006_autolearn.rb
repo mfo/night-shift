@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Sequel.migration do
   change do
     create_table(:autolearn_cycles) do
@@ -14,7 +16,7 @@ Sequel.migration do
       Integer :turns_used
       Integer :created_at, null: false
 
-      index [:backlog_item_id, :attempt]
+      index %i[backlog_item_id attempt]
     end
 
     alter_table(:backlog_items) do

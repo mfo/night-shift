@@ -1,4 +1,6 @@
+# frozen_string_literal: true
 # typed: false
+
 #
 # CLI::Worktree — Gestion des git worktrees et fenêtres tmux
 #
@@ -20,47 +22,47 @@ module Nightshift
     class Worktree < Thor
       def self.exit_on_failure? = true
 
-      desc "open BRANCH", "Open a new worktree and tmux window"
+      desc 'open BRANCH', 'Open a new worktree and tmux window'
       def open(branch)
-        repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-        session = ENV.fetch("NIGHTSHIFT_SESSION")
+        repo_path = ENV.fetch('NIGHTSHIFT_REPO')
+        session = ENV.fetch('NIGHTSHIFT_SESSION')
         wt_path = File.join(File.dirname(repo_path), branch)
 
-        unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
+        unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
           abort "nightshift: failed to create worktree #{branch}"
         end
 
-        system("tmux", "new-window", "-t", session, "-n", "\u{1f528} #{branch}", "-c", wt_path)
-        puts "nightshift: opened #{branch}"
+        system('tmux', 'new-window', '-t', session, '-n', "\u{1f528} #{branch}", '-c', wt_path)
+        say_status :open, branch, :green
       end
 
-      desc "close BRANCH", "Close a worktree and tmux window"
+      desc 'close BRANCH', 'Close a worktree and tmux window'
       def close(branch)
-        session = ENV.fetch("NIGHTSHIFT_SESSION")
+        session = ENV.fetch('NIGHTSHIFT_SESSION')
 
         item = store.backlog_by_branch(branch)
-        if item && %w[running pr_open].include?(item.status)
-          store.update_backlog_status(item.id, "failed", failure_reason: "manual_close")
-          puts "nightshift: backlog item marked failed (manual_close)"
+        if item && [BacklogStatus::Running, BacklogStatus::PrOpen].include?(item.status)
+          store.update_backlog_status(item.id, BacklogStatus::Failed, failure_reason: FailureReason::ManualClose.serialize)
+          say_status :close, "backlog item marked failed (manual_close)", :yellow
         end
 
         Integrations::Worktree.cleanup(branch)
-        puts "nightshift: closed #{branch}"
+        say_status :close, branch, :green
 
         renderer = UI::TmuxRenderer.new(session: session)
         renderer.close_worktree(branch)
       end
 
-      desc "reset SKILL", "Reset running/failed backlog items for a skill"
+      desc 'reset SKILL', 'Reset running/failed backlog items for a skill'
       def reset(skill)
-        session = ENV.fetch("NIGHTSHIFT_SESSION")
+        session = ENV.fetch('NIGHTSHIFT_SESSION')
         renderer = UI::TmuxRenderer.new(session: session)
 
-        items = store.all_backlog(skill: skill).select { |i|
-          %w[running failed].include?(i.status) || (i.status == "pending" && i.branch)
-        }
+        items = store.all_backlog(skill: skill).select do |i|
+          [BacklogStatus::Running, BacklogStatus::Failed].include?(i.status) || (i.status == BacklogStatus::Pending && i.branch)
+        end
         if items.empty?
-          puts "nightshift: nothing to reset for #{skill}"
+          say_status :reset, "nothing to reset for #{skill}", :yellow
           return
         end
 
@@ -69,10 +71,10 @@ module Nightshift
             renderer.close_worktree(item.branch)
             Integrations::Worktree.cleanup(item.branch)
           end
-          store.update_backlog_status(item.id, "pending", branch: nil, failure_reason: nil)
-          puts "  \u2b1c ##{item.id} #{item.item} \u2192 pending"
+          store.update_backlog_status(item.id, BacklogStatus::Pending, branch: nil, failure_reason: nil)
+          say "  \u2b1c ##{item.id} #{item.item} \u2192 pending"
         end
-        puts "nightshift: reset #{items.size} item(s) for #{skill}"
+        say_status :reset, "#{items.size} item(s) for #{skill}", :green
       end
 
       private
