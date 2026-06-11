@@ -1,87 +1,75 @@
 require "open3"
+require "thor"
 
 module Nightshift
-  module CLI
-    COMMANDS = %w[attach watch diagnose autofix brief merge open close backlog auto skill-run reset inspect autolearn-status autolearn-report].freeze
-
+  class CLI < Thor
     BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
 
-    module_function
+    map "skill-run" => :skill_run,
+        "autolearn-status" => :autolearn_status,
+        "autolearn-report" => :autolearn_report,
+        "inspect" => :inspect_item
 
-    def store
-      @store ||= Core::Store.new
-    end
+    def self.exit_on_failure? = true
 
-    def run(args)
-      cmd = args.shift
-      case cmd
-      when "merge"     then cmd_merge(args)
-      when "brief"     then cmd_brief(args)
-      when "diagnose"  then cmd_diagnose(args)
-      when "autofix"   then cmd_autofix(args)
-      when "watch"     then cmd_watch(args)
-      when "attach"    then cmd_attach(args)
-      when "open"      then cmd_open(args)
-      when "close"     then cmd_close(args)
-      when "reset"     then cmd_reset(args)
-      when "backlog"   then cmd_backlog(args)
-      when "auto"      then cmd_auto(args)
-      when "skill-run" then cmd_skill_run(args)
-      when "inspect"   then cmd_inspect(args)
-      when "autolearn-status" then cmd_autolearn_status(args)
-      when "autolearn-report" then cmd_autolearn_report(args)
-      else
-        usage
+    class << self
+      attr_writer :store
+
+      def store
+        @store ||= Core::Store.new
       end
     end
 
-    def cmd_refresh(_args = [])
-      prs = Integrations::GitHub.fetch_prs
-      renderer = UI::TmuxRenderer.new
-      reconciler = Reconciler.new(store: store, renderer: renderer)
-      reconciler.reconcile(prs)
-      puts "#{Time.now.strftime('%H:%M:%S')} Refreshed (#{prs.size} PRs fetched, worktree-centric)"
-    rescue Integrations::GitHub::Error => e
-      $stderr.puts e.message
-    end
+    # --- PR lifecycle ---
 
-    def cmd_merge(args)
-      pr_number = args.shift or abort("usage: nightshift merge <pr-number>")
+    desc "merge PR_NUMBER", "Merge a PR with auto-squash"
+    def merge(pr_number)
       system("gh", "pr", "merge", pr_number, "--auto", "--squash",
              chdir: ENV.fetch("NIGHTSHIFT_REPO"))
     end
 
-    def cmd_brief(_args)
-
+    desc "brief", "Generate brief of open PRs"
+    def brief
       Monitoring::Brief.generate(store)
     end
 
-    def cmd_diagnose(args)
-      pr_number = args.shift or abort("usage: nightshift diagnose <pr-number>")
+    desc "diagnose PR_NUMBER", "Diagnose CI failure for a PR"
+    def diagnose(pr_number)
       Monitoring::Diagnose.run(pr_number)
     end
 
-    def cmd_autofix(args)
-      pr_number = args.shift or abort("usage: nightshift autofix <pr-number>")
-
+    desc "autofix PR_NUMBER", "Auto-fix CI failure for a PR"
+    def autofix(pr_number)
       CI::Autofix.run(pr_number, store: store)
     end
 
-    def cmd_watch(_args)
+    # --- Daemon ---
+
+    desc "watch", "Watch and refresh PRs periodically"
+    def watch
       interval = ENV.fetch("NIGHTSHIFT_WATCH_INTERVAL").to_i
       loop do
-        cmd_refresh([])
+        refresh
         sleep interval
         Nightshift.reload!
       end
     end
 
-    def cmd_attach(_args)
+    desc "attach", "Attach to tmux session"
+    def attach
       UI::Attach.run
     end
 
-    def cmd_open(args)
-      branch = args.shift or abort("usage: nightshift open <branch>")
+    desc "auto", "Refresh then watch"
+    def auto
+      refresh
+      watch
+    end
+
+    # --- Worktree ---
+
+    desc "open BRANCH", "Open a new worktree and tmux window"
+    def open(branch)
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       wt_path = File.join(File.dirname(repo_path), branch)
@@ -90,15 +78,13 @@ module Nightshift
         abort "nightshift: failed to create worktree #{branch}"
       end
 
-      system("tmux", "new-window", "-t", session, "-n", "🔨 #{branch}", "-c", wt_path)
+      system("tmux", "new-window", "-t", session, "-n", "\u{1f528} #{branch}", "-c", wt_path)
       puts "nightshift: opened #{branch}"
     end
 
-    def cmd_close(args)
-      branch = args.shift or abort("usage: nightshift close <branch>")
+    desc "close BRANCH", "Close a worktree and tmux window"
+    def close(branch)
       session = ENV.fetch("NIGHTSHIFT_SESSION")
-
-      # Sync backlog: if item is running/pr_open, mark as failed
 
       item = store.backlog_by_branch(branch)
       if item && %w[running pr_open].include?(item[:status])
@@ -106,18 +92,15 @@ module Nightshift
         puts "nightshift: backlog item marked failed (manual_close)"
       end
 
-      # Remove worktree, branch, and test DB BEFORE killing the window
-      # (close_worktree kills the tmux window we're running in → SIGHUP)
       Integrations::Worktree.cleanup(branch)
       puts "nightshift: closed #{branch}"
 
-      # Kill tmux window LAST (may kill our own process)
       renderer = UI::TmuxRenderer.new(session: session)
       renderer.close_worktree(branch)
     end
 
-    def cmd_reset(args)
-      skill = args.shift or abort("usage: nightshift reset <skill>")
+    desc "reset SKILL", "Reset running/failed backlog items for a skill"
+    def reset(skill)
       session = ENV.fetch("NIGHTSHIFT_SESSION")
       renderer = UI::TmuxRenderer.new(session: session)
 
@@ -135,23 +118,15 @@ module Nightshift
           Integrations::Worktree.cleanup(item[:branch])
         end
         store.update_backlog_status(item[:id], "pending", branch: nil, failure_reason: nil)
-        puts "  ⬜ ##{item[:id]} #{item[:item]} → pending"
+        puts "  \u2b1c ##{item[:id]} #{item[:item]} \u2192 pending"
       end
       puts "nightshift: reset #{items.size} item(s) for #{skill}"
     end
 
-    def cmd_auto(_args)
-      cmd_refresh([])
-      cmd_watch([])
-    end
+    # --- Skill pipeline ---
 
-    # --- Delegated to SkillPipeline ---
-
-    def cmd_skill_run(args)
-      skill = args.shift or abort("usage: nightshift skill-run <skill> <item>")
-      item_path = args.shift or abort("usage: nightshift skill-run <skill> <item>")
-
-      # Look up context from backlog item (if launched via reconciler)
+    desc "skill-run SKILL ITEM", "Run a skill pipeline on an item"
+    def skill_run(skill, item_path)
       branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD", chdir: Dir.pwd)
       backlog_item = store.backlog_by_branch(branch.strip)
       context = backlog_item&.dig(:context)
@@ -161,8 +136,8 @@ module Nightshift
 
     # --- Inspect ---
 
-    def cmd_inspect(args)
-      id = args.shift or abort("usage: nightshift inspect <item-id>")
+    desc "inspect ID", "Inspect a backlog item and its autolearn cycles"
+    def inspect_item(id)
       item = store.get_backlog_item(id)
       abort "nightshift: backlog item ##{id} not found" unless item
 
@@ -179,7 +154,6 @@ module Nightshift
       else
         puts "\n  Cycles (#{cycles.size}):"
         cycles.each do |c|
-          t = Time.at(c[:created_at]).strftime("%Y-%m-%d %H:%M")
           conf = c[:confidence] ? format("%.1f", c[:confidence]) : "?"
           patch_status = if c[:skill_patch_sha]
                            "applied (#{c[:skill_patch_sha][0, 7]})"
@@ -196,117 +170,37 @@ module Nightshift
       puts ""
     end
 
-    # --- Delegated to AutolearnMonitor ---
+    # --- Autolearn ---
 
-    def cmd_autolearn_status(args)
-      Monitoring::AutolearnMonitor.new(store: store).status(skill: args.shift)
+    desc "autolearn-status [SKILL]", "Show autolearn status"
+    def autolearn_status(skill = nil)
+      Monitoring::AutolearnMonitor.new(store: store).status(skill: skill)
     end
 
-    def cmd_autolearn_report(_args)
+    desc "autolearn-report", "Show autolearn report"
+    def autolearn_report
       Monitoring::AutolearnMonitor.new(store: store).report
     end
 
-    # --- Backlog ---
+    # --- Backlog subcommand ---
 
-    def cmd_backlog(args)
-      sub = args.shift
-      case sub
-      when "add"   then cmd_backlog_add(args)
-      when "scan"  then cmd_backlog_scan(args)
-      when "list"  then cmd_backlog_list(args)
-      when "skip"  then cmd_backlog_skip(args)
-      when "retry" then cmd_backlog_retry(args)
-      else
-        abort "usage: nightshift backlog <add|scan|list|skip|retry>"
-      end
-    end
+    desc "backlog SUBCOMMAND ...ARGS", "Manage backlog items"
+    subcommand "backlog", Backlog
 
-    def cmd_backlog_add(args)
-      skill = args.shift or abort("usage: nightshift backlog add <skill> <item>")
-      item = args.shift or abort("usage: nightshift backlog add <skill> <item>")
-
-      store.add_backlog(skill, item)
-      puts "nightshift: added #{item} to #{skill} backlog"
-    end
-
-    def cmd_backlog_scan(args)
-      skill = args.shift or abort("usage: nightshift backlog scan <skill>")
-      config = Nightshift::SKILLS[skill]
-      abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-
-      if config[:scan_proc]
-        count = config[:scan_proc].call(repo_path, store)
-        puts "nightshift: scan_proc added #{count} items for #{skill}"
-        return
+    no_commands do
+      def store
+        self.class.store
       end
 
-      priority_map = config[:priority_map]
-      files = Dir.glob("#{repo_path}/#{config[:scan]}")
-      files.each do |f|
-        relative = f.sub("#{repo_path}/", "")
-        priority = resolve_priority(relative, priority_map)
-        store.add_backlog(skill, relative, priority: priority)
+      def refresh
+        prs = Integrations::GitHub.fetch_prs
+        renderer = UI::TmuxRenderer.new
+        reconciler = Reconciler.new(store: store, renderer: renderer)
+        reconciler.reconcile(prs)
+        puts "#{Time.now.strftime('%H:%M:%S')} Refreshed (#{prs.size} PRs fetched, worktree-centric)"
+      rescue Integrations::GitHub::Error => e
+        $stderr.puts e.message
       end
-      puts "nightshift: scanned #{files.size} files for #{skill}"
-    end
-
-    def resolve_priority(path, priority_map)
-      return 0 unless priority_map
-      priority_map.each do |pattern, prio|
-        return prio if path.match?(pattern)
-      end
-      1 # default: admin/other
-    end
-
-    def cmd_backlog_list(args)
-      skill_filter = args.shift
-
-      items = store.all_backlog(skill: skill_filter)
-
-      icons = { "pending" => "⬜", "running" => "🔄", "pr_open" => "🔵",
-                "done" => "✅", "failed" => "❌", "skipped" => "⏭" }
-
-      puts ""
-      items.each do |item|
-        icon = icons[item[:status]] || "?"
-        extra = ""
-        extra = " PR##{item[:pr_number]}" if item[:pr_number]
-        extra += " (#{item[:failure_reason]})" if item[:failure_reason]
-        prio = item[:priority].to_i > 0 ? " p:#{item[:priority]}" : ""
-        puts "  #{icon} ##{item[:id]} [#{item[:skill]}] #{item[:item]}#{extra}#{prio}"
-      end
-      puts ""
-      counts = items.group_by { |i| i[:status] }.transform_values(&:size)
-      puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
-      puts ""
-    end
-
-    def cmd_backlog_retry(args)
-      id = args.shift or abort("usage: nightshift backlog retry <id>")
-      item = store.get_backlog_item(id)
-      abort "nightshift: backlog item ##{id} not found" unless item
-      unless %w[failed skipped].include?(item[:status])
-        abort "nightshift: can only retry failed/skipped items (current: #{item[:status]})"
-      end
-      store.retry_backlog_item(item[:id])
-      puts "nightshift: ⬜ ##{id} #{item[:item]} → pending (retry_count reset)"
-    end
-
-    def cmd_backlog_skip(args)
-      id = args.shift or abort("usage: nightshift backlog skip <id>")
-      item = store.db[:backlog_items].where(id: id.to_i).first
-      abort "nightshift: backlog item ##{id} not found" unless item
-      unless item[:status] == "failed"
-        abort "nightshift: can only skip failed items (current: #{item[:status]})"
-      end
-      store.update_backlog_status(item[:id], "skipped")
-      puts "nightshift: skipped backlog item ##{id} (#{item[:item]})"
-    end
-
-    def usage
-      puts "Usage: nightshift <#{COMMANDS.join('|')}>"
-      exit 1
     end
   end
 end

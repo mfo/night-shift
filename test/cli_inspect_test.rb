@@ -48,7 +48,11 @@ class CLIInspectTest < Minitest::Test
   end
 
   def test_inspect_not_found
-    error = assert_raises(SystemExit) { capture_inspect("999") }
+    error = assert_raises(SystemExit) do
+      with_cli_store do
+        capture_io { Nightshift::CLI.start(["inspect", "999"]) }
+      end
+    end
     assert_equal 1, error.status
   end
 
@@ -99,7 +103,7 @@ class CLIInspectTest < Minitest::Test
 
   def with_cli_store
     original = Nightshift::CLI.instance_variable_get(:@store)
-    Nightshift::CLI.instance_variable_set(:@store, @store)
+    Nightshift::CLI.store = @store
     yield
   ensure
     Nightshift::CLI.instance_variable_set(:@store, original)
@@ -107,13 +111,13 @@ class CLIInspectTest < Minitest::Test
 
   def capture_inspect(id)
     with_cli_store do
-      capture_io { Nightshift::CLI.cmd_inspect([id]) }.first
+      capture_io { Nightshift::CLI.start(["inspect", id]) }.first
     end
   end
 
   def capture_backlog_retry(id)
     with_cli_store do
-      capture_io { Nightshift::CLI.cmd_backlog_retry([id]) }.first
+      capture_io { Nightshift::CLI.start(["backlog", "retry", id]) }.first
     end
   end
 end

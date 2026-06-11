@@ -7,37 +7,46 @@ class CLIDispatchTest < Minitest::Test
     @store = Nightshift::Core::Store.new(@db)
   end
 
-  # --- COMMANDS constant ---
+  # --- Thor command registration ---
 
-  def test_commands_list_contains_all_expected
+  def test_all_expected_commands_registered
     expected = %w[attach watch diagnose autofix brief merge open close
-                  backlog auto skill-run reset inspect autolearn-status autolearn-report]
+                  auto skill_run reset inspect_item autolearn_status autolearn_report]
     expected.each do |cmd|
-      assert_includes Nightshift::CLI::COMMANDS, cmd, "Missing command: #{cmd}"
+      assert Nightshift::CLI.all_commands.key?(cmd), "Missing command: #{cmd}"
     end
+  end
+
+  def test_backlog_subcommand_registered
+    assert_includes Nightshift::CLI.subcommands, "backlog"
+  end
+
+  def test_hyphenated_commands_mapped
+    maps = Nightshift::CLI.all_commands
+    assert maps.key?("skill_run"), "skill-run should map to skill_run"
+    assert maps.key?("autolearn_status"), "autolearn-status should map to autolearn_status"
+    assert maps.key?("autolearn_report"), "autolearn-report should map to autolearn_report"
+    assert maps.key?("inspect_item"), "inspect should map to inspect_item"
   end
 
   # --- Dispatch routing ---
-  # Verify each command routes to the right method by checking it doesn't crash
-  # on missing args (abort with usage) or runs successfully with mocked deps.
 
-  def test_dispatch_unknown_command_shows_usage
+  def test_dispatch_unknown_command_exits
     assert_raises(SystemExit) do
-      capture_io { Nightshift::CLI.run(["unknown-command"]) }
+      capture_io { Nightshift::CLI.start(["unknown-command"]) }
     end
   end
 
-  def test_dispatch_no_command_shows_usage
-    assert_raises(SystemExit) do
-      capture_io { Nightshift::CLI.run([]) }
-    end
+  def test_dispatch_no_command_shows_help
+    output = capture_io { Nightshift::CLI.start([]) }.first
+    assert_includes output, "Commands:"
   end
 
   # --- Backlog subcommands ---
 
   def test_backlog_add_creates_item
     with_cli_store do
-      capture_io { Nightshift::CLI.cmd_backlog_add(["haml-migration", "foo.haml"]) }
+      capture_io { Nightshift::CLI.start(["backlog", "add", "haml-migration", "foo.haml"]) }
     end
     assert_equal 1, @db[:backlog_items].count
     assert_equal "foo.haml", @db[:backlog_items].first[:item]
@@ -45,7 +54,9 @@ class CLIDispatchTest < Minitest::Test
 
   def test_backlog_add_missing_args
     assert_raises(SystemExit) do
-      with_cli_store { Nightshift::CLI.cmd_backlog_add([]) }
+      with_cli_store do
+        capture_io { Nightshift::CLI.start(["backlog", "add"]) }
+      end
     end
   end
 
@@ -54,7 +65,7 @@ class CLIDispatchTest < Minitest::Test
     @store.add_backlog("haml-migration", "b.haml")
 
     output = with_cli_store do
-      capture_io { Nightshift::CLI.cmd_backlog_list([]) }.first
+      capture_io { Nightshift::CLI.start(["backlog", "list"]) }.first
     end
     assert_includes output, "a.haml"
     assert_includes output, "b.haml"
@@ -66,7 +77,7 @@ class CLIDispatchTest < Minitest::Test
     @store.add_backlog("test-optimization", "b_spec.rb")
 
     output = with_cli_store do
-      capture_io { Nightshift::CLI.cmd_backlog_list(["haml-migration"]) }.first
+      capture_io { Nightshift::CLI.start(["backlog", "list", "haml-migration"]) }.first
     end
     assert_includes output, "a.haml"
     refute_includes output, "b_spec.rb"
@@ -77,7 +88,9 @@ class CLIDispatchTest < Minitest::Test
     item = @store.claim_next("haml-migration")
 
     assert_raises(SystemExit) do
-      with_cli_store { Nightshift::CLI.cmd_backlog_skip([item[:id].to_s]) }
+      with_cli_store do
+        capture_io { Nightshift::CLI.start(["backlog", "skip", item[:id].to_s]) }
+      end
     end
   end
 
@@ -87,14 +100,16 @@ class CLIDispatchTest < Minitest::Test
     @store.update_backlog_status(item[:id], "failed", failure_reason: "test")
 
     with_cli_store do
-      capture_io { Nightshift::CLI.cmd_backlog_skip([item[:id].to_s]) }
+      capture_io { Nightshift::CLI.start(["backlog", "skip", item[:id].to_s]) }
     end
     assert_equal "skipped", @db[:backlog_items].first[:status]
   end
 
   def test_backlog_dispatch_unknown_subcommand
     assert_raises(SystemExit) do
-      with_cli_store { Nightshift::CLI.cmd_backlog(["unknown"]) }
+      with_cli_store do
+        capture_io { Nightshift::CLI.start(["backlog", "unknown"]) }
+      end
     end
   end
 
@@ -102,19 +117,19 @@ class CLIDispatchTest < Minitest::Test
 
   def test_merge_requires_pr_number
     assert_raises(SystemExit) do
-      Nightshift::CLI.cmd_merge([])
+      capture_io { Nightshift::CLI.start(["merge"]) }
     end
   end
 
   def test_diagnose_requires_pr_number
     assert_raises(SystemExit) do
-      Nightshift::CLI.cmd_diagnose([])
+      capture_io { Nightshift::CLI.start(["diagnose"]) }
     end
   end
 
   def test_autofix_requires_pr_number
     assert_raises(SystemExit) do
-      Nightshift::CLI.cmd_autofix([])
+      capture_io { Nightshift::CLI.start(["autofix"]) }
     end
   end
 
@@ -122,16 +137,15 @@ class CLIDispatchTest < Minitest::Test
 
   def test_autolearn_status_runs
     output = with_cli_store do
-      capture_io { Nightshift::CLI.cmd_autolearn_status([]) }.first
+      capture_io { Nightshift::CLI.start(["autolearn-status"]) }.first
     end
     assert_includes output, "autolearn status"
   end
 
   def test_autolearn_report_runs
     output = with_cli_store do
-      capture_io { Nightshift::CLI.cmd_autolearn_report([]) }.first
+      capture_io { Nightshift::CLI.start(["autolearn-report"]) }.first
     end
-    # Could be empty or "aucun cycle"
     refute_nil output
   end
 
@@ -139,7 +153,7 @@ class CLIDispatchTest < Minitest::Test
 
   def with_cli_store(&block)
     original = Nightshift::CLI.instance_variable_get(:@store)
-    Nightshift::CLI.instance_variable_set(:@store, @store)
+    Nightshift::CLI.store = @store
     result = yield
     result
   ensure

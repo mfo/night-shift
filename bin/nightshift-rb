@@ -15,4 +15,4 @@ require_relative "../lib/nightshift"
   NIGHTSHIFT_AUTOFIX_WINDOW
 ].each { |var| ENV.fetch(var) { abort "nightshift: missing env var #{var}" } }
 
-Nightshift::CLI.run(ARGV)
+Nightshift::CLI.start(ARGV)
