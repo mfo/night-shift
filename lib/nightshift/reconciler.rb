@@ -1,8 +1,13 @@
+# typed: false
+
 require "open3"
 require "set"
 
 module Nightshift
   class Reconciler
+    extend T::Sig
+
+    sig { params(store: Core::Store, renderer: T.untyped, worktree_branches: T.nilable(T::Set[String])).void }
     def initialize(store:, renderer:, worktree_branches: nil)
       @store = store
       @renderer = renderer
@@ -11,6 +16,7 @@ module Nightshift
 
     SKILLS = Nightshift::SKILLS
 
+    sig { params(prs: T::Array[Core::PR]).void }
     def reconcile(prs)
       # Worktree-centric: only reconcile PRs that match a local worktree
       branches = @worktree_branches || list_worktree_branches
@@ -35,6 +41,7 @@ module Nightshift
       reconcile_skills(active_prs)
     end
 
+    sig { params(prs: T::Array[Core::PR]).void }
     def reconcile_skills(prs)
       pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
       active_branches = @worktree_branches || list_worktree_branches
@@ -66,6 +73,7 @@ module Nightshift
 
     private
 
+    sig { params(item: Core::BacklogItem).void }
     def handle_done(item)
       @store.update_backlog_status(item.id, "done")
       Integrations::Worktree.cleanup(item.branch)
@@ -74,6 +82,7 @@ module Nightshift
       maybe_reprioritize(item.skill)
     end
 
+    sig { params(skill_name: String).void }
     def maybe_reprioritize(skill_name)
       config = SKILLS[skill_name]
       return unless config&.dig(:scan_proc) # only for skills with dynamic scan
@@ -86,6 +95,7 @@ module Nightshift
       CI::Reprioritizer.run(skill_name, store: @store)
     end
 
+    sig { void }
     def pick_next_items
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
       SKILLS.each_key do |skill_name|
@@ -103,6 +113,7 @@ module Nightshift
       end
     end
 
+    sig { params(skill_name: String, item: Core::BacklogItem).void }
     def launch_skill(skill_name, item)
       require "shellwords"
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
@@ -155,6 +166,7 @@ module Nightshift
       system("tmux", "send-keys", "-t", "#{win_id}.0", skill_cmd, "Enter")
     end
 
+    sig { params(session: String, branch: String).returns(T.nilable(String)) }
     def find_window_by_branch(session, branch)
       return nil unless branch
       out, _, status = Open3.capture3(
@@ -170,14 +182,17 @@ module Nightshift
       nil
     end
 
+    sig { returns(T::Set[String]) }
     def list_worktree_branches
       Integrations::Worktree.branches
     end
 
+    sig { params(path: String, skill_name: T.nilable(String)).returns(String) }
     def short_slug(path, skill_name: nil)
       Nightshift.short_slug(path, skill_name: skill_name)
     end
 
+    sig { params(pr: Core::PR, old_state: T.nilable(Symbol), new_state: Symbol).void }
     def on_transition(pr, old_state, new_state)
       case [old_state, new_state]
       in [_, :ci_red]

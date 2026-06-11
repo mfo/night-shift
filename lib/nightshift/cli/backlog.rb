@@ -1,3 +1,24 @@
+# typed: false
+#
+# CLI::Backlog — CRUD sur le backlog de skills
+#
+# Le backlog contient les items à traiter par chaque skill (fichiers à migrer,
+# specs à optimiser, etc.). Le reconciler pioche dans le backlog pour lancer
+# les skills automatiquement.
+#
+#   add   — Ajoute un item manuellement
+#   scan  — Scanne le repo et alimente le backlog via glob ou scan_proc
+#   list  — Liste les items (filtrable par skill)
+#   skip  — Marque un item failed comme skipped (abandon)
+#   retry — Remet un item failed/skipped en pending (reset retries)
+#
+# Usage :
+#   nightshift backlog add haml-migration app/views/foo.html.haml
+#   nightshift backlog scan haml-migration
+#   nightshift backlog list [SKILL]
+#   nightshift backlog skip 42
+#   nightshift backlog retry 42
+
 module Nightshift
   class CLI
     class Backlog < Thor
@@ -78,9 +99,7 @@ module Nightshift
 
       private
 
-      def store
-        CLI.store
-      end
+      def store = CLI.store
 
       def resolve_priority(path, priority_map)
         return 0 unless priority_map

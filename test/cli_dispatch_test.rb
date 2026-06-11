@@ -9,24 +9,34 @@ class CLIDispatchTest < Minitest::Test
 
   # --- Thor command registration ---
 
-  def test_all_expected_commands_registered
-    expected = %w[attach watch diagnose autofix brief merge open close
-                  auto skill_run reset inspect_item autolearn_status autolearn_report]
-    expected.each do |cmd|
+  def test_main_commands_registered
+    %w[attach watch skill_run].each do |cmd|
       assert Nightshift::CLI.all_commands.key?(cmd), "Missing command: #{cmd}"
     end
   end
 
-  def test_backlog_subcommand_registered
-    assert_includes Nightshift::CLI.subcommands, "backlog"
+  def test_subcommands_registered
+    %w[backlog pr worktree autolearn].each do |sub|
+      assert_includes Nightshift::CLI.subcommands, sub
+    end
   end
 
-  def test_hyphenated_commands_mapped
-    maps = Nightshift::CLI.all_commands
-    assert maps.key?("skill_run"), "skill-run should map to skill_run"
-    assert maps.key?("autolearn_status"), "autolearn-status should map to autolearn_status"
-    assert maps.key?("autolearn_report"), "autolearn-report should map to autolearn_report"
-    assert maps.key?("inspect_item"), "inspect should map to inspect_item"
+  def test_pr_subcommand_commands
+    %w[merge brief diagnose autofix].each do |cmd|
+      assert Nightshift::CLI::PR.all_commands.key?(cmd), "Missing pr command: #{cmd}"
+    end
+  end
+
+  def test_worktree_subcommand_commands
+    %w[open close reset].each do |cmd|
+      assert Nightshift::CLI::Worktree.all_commands.key?(cmd), "Missing worktree command: #{cmd}"
+    end
+  end
+
+  def test_autolearn_subcommand_commands
+    %w[status report inspect].each do |cmd|
+      assert Nightshift::CLI::Autolearn.all_commands.key?(cmd), "Missing autolearn command: #{cmd}"
+    end
   end
 
   # --- Dispatch routing ---
@@ -89,7 +99,7 @@ class CLIDispatchTest < Minitest::Test
 
     assert_raises(SystemExit) do
       with_cli_store do
-        capture_io { Nightshift::CLI.start(["backlog", "skip", item[:id].to_s]) }
+        capture_io { Nightshift::CLI.start(["backlog", "skip", item.id.to_s]) }
       end
     end
   end
@@ -97,10 +107,10 @@ class CLIDispatchTest < Minitest::Test
   def test_backlog_skip_works_on_failed
     @store.add_backlog("haml-migration", "a.haml")
     item = @store.claim_next("haml-migration")
-    @store.update_backlog_status(item[:id], "failed", failure_reason: "test")
+    @store.update_backlog_status(item.id, "failed", failure_reason: "test")
 
     with_cli_store do
-      capture_io { Nightshift::CLI.start(["backlog", "skip", item[:id].to_s]) }
+      capture_io { Nightshift::CLI.start(["backlog", "skip", item.id.to_s]) }
     end
     assert_equal "skipped", @db[:backlog_items].first[:status]
   end
@@ -113,38 +123,38 @@ class CLIDispatchTest < Minitest::Test
     end
   end
 
-  # --- Merge / Diagnose / Autofix ---
+  # --- PR subcommands ---
 
-  def test_merge_requires_pr_number
+  def test_pr_merge_requires_pr_number
     assert_raises(SystemExit) do
-      capture_io { Nightshift::CLI.start(["merge"]) }
+      capture_io { Nightshift::CLI.start(["pr", "merge"]) }
     end
   end
 
-  def test_diagnose_requires_pr_number
+  def test_pr_diagnose_requires_pr_number
     assert_raises(SystemExit) do
-      capture_io { Nightshift::CLI.start(["diagnose"]) }
+      capture_io { Nightshift::CLI.start(["pr", "diagnose"]) }
     end
   end
 
-  def test_autofix_requires_pr_number
+  def test_pr_autofix_requires_pr_number
     assert_raises(SystemExit) do
-      capture_io { Nightshift::CLI.start(["autofix"]) }
+      capture_io { Nightshift::CLI.start(["pr", "autofix"]) }
     end
   end
 
-  # --- Autolearn commands ---
+  # --- Autolearn subcommands ---
 
   def test_autolearn_status_runs
     output = with_cli_store do
-      capture_io { Nightshift::CLI.start(["autolearn-status"]) }.first
+      capture_io { Nightshift::CLI.start(["autolearn", "status"]) }.first
     end
     assert_includes output, "autolearn status"
   end
 
   def test_autolearn_report_runs
     output = with_cli_store do
-      capture_io { Nightshift::CLI.start(["autolearn-report"]) }.first
+      capture_io { Nightshift::CLI.start(["autolearn", "report"]) }.first
     end
     refute_nil output
   end

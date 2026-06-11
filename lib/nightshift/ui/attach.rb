@@ -146,7 +146,7 @@ module Nightshift
 
       # Launch brief + auto (skill picking + watch) in main window
       system("tmux", "send-keys", "-t", "#{session}:0",
-             "#{BINSTUB} brief && #{BINSTUB} auto", "Enter")
+             "#{BINSTUB} brief && #{BINSTUB} watch", "Enter")
 
       # Select main window and attach
       system("tmux", "select-window", "-t", "#{session}:0")

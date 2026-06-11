@@ -50,7 +50,7 @@ class CLIInspectTest < Minitest::Test
   def test_inspect_not_found
     error = assert_raises(SystemExit) do
       with_cli_store do
-        capture_io { Nightshift::CLI.start(["inspect", "999"]) }
+        capture_io { Nightshift::CLI.start(["autolearn", "inspect", "999"]) }
       end
     end
     assert_equal 1, error.status
@@ -111,7 +111,7 @@ class CLIInspectTest < Minitest::Test
 
   def capture_inspect(id)
     with_cli_store do
-      capture_io { Nightshift::CLI.start(["inspect", id]) }.first
+      capture_io { Nightshift::CLI.start(["autolearn", "inspect", id]) }.first
     end
   end
 

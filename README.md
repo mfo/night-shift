@@ -68,36 +68,31 @@ Chaque git worktree = une fenêtre tmux, nommée avec le statut PR en temps rée
 ### Commandes
 
 ```bash
-# Session tmux
-nightshift attach              # Crée/rattache la session tmux depuis les worktrees
-nightshift refresh             # Met à jour les statuts PR sur toutes les fenêtres
-nightshift status              # Tableau stdout (sans tmux)
-nightshift watch               # Refresh continu (toutes les 2 min)
-nightshift auto                # refresh + watch (raccourci)
-nightshift brief               # Morning brief : actions requises, changements, suggestions
+# Session
+nightshift attach              # Crée/rattache la session tmux + lance le watch
 
-# CI
-nightshift diagnose <pr>       # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
-nightshift autofix <pr>        # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
-nightshift merge <pr>          # Auto-merge squash via gh
+# PR lifecycle
+nightshift pr merge <pr>       # Auto-merge squash via gh
+nightshift pr brief            # Morning brief : actions requises, changements, suggestions
+nightshift pr diagnose <pr>    # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
+nightshift pr autofix <pr>     # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
 
 # Worktrees
-nightshift open <branch>       # Crée un worktree + fenêtre tmux
-nightshift close <branch>      # Supprime worktree, branche, DB test, puis fenêtre tmux
+nightshift worktree open <branch>   # Crée un worktree + fenêtre tmux
+nightshift worktree close <branch>  # Supprime worktree, branche, DB test, puis fenêtre tmux
+nightshift worktree reset <skill>   # Reset items running/failed → pending (cleanup worktrees)
 
 # Backlog (skills auto)
-nightshift backlog list [skill]  # Liste les items du backlog
+nightshift backlog list [skill]         # Liste les items du backlog
 nightshift backlog add <skill> <item>   # Ajoute un item au backlog
-nightshift backlog scan <skill>  # Scan le repo et alimente le backlog
-nightshift backlog skip <id>     # Marque un item failed comme skipped
-nightshift backlog retry <id>    # Remet un item failed/skipped en pending (reset retries)
-nightshift skill-run <skill> <item>  # Lance un skill dans le worktree courant (usage interne)
-nightshift reset <skill>         # Reset items running/failed → pending (cleanup worktrees)
+nightshift backlog scan <skill>         # Scan le repo et alimente le backlog
+nightshift backlog skip <id>            # Marque un item failed comme skipped
+nightshift backlog retry <id>           # Remet un item failed/skipped en pending (reset retries)
 
-# Diagnostic
-nightshift inspect <item-id>         # Histoire complète d'un item : cycles, verdicts, patches
-nightshift autolearn-status [skill]  # Dashboard cycles par skill
-nightshift autolearn-report          # Rapport 24h : verdicts, patches, suggestions
+# Autolearn monitoring
+nightshift autolearn status [skill]   # Dashboard cycles par skill
+nightshift autolearn report           # Rapport 24h : verdicts, patches, suggestions
+nightshift autolearn inspect <id>     # Histoire complète d'un item : cycles, verdicts, patches
 ```
 
 ### autofix
@@ -191,17 +186,41 @@ La review d'équipe, pas la production de PRs. Le pipeline est limité à **1 PR
 night-shift/
 ├── bin/nightshift                     # Orchestrateur tmux (bash)
 ├── bin/nightshift-rb                  # CLI Ruby (commandes métier)
-├── lib/nightshift/                    # Code Ruby
-│   ├── cli.rb                         # Dispatch des commandes
+├── lib/nightshift/                    # Harness Ruby (Zeitwerk autoloaded)
+│   ├── cli.rb                         # CLI Thor — squelette + daemon + subcommands
+│   ├── cli/                           # Subcommands Thor (1 fichier = 1 groupe)
+│   │   ├── backlog.rb                 # nightshift backlog {add,scan,list,skip,retry}
+│   │   ├── pr.rb                      # nightshift pr {merge,brief,diagnose,autofix}
+│   │   ├── worktree.rb                # nightshift worktree {open,close,reset}
+│   │   └── autolearn.rb              # nightshift autolearn {status,report,inspect}
 │   ├── reconciler.rb                  # Boucle reconciliation PR + skills auto
-│   ├── skill_runner.rb                # Lancement claude -p (exécution brute)
-│   ├── skill_pipeline.rb              # Pipeline complet : run → push/PR ou judge → retry/skip
-│   ├── judge.rb                       # Juge LLM post-échec (verdict + patch suggestion)
-│   ├── autolearn_monitor.rb           # Dashboard et rapport autolearn
-│   ├── skill_loader.rb                # Chargement SKILL.md + parsing frontmatter
-│   ├── worktree.rb                    # Gestion worktrees (create, cleanup, DB, path resolution)
-│   ├── store.rb                       # SQLite (backlog, PRs, autolearn_cycles)
-│   └── ...
+│   ├── log.rb                         # Logger structuré (niveaux via NIGHTSHIFT_LOG_LEVEL)
+│   ├── core/                          # Données et persistance
+│   │   ├── store.rb                   # SQLite (backlog, PRs, autolearn_cycles)
+│   │   ├── pr.rb                      # PR state machine (STATES, EMOJI, state derivation)
+│   │   ├── backlog_item.rb            # T::Struct — item du backlog (typé)
+│   │   └── autolearn_cycle.rb         # T::Struct — cycle autolearn (typé)
+│   ├── ci/                            # Intelligence post-CI
+│   │   ├── judge.rb                   # Juge LLM post-échec (verdict + patch suggestion)
+│   │   ├── verdict.rb                 # T::Struct — verdict du juge (typé)
+│   │   ├── autofix.rb                 # Auto-fix CI (linters, specs, retry flaky)
+│   │   └── reprioritizer.rb           # Repriorisation dynamique du backlog
+│   ├── skills/                        # Exécution des skills
+│   │   ├── runner.rb                  # Lancement claude -p (exécution brute)
+│   │   ├── runner_result.rb           # T::Struct — résultat du runner (typé)
+│   │   ├── pipeline.rb                # Pipeline complet : run → PR ou judge → retry
+│   │   └── loader.rb                  # Chargement SKILL.md + parsing frontmatter
+│   ├── integrations/                  # Monde extérieur
+│   │   ├── github.rb                  # API gh (fetch PRs, comments)
+│   │   ├── worktree.rb                # Gestion git worktrees (create, cleanup)
+│   │   └── n1_scanner.rb              # Scan N+1 queries (Prosopite logs)
+│   ├── monitoring/                    # Observabilité
+│   │   ├── autolearn_monitor.rb       # Dashboard et rapport autolearn
+│   │   ├── brief.rb                   # Morning brief (PRs ouvertes)
+│   │   └── diagnose.rb                # Diagnostic CI
+│   └── ui/                            # Affichage tmux
+│       ├── tmux_renderer.rb           # Rendu fenêtres tmux (rename, menus, panes)
+│       └── attach.rb                  # Création/rattachement session tmux
 ├── .claude/skills/                    # Skills (le livrable principal)
 │   ├── haml-migration/                # POC 1
 │   ├── test-optimization/             # POC 2
