@@ -1,5 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/judge"
 
 require "tempfile"
 require "json"

@@ -1,5 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/skill_runner"
 
 require "tempfile"
 require "json"

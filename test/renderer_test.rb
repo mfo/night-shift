@@ -1,6 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/pr"
-require_relative "../lib/nightshift/renderer"
 
 class RendererTest < Minitest::Test
   def setup

@@ -1,6 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/pr"
-require_relative "../lib/nightshift/store"
 
 class StoreTest < Minitest::Test
   def setup

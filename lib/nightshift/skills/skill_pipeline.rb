@@ -234,7 +234,7 @@ module Nightshift
     private
 
     def nightshift_dir
-      File.expand_path("../..", __dir__)
+      File.expand_path("../../..", __dir__)
     end
   end
 end

@@ -1,7 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/pr"
-require_relative "../lib/nightshift/store"
-require_relative "../lib/nightshift/reconciler"
 
 class FakeRenderer
   attr_reader :calls

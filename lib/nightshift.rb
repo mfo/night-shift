@@ -19,7 +19,7 @@ module Nightshift
     },
     "n1-query-fix"      => {
       scan_proc: ->(repo_path, store) {
-        require_relative "nightshift/n1_scanner"
+        require_relative "nightshift/integrations/n1_scanner"
         N1Scanner.scan(repo_path, store)
       }
     },
@@ -30,7 +30,7 @@ module Nightshift
 
   def self.reload!
     prev_verbose, $VERBOSE = $VERBOSE, nil
-    Dir.glob(File.join(__dir__, "nightshift", "*.rb")).each { |f| load f }
+    Dir.glob(File.join(__dir__, "nightshift", "**", "*.rb")).each { |f| load f }
     load __FILE__
   ensure
     $VERBOSE = prev_verbose
@@ -70,22 +70,35 @@ module Nightshift
   end
 end
 
-require_relative "nightshift/db"
-require_relative "nightshift/worktree"
-require_relative "nightshift/pr"
-require_relative "nightshift/store"
-require_relative "nightshift/github"
+# Core
+require_relative "nightshift/core/db"
+require_relative "nightshift/core/pr"
+require_relative "nightshift/core/store"
+
+# Integrations
+require_relative "nightshift/integrations/worktree"
+require_relative "nightshift/integrations/github"
+require_relative "nightshift/integrations/n1_scanner"
+
+# CI
+require_relative "nightshift/ci/autofix"
+require_relative "nightshift/ci/judge"
+require_relative "nightshift/ci/reprioritizer"
+
+# Skills
+require_relative "nightshift/skills/skill_loader"
+require_relative "nightshift/skills/skill_runner"
+require_relative "nightshift/skills/skill_pipeline"
+
+# Monitoring
+require_relative "nightshift/monitoring/autolearn_monitor"
+require_relative "nightshift/monitoring/brief"
+require_relative "nightshift/monitoring/diagnose"
+
+# UI
+require_relative "nightshift/ui/tmux_renderer"
+require_relative "nightshift/ui/attach"
+
+# Orchestration
 require_relative "nightshift/reconciler"
-require_relative "nightshift/brief"
-require_relative "nightshift/diagnose"
-require_relative "nightshift/autofix"
-require_relative "nightshift/skill_loader"
-require_relative "nightshift/skill_runner"
-require_relative "nightshift/judge"
-require_relative "nightshift/skill_pipeline"
-require_relative "nightshift/autolearn_monitor"
-require_relative "nightshift/renderer"
-require_relative "nightshift/attach"
-require_relative "nightshift/n1_scanner"
-require_relative "nightshift/reprioritizer"
 require_relative "nightshift/cli"

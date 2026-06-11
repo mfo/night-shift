@@ -2,7 +2,7 @@ require "open3"
 
 module Nightshift
   module Attach
-    BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
+    BINSTUB = File.expand_path("../../../bin/nightshift-rb", __dir__).freeze
 
     module_function
 

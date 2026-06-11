@@ -1,6 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/pr"
-require_relative "../lib/nightshift/brief"
 
 class BriefTest < Minitest::Test
   def test_actions_for_ci_red_only

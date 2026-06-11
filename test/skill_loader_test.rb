@@ -1,5 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/skill_loader"
 
 class SkillLoaderTest < Minitest::Test
   def test_load_real_skill

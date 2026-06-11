@@ -18,7 +18,7 @@ module Nightshift
     end
 
     def skill_path(name)
-      nightshift_dir = File.expand_path("../../.claude/skills", __dir__)
+      nightshift_dir = File.expand_path("../../../.claude/skills", __dir__)
       File.join(nightshift_dir, name, "SKILL.md")
     end
 

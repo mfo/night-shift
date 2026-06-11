@@ -2,7 +2,7 @@ require "open3"
 
 module Nightshift
   class Renderer
-    BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
+    BINSTUB = File.expand_path("../../../bin/nightshift-rb", __dir__).freeze
 
     def initialize(session: ENV.fetch("NIGHTSHIFT_SESSION"))
       @session = session

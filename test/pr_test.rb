@@ -1,5 +1,4 @@
 require_relative "test_helper"
-require_relative "../lib/nightshift/pr"
 
 class PRTest < Minitest::Test
   def test_all_11_states
