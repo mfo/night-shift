@@ -9,7 +9,7 @@ module Nightshift
     module_function
 
     def store
-      @store ||= Store.new
+      @store ||= Core::Store.new
     end
 
     def run(args)
@@ -41,19 +41,19 @@ module Nightshift
 
       puts ""
       store.all_prs.each do |row|
-        pr = PR.from_db(row)
+        pr = Core::PR.from_db(row)
         puts "  #{pr.badge}  ##{pr.number}  #{pr.branch}"
       end
       puts ""
     end
 
     def cmd_refresh(_args)
-      prs = GitHub.fetch_prs
-      renderer = Renderer.new
+      prs = Integrations::GitHub.fetch_prs
+      renderer = UI::TmuxRenderer.new
       reconciler = Reconciler.new(store: store, renderer: renderer)
       reconciler.reconcile(prs)
       puts "#{Time.now.strftime('%H:%M:%S')} Refreshed (#{prs.size} PRs fetched, worktree-centric)"
-    rescue GitHub::Error => e
+    rescue Integrations::GitHub::Error => e
       $stderr.puts e.message
     end
 
@@ -65,18 +65,18 @@ module Nightshift
 
     def cmd_brief(_args)
 
-      Brief.generate(store)
+      Monitoring::Brief.generate(store)
     end
 
     def cmd_diagnose(args)
       pr_number = args.shift or abort("usage: nightshift diagnose <pr-number>")
-      Diagnose.run(pr_number)
+      Monitoring::Diagnose.run(pr_number)
     end
 
     def cmd_autofix(args)
       pr_number = args.shift or abort("usage: nightshift autofix <pr-number>")
 
-      Autofix.run(pr_number, store: store)
+      CI::Autofix.run(pr_number, store: store)
     end
 
     def cmd_watch(_args)
@@ -89,7 +89,7 @@ module Nightshift
     end
 
     def cmd_attach(_args)
-      Attach.run
+      UI::Attach.run
     end
 
     def cmd_open(args)
@@ -120,18 +120,18 @@ module Nightshift
 
       # Remove worktree, branch, and test DB BEFORE killing the window
       # (close_worktree kills the tmux window we're running in → SIGHUP)
-      Worktree.cleanup(branch)
+      Integrations::Worktree.cleanup(branch)
       puts "nightshift: closed #{branch}"
 
       # Kill tmux window LAST (may kill our own process)
-      renderer = Renderer.new(session: session)
+      renderer = UI::TmuxRenderer.new(session: session)
       renderer.close_worktree(branch)
     end
 
     def cmd_reset(args)
       skill = args.shift or abort("usage: nightshift reset <skill>")
       session = ENV.fetch("NIGHTSHIFT_SESSION")
-      renderer = Renderer.new(session: session)
+      renderer = UI::TmuxRenderer.new(session: session)
 
       items = store.all_backlog(skill: skill).select { |i|
         %w[running failed].include?(i[:status]) || (i[:status] == "pending" && i[:branch])
@@ -144,7 +144,7 @@ module Nightshift
       items.each do |item|
         if item[:branch]
           renderer.close_worktree(item[:branch])
-          Worktree.cleanup(item[:branch])
+          Integrations::Worktree.cleanup(item[:branch])
         end
         store.update_backlog_status(item[:id], "pending", branch: nil, failure_reason: nil)
         puts "  ⬜ ##{item[:id]} #{item[:item]} → pending"
@@ -168,7 +168,7 @@ module Nightshift
       backlog_item = store.backlog_by_branch(branch.strip)
       context = backlog_item&.dig(:context)
 
-      SkillPipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd, context: context)
+      Skills::Pipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd, context: context)
     end
 
     # --- Inspect ---
@@ -181,7 +181,7 @@ module Nightshift
       puts ""
       puts "  ##{item[:id]} [#{item[:skill]}] #{item[:item]}"
       puts "  Status: #{item[:status]}#{item[:failure_reason] ? " (#{item[:failure_reason]})" : ""}"
-      puts "  Retries: #{item[:retry_count]}/#{Judge::MAX_RETRIES}  Last verdict: #{item[:last_verdict] || '-'}"
+      puts "  Retries: #{item[:retry_count]}/#{CI::Judge::MAX_RETRIES}  Last verdict: #{item[:last_verdict] || '-'}"
       puts "  Branch: #{item[:branch] || '-'}"
       puts "  PR: #{item[:pr_number] ? "##{item[:pr_number]}" : '-'}"
 
@@ -211,11 +211,11 @@ module Nightshift
     # --- Delegated to AutolearnMonitor ---
 
     def cmd_autolearn_status(args)
-      AutolearnMonitor.new(store: store).status(skill: args.shift)
+      Monitoring::AutolearnMonitor.new(store: store).status(skill: args.shift)
     end
 
     def cmd_autolearn_report(_args)
-      AutolearnMonitor.new(store: store).report
+      Monitoring::AutolearnMonitor.new(store: store).report
     end
 
     # --- Backlog ---

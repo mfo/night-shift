@@ -1,4 +1,5 @@
 module Nightshift
+  module Core
   class PR
     STATES = %i[deployed merged closed ci_red changes_requested
                 auto_merging approved has_comments ci_green
@@ -81,5 +82,6 @@ module Nightshift
         reviewer: row[:reviewer], updated_at: row[:updated_at]
       )
     end
+  end
   end
 end

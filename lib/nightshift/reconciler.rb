@@ -48,7 +48,7 @@ module Nightshift
           # Zombie recovery: running item but worktree gone
           if item[:branch] && !active_branches.include?(item[:branch])
             retry_count = item[:retry_count].to_i
-            if retry_count < Judge::MAX_RETRIES
+            if retry_count < CI::Judge::MAX_RETRIES
               @store.update_backlog_status(item[:id], "pending",
                                            branch: nil, failure_reason: nil)
               @store.db[:backlog_items].where(id: item[:id])
@@ -68,7 +68,7 @@ module Nightshift
 
     def handle_done(item)
       @store.update_backlog_status(item[:id], "done")
-      Worktree.cleanup(item[:branch])
+      Integrations::Worktree.cleanup(item[:branch])
       @renderer.close_worktree(item[:branch])
 
       maybe_reprioritize(item[:skill])
@@ -83,7 +83,7 @@ module Nightshift
       return unless completed > 0 && (completed % 5).zero?
 
       puts "nightshift: triggering reprioritize for #{skill_name} (#{completed} completed)"
-      Reprioritizer.run(skill_name, store: @store)
+      CI::Reprioritizer.run(skill_name, store: @store)
     end
 
     def pick_next_items
@@ -112,7 +112,7 @@ module Nightshift
       wt_path = File.join(File.dirname(repo_path), wt_dir)
 
       # Clean up stale branch/dir from previous failed attempts
-      Worktree.cleanup(branch)
+      Integrations::Worktree.cleanup(branch)
 
       unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
         @store.update_backlog_status(item[:id], "failed", failure_reason: "worktree_error")
@@ -171,7 +171,7 @@ module Nightshift
     end
 
     def list_worktree_branches
-      Worktree.branches
+      Integrations::Worktree.branches
     end
 
     def short_slug(path, skill_name: nil)

@@ -2,11 +2,11 @@ require_relative "test_helper"
 
 class RendererTest < Minitest::Test
   def setup
-    @renderer = Nightshift::Renderer.new(session: "test-session")
+    @renderer = Nightshift::UI::TmuxRenderer.new(session: "test-session")
   end
 
   def test_pane_brief_line_full
-    pr = Nightshift::PR.new(number: 42, branch: "fix/login-bug",
+    pr = Nightshift::Core::PR.new(number: 42, branch: "fix/login-bug",
                             github_state: "OPEN", ci: "green",
                             review_decision: "APPROVED", reviewer: "alice",
                             updated_at: "2026-04-19T10:00:00Z")
@@ -18,7 +18,7 @@ class RendererTest < Minitest::Test
   end
 
   def test_pane_brief_line_no_reviewer
-    pr = Nightshift::PR.new(number: 10, branch: "feat/new-feature",
+    pr = Nightshift::Core::PR.new(number: 10, branch: "feat/new-feature",
                             github_state: "OPEN", ci: "red")
     line = @renderer.pane_brief_line(pr)
     assert_includes line, "#10"
@@ -26,7 +26,7 @@ class RendererTest < Minitest::Test
   end
 
   def test_pane_brief_line_ci_red_with_comments
-    pr = Nightshift::PR.new(number: 5, branch: "fix/perf",
+    pr = Nightshift::Core::PR.new(number: 5, branch: "fix/perf",
                             github_state: "OPEN", ci: "red",
                             review_count: 3, reviewer: "bob")
     line = @renderer.pane_brief_line(pr)

@@ -3,6 +3,7 @@ source "https://rubygems.org"
 gem "sequel"
 gem "sqlite3"
 gem "dotenv"
+gem "zeitwerk"
 gem "rake"
 
 group :test do

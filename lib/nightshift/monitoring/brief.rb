@@ -1,12 +1,13 @@
 require "open3"
 
 module Nightshift
+  module Monitoring
   module Brief
     module_function
 
     def generate(store)
       rows = store.all_prs
-      prs = rows.map { |r| PR.from_db(r) }
+      prs = rows.map { |r| Core::PR.from_db(r) }
 
       # Load previous states for transition detection
       last_brief = store.get_setting("last_brief")
@@ -52,7 +53,7 @@ module Nightshift
       end
 
       # Worktrees to cleanup — only show merged/deployed PRs that still have a worktree
-      worktree_branches = Worktree.branches
+      worktree_branches = Integrations::Worktree.branches
       cleanup_prs = prs.select { |pr| %i[deployed merged].include?(pr.state) && worktree_branches.include?(pr.branch) }
       if cleanup_prs.any?
         puts "  WORKTREES À FERMER"
@@ -78,8 +79,8 @@ module Nightshift
           puts "  TRANSITIONS"
           puts ""
           net.each do |t|
-            from_emoji = PR::EMOJI[t[:from_state].to_sym] || t[:from_state]
-            to_emoji = PR::EMOJI[t[:to_state].to_sym] || t[:to_state]
+            from_emoji = Core::PR::EMOJI[t[:from_state].to_sym] || t[:from_state]
+            to_emoji = Core::PR::EMOJI[t[:to_state].to_sym] || t[:to_state]
             suffix = t[:count] > 1 ? " (#{t[:count]} changes)" : ""
             puts "    #{from_emoji}→#{to_emoji}  ##{t[:pr_number]}#{suffix}"
           end
@@ -116,7 +117,7 @@ module Nightshift
     end
 
     def fetch_review_comments(pr_number)
-      repo = GitHub.gh_repo
+      repo = Integrations::GitHub.gh_repo
       jq = '.[] | "\(.user.login)\t\(.path)\t\(.line // .original_line // "")\t\(.html_url)\t\(.body)"'
       out, = Open3.capture2("gh", "api", "repos/#{repo}/pulls/#{pr_number}/comments",
                             "--jq", jq)
@@ -130,7 +131,7 @@ module Nightshift
     end
 
     def fetch_issue_comments(pr_number)
-      repo = GitHub.gh_repo
+      repo = Integrations::GitHub.gh_repo
       jq = '.[] | "\(.user.login)\t\(.html_url)\t\(.body)"'
       out, = Open3.capture2("gh", "api", "repos/#{repo}/issues/#{pr_number}/comments",
                             "--jq", jq)
@@ -193,5 +194,6 @@ module Nightshift
       File.write(path, pane_brief_for(pr))
       path
     end
+  end
   end
 end

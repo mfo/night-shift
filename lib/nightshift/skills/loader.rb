@@ -1,7 +1,8 @@
 require "yaml"
 
 module Nightshift
-  module SkillLoader
+  module Skills
+  module Loader
     module_function
 
     def load(skill_name)
@@ -42,5 +43,6 @@ module Nightshift
       else ""
       end
     end
+  end
   end
 end

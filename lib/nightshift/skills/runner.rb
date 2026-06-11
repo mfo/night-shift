@@ -4,7 +4,8 @@ require "shellwords"
 require "yaml"
 
 module Nightshift
-  module SkillRunner
+  module Skills
+  module Runner
     module_function
 
     def run(skill_name, item:, worktree_path:, context: nil)
@@ -126,5 +127,6 @@ module Nightshift
       return "claude_error" unless claude_ok
       "no_diff"
     end
+  end
   end
 end

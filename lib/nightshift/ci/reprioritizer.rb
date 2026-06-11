@@ -3,6 +3,7 @@ require "open3"
 require "tempfile"
 
 module Nightshift
+  module CI
   module Reprioritizer
     module_function
 
@@ -79,5 +80,6 @@ module Nightshift
     rescue JSON::ParserError => e
       puts "nightshift: reprioritize output not parseable: #{e.message}"
     end
+  end
   end
 end

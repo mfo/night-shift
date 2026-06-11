@@ -1,11 +1,12 @@
 require "open3"
 
 module Nightshift
+  module CI
   module Autofix
     module_function
 
     def run(pr_number, store:)
-      repo = GitHub.gh_repo
+      repo = Integrations::GitHub.gh_repo
 
       puts "── AUTOFIX — PR ##{pr_number} ──────────────────────"
 
@@ -25,17 +26,17 @@ module Nightshift
       base_repo = ENV.fetch("NIGHTSHIFT_REPO")
       row = store.db[:prs].where(number: pr_number.to_i).first
       branch = row&.dig(:branch)
-      repo_path = (branch && Worktree.path_for_branch(branch, base_repo)) || base_repo
+      repo_path = (branch && Integrations::Worktree.path_for_branch(branch, base_repo)) || base_repo
 
       # Get latest CI run
-      run_id = Diagnose.extract_run_id(repo, pr_number)
+      run_id = Monitoring::Diagnose.extract_run_id(repo, pr_number)
       unless run_id
         puts "  no CI run found"
         return
       end
 
       # Categorize failures
-      failed_jobs = Diagnose.fetch_failed_jobs(repo, run_id)
+      failed_jobs = Monitoring::Diagnose.fetch_failed_jobs(repo, run_id)
       has_linter = false
       has_specs = false
       has_codeql = false
@@ -49,9 +50,9 @@ module Nightshift
         when /System|system/i then system_test_jobs << [job_id, job_name]
         when /Unit|unit/i
           has_specs = true
-          logs = Diagnose.fetch_logs(repo, job_id)
+          logs = Monitoring::Diagnose.fetch_logs(repo, job_id)
           if logs
-            clean = Diagnose.strip_ansi(logs)
+            clean = Monitoring::Diagnose.strip_ansi(logs)
             clean.lines.grep(/rspec \.\/spec\//).each do |l|
               failed_spec_files << l.sub(/^.*rspec /, "rspec ").strip
             end
@@ -189,7 +190,7 @@ module Nightshift
           verify_log = File.join(logdir, "verify-rubocop.log")
           system("bundle", "exec", "rubocop", *rb_files, chdir: repo_path,
                  out: verify_log, err: verify_log)
-          summary = Diagnose.strip_ansi(File.readlines(verify_log).last&.strip || "")
+          summary = Monitoring::Diagnose.strip_ansi(File.readlines(verify_log).last&.strip || "")
           if summary.include?("no offenses")
             st[:linter] = "🟢"
             puts "  rubocop: #{summary}"
@@ -206,7 +207,7 @@ module Nightshift
         system("bundle", "exec", "rspec", *spec_paths, chdir: repo_path,
                out: verify_log, err: verify_log)
         raw_summary = File.readlines(verify_log).grep(/\d+ examples?/).last&.strip || ""
-        summary = Diagnose.strip_ansi(raw_summary)
+        summary = Monitoring::Diagnose.strip_ansi(raw_summary)
         if summary.include?("0 failures") && !summary.match?(/error.*occurred/)
           st[:unit] = "🟢"
           puts "  specs: #{summary}"
@@ -246,5 +247,6 @@ module Nightshift
       puts "  #{st[:linter]} linter   #{st[:unit]} unit   #{st[:codeql]} codeql   #{st[:system]} system"
       puts "  ──────────────────────────────────────────────"
     end
+  end
   end
 end

@@ -17,7 +17,7 @@ class ReconcilerTest < Minitest::Test
   def setup
     @db = Sequel.sqlite
     Sequel::Migrator.run(@db, "db/migrations")
-    @store = Nightshift::Store.new(@db)
+    @store = Nightshift::Core::Store.new(@db)
     @renderer = FakeRenderer.new
     # Pass all test branches so worktree-centric filter doesn't block
     @all_branches = Set.new(%w[fix/bug fix/a fix/b fix/bug-1 fix/bug-2
@@ -28,14 +28,14 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_first_reconcile_no_transition
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     assert_equal [[:update_window, 1]], @renderer.calls
   end
 
   def test_transition_to_ci_red_triggers_autofix
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -47,7 +47,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_transition_to_approved_triggers_merge
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -58,7 +58,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_transition_to_comments_state_no_show_without_delta
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -71,7 +71,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_transition_to_changes_requested_no_show_without_delta
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -83,7 +83,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_comment_delta_triggers_show_comments
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green", comment_count: 0)
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -94,7 +94,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_no_comment_delta_no_show_comments
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green", comment_count: 2)
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -105,7 +105,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_comments_shown_before_transitions
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green", comment_count: 0)
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -123,7 +123,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_ci_red_to_green_triggers_notify
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "red")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -134,7 +134,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_no_reaction_on_stable_state
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -144,14 +144,14 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_multiple_prs
-    pr1 = Nightshift::PR.new(number: 1, branch: "fix/a", github_state: "OPEN", ci: "green")
-    pr2 = Nightshift::PR.new(number: 2, branch: "fix/b", github_state: "OPEN", ci: "red")
+    pr1 = Nightshift::Core::PR.new(number: 1, branch: "fix/a", github_state: "OPEN", ci: "green")
+    pr2 = Nightshift::Core::PR.new(number: 2, branch: "fix/b", github_state: "OPEN", ci: "red")
     @reconciler.reconcile([pr1, pr2])
     assert_equal 2, @renderer.calls.count { |c| c[0] == :update_window }
   end
 
   def test_lock_prevents_double_autofix
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -177,7 +177,7 @@ class ReconcilerTest < Minitest::Test
     @store.update_backlog_status(item[:id], "pr_open",
       branch: "auto/haml-migration/views-foo", pr_number: 42)
 
-    pr = Nightshift::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
+    pr = Nightshift::Core::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
                             github_state: "MERGED")
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
@@ -187,7 +187,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_reconcile_skills_ignores_non_backlog_prs
-    pr = Nightshift::PR.new(number: 99, branch: "fix/unrelated",
+    pr = Nightshift::Core::PR.new(number: 99, branch: "fix/unrelated",
                             github_state: "MERGED")
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
@@ -223,7 +223,7 @@ class ReconcilerTest < Minitest::Test
   # --- Cleanup tests ---
 
   def test_transition_to_merged_triggers_cleanup
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -234,7 +234,7 @@ class ReconcilerTest < Minitest::Test
   end
 
   def test_transition_to_deployed_triggers_cleanup
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
     @renderer.calls.clear
@@ -324,7 +324,7 @@ class ReconcilerTest < Minitest::Test
     @store.update_backlog_status(item[:id], "pr_open",
       branch: "auto/haml-migration/views-foo", pr_number: 42)
 
-    pr = Nightshift::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
+    pr = Nightshift::Core::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
                             github_state: "MERGED")
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
@@ -338,7 +338,7 @@ class ReconcilerTest < Minitest::Test
     @store.update_backlog_status(item[:id], "pr_open",
       branch: "auto/haml-migration/views-foo", pr_number: 42)
 
-    pr = Nightshift::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
+    pr = Nightshift::Core::PR.new(number: 42, branch: "auto/haml-migration/views-foo",
                             github_state: "OPEN", ci: "green")
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
@@ -355,8 +355,8 @@ class ReconcilerTest < Minitest::Test
     reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                             worktree_branches: branches)
 
-    pr_in = Nightshift::PR.new(number: 1, branch: "fix/a", github_state: "OPEN", ci: "green")
-    pr_out = Nightshift::PR.new(number: 2, branch: "fix/no-worktree", github_state: "OPEN", ci: "red")
+    pr_in = Nightshift::Core::PR.new(number: 1, branch: "fix/a", github_state: "OPEN", ci: "green")
+    pr_out = Nightshift::Core::PR.new(number: 2, branch: "fix/no-worktree", github_state: "OPEN", ci: "red")
     reconciler.reconcile([pr_in, pr_out])
 
     # Only pr_in should be updated
@@ -377,7 +377,7 @@ class ReconcilerTest < Minitest::Test
     @store.update_backlog_status(item[:id], "pr_open",
       branch: "auto/haml-migration/views-bar", pr_number: 99)
 
-    pr = Nightshift::PR.new(number: 99, branch: "auto/haml-migration/views-bar",
+    pr = Nightshift::Core::PR.new(number: 99, branch: "auto/haml-migration/views-bar",
                             github_state: "MERGED")
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
@@ -417,7 +417,7 @@ class ReconcilerTest < Minitest::Test
   # --- Multiple transitions in sequence ---
 
   def test_rapid_state_changes
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
 
@@ -444,7 +444,7 @@ class ReconcilerTest < Minitest::Test
   # --- Lock tests ---
 
   def test_lock_released_allows_transition
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @reconciler.reconcile([pr])
 

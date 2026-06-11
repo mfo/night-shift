@@ -4,7 +4,7 @@ class CLIDispatchTest < Minitest::Test
   def setup
     @db = Sequel.sqlite
     Sequel::Migrator.run(@db, "db/migrations")
-    @store = Nightshift::Store.new(@db)
+    @store = Nightshift::Core::Store.new(@db)
   end
 
   # --- COMMANDS constant ---
@@ -101,7 +101,7 @@ class CLIDispatchTest < Minitest::Test
   # --- Status / Brief / Inspect ---
 
   def test_status_shows_prs
-    pr = Nightshift::PR.new(number: 42, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 42, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.upsert(pr)
 

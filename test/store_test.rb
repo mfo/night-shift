@@ -4,18 +4,18 @@ class StoreTest < Minitest::Test
   def setup
     @db = Sequel.sqlite
     Sequel::Migrator.run(@db, "db/migrations")
-    @store = Nightshift::Store.new(@db)
+    @store = Nightshift::Core::Store.new(@db)
   end
 
   def test_upsert_creates_pr
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.upsert(pr)
     assert_equal "ci_green", @db[:prs].first[:state]
   end
 
   def test_upsert_updates_existing
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.upsert(pr)
 
@@ -26,7 +26,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_get_state
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.upsert(pr)
     assert_equal :ci_green, @store.get_state(1)
@@ -37,7 +37,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_reconcile_pr_first_time
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     result = @store.reconcile_pr(pr)
     refute result[:changed]
@@ -46,7 +46,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_reconcile_pr_detects_transition
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.reconcile_pr(pr)
 
@@ -58,7 +58,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_reconcile_pr_no_change
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.reconcile_pr(pr)
     result = @store.reconcile_pr(pr)
@@ -66,7 +66,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_reconcile_pr_records_transition
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.reconcile_pr(pr)
 
@@ -80,7 +80,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_circuit_breaker_allows_under_max
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "red")
     @store.upsert(pr)
     ENV["NIGHTSHIFT_AUTOFIX_MAX"] = "2"
@@ -91,7 +91,7 @@ class StoreTest < Minitest::Test
   end
 
   def test_circuit_breaker_blocks_after_max
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "red")
     @store.upsert(pr)
     ENV["NIGHTSHIFT_AUTOFIX_MAX"] = "2"
@@ -114,7 +114,7 @@ class StoreTest < Minitest::Test
 
   def test_all_prs
     2.times do |i|
-      pr = Nightshift::PR.new(number: i + 1, branch: "fix/bug-#{i}",
+      pr = Nightshift::Core::PR.new(number: i + 1, branch: "fix/bug-#{i}",
                               github_state: i == 0 ? "OPEN" : "MERGED")
       @store.upsert(pr)
     end
@@ -124,7 +124,7 @@ class StoreTest < Minitest::Test
 
   def test_fresh
     refute @store.fresh?(ttl: 60)
-    pr = Nightshift::PR.new(number: 1, branch: "fix/bug",
+    pr = Nightshift::Core::PR.new(number: 1, branch: "fix/bug",
                             github_state: "OPEN", ci: "green")
     @store.upsert(pr)
     assert @store.fresh?(ttl: 60)
@@ -489,7 +489,7 @@ class StoreTest < Minitest::Test
   private
 
   def seed_pr(number)
-    pr = Nightshift::PR.new(number: number, branch: "fix/bug-#{number}",
+    pr = Nightshift::Core::PR.new(number: number, branch: "fix/bug-#{number}",
                             github_state: "OPEN", ci: "red")
     @store.upsert(pr)
   end

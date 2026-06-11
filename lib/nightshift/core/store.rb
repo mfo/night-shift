@@ -1,4 +1,5 @@
 module Nightshift
+  module Core
   class Store
     attr_reader :db
 
@@ -247,5 +248,6 @@ module Nightshift
         .exclude(started_at: nil)
         .count > 0
     end
+  end
   end
 end

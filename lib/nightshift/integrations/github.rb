@@ -2,6 +2,7 @@ require "open3"
 require "json"
 
 module Nightshift
+  module Integrations
   module GitHub
     module_function
 
@@ -17,7 +18,7 @@ module Nightshift
 
       raw_prs.map do |data|
         data[:deployed] = deployed_numbers.include?(data[:number])
-        PR.new(**data)
+        Core::PR.new(**data)
       end
     end
 
@@ -164,5 +165,6 @@ module Nightshift
       end
       out
     end
+  end
   end
 end

@@ -2,6 +2,7 @@ require "open3"
 require "set"
 
 module Nightshift
+  module Integrations
   module Worktree
     module_function
 
@@ -65,5 +66,6 @@ module Nightshift
       system("git", "-C", repo_path, "branch", "-D", branch, err: File::NULL)
     end
 
+  end
   end
 end

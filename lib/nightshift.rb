@@ -4,6 +4,7 @@ require "dotenv/load"
 require "sequel"
 require "sequel/extensions/migration"
 require "fileutils"
+require "zeitwerk"
 
 module Nightshift
   SKILLS = {
@@ -19,8 +20,7 @@ module Nightshift
     },
     "n1-query-fix"      => {
       scan_proc: ->(repo_path, store) {
-        require_relative "nightshift/integrations/n1_scanner"
-        N1Scanner.scan(repo_path, store)
+        Integrations::N1Scanner.scan(repo_path, store)
       }
     },
     "reprioritize"      => { meta: true }
@@ -28,12 +28,20 @@ module Nightshift
 
   def self.skill_names = SKILLS.keys
 
+  def self.db
+    @db ||= begin
+      path = ENV.fetch("NIGHTSHIFT_DB_PATH")
+      FileUtils.mkdir_p(File.dirname(path))
+      db = Sequel.sqlite(path)
+      db.run("PRAGMA journal_mode=WAL")
+      db.run("PRAGMA foreign_keys=ON")
+      Sequel::Migrator.run(db, File.join(__dir__, "../db/migrations"))
+      db
+    end
+  end
+
   def self.reload!
-    prev_verbose, $VERBOSE = $VERBOSE, nil
-    Dir.glob(File.join(__dir__, "nightshift", "**", "*.rb")).each { |f| load f }
-    load __FILE__
-  ensure
-    $VERBOSE = prev_verbose
+    Zeitwerk::Loader.eager_load_all
   end
 
   def self.count_turns(log_path)
@@ -70,35 +78,12 @@ module Nightshift
   end
 end
 
-# Core
-require_relative "nightshift/core/db"
-require_relative "nightshift/core/pr"
-require_relative "nightshift/core/store"
-
-# Integrations
-require_relative "nightshift/integrations/worktree"
-require_relative "nightshift/integrations/github"
-require_relative "nightshift/integrations/n1_scanner"
-
-# CI
-require_relative "nightshift/ci/autofix"
-require_relative "nightshift/ci/judge"
-require_relative "nightshift/ci/reprioritizer"
-
-# Skills
-require_relative "nightshift/skills/skill_loader"
-require_relative "nightshift/skills/skill_runner"
-require_relative "nightshift/skills/skill_pipeline"
-
-# Monitoring
-require_relative "nightshift/monitoring/autolearn_monitor"
-require_relative "nightshift/monitoring/brief"
-require_relative "nightshift/monitoring/diagnose"
-
-# UI
-require_relative "nightshift/ui/tmux_renderer"
-require_relative "nightshift/ui/attach"
-
-# Orchestration
-require_relative "nightshift/reconciler"
-require_relative "nightshift/cli"
+loader = Zeitwerk::Loader.for_gem
+loader.inflector.inflect(
+  "ci" => "CI",
+  "cli" => "CLI",
+  "pr" => "PR",
+  "ui" => "UI",
+  "github" => "GitHub"
+)
+loader.setup

@@ -1,11 +1,12 @@
 require "open3"
 
 module Nightshift
+  module Monitoring
   module Diagnose
     module_function
 
     def run(pr_number)
-      repo = GitHub.gh_repo
+      repo = Integrations::GitHub.gh_repo
 
       puts "── CI DIAGNOSTIC — PR ##{pr_number} ──────────────────────"
       puts ""
@@ -51,14 +52,14 @@ module Nightshift
     end
 
     def extract_run_id(repo, pr_number)
-      out = GitHub.capture("gh", "pr", "checks", pr_number.to_s,
+      out = Integrations::GitHub.capture("gh", "pr", "checks", pr_number.to_s,
                            "--repo", repo, "--json", "link", "--jq", ".[0].link")
       match = out.match(/runs\/(\d+)/)
       match&.captures&.first
     end
 
     def fetch_failed_jobs(repo, run_id)
-      out = GitHub.capture("gh", "api", "repos/#{repo}/actions/runs/#{run_id}/jobs",
+      out = Integrations::GitHub.capture("gh", "api", "repos/#{repo}/actions/runs/#{run_id}/jobs",
                            "--jq", '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"')
       out.each_line.filter_map do |line|
         id, name = line.strip.split("|", 2)
@@ -82,7 +83,7 @@ module Nightshift
     end
 
     def fetch_logs(repo, job_id)
-      out = GitHub.capture("gh", "api", "repos/#{repo}/actions/jobs/#{job_id}/logs")
+      out = Integrations::GitHub.capture("gh", "api", "repos/#{repo}/actions/jobs/#{job_id}/logs")
       out.empty? ? nil : out
     end
 
@@ -117,5 +118,6 @@ module Nightshift
     def strip_ansi(text)
       text.gsub(/\e\[[0-9;]*m/, "")
     end
+  end
   end
 end

@@ -1,6 +1,7 @@
 require "json"
 
 module Nightshift
+  module Integrations
   module N1Scanner
     SKYLIGHT_APP_URL = "https://oss.skylight.io/app/applications/auuzqe8XhJIx/recent/6h/endpoints"
 
@@ -190,5 +191,6 @@ module Nightshift
       else 0
       end
     end
+  end
   end
 end

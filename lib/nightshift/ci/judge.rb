@@ -2,6 +2,7 @@ require "open3"
 require "json"
 
 module Nightshift
+  module CI
   module Judge
     module_function
 
@@ -180,5 +181,6 @@ module Nightshift
         confidence: 0.0
       }
     end
+  end
   end
 end

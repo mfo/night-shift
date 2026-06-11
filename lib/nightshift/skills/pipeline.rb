@@ -1,13 +1,14 @@
 require "open3"
 
 module Nightshift
-  class SkillPipeline
+  module Skills
+  class Pipeline
     def initialize(store:)
       @store = store
     end
 
     def execute(skill, item_path, worktree_path:, context: nil)
-      result = SkillRunner.run(skill, item: item_path, worktree_path: worktree_path, context: context)
+      result = Runner.run(skill, item: item_path, worktree_path: worktree_path, context: context)
 
       branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
                                chdir: worktree_path)
@@ -81,7 +82,7 @@ module Nightshift
                      turns: result[:turns_used])
         branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
                                  chdir: worktree_path)
-        Worktree.cleanup(branch.strip)
+        Integrations::Worktree.cleanup(branch.strip)
         @store.update_backlog_status(backlog_item[:id], "pending",
                                      branch: nil, failure_reason: nil,
                                      retry_after: Time.now.to_i + 1800)
@@ -91,7 +92,7 @@ module Nightshift
       puts "nightshift: skill failed (#{failure_reason}) — invoking judge"
 
       # Judge: analyze the failure
-      verdict = Judge.evaluate(skill, item: item_path,
+      verdict = CI::Judge.evaluate(skill, item: item_path,
                                log_path: result[:log_path],
                                failure_reason: failure_reason)
 
@@ -114,7 +115,7 @@ module Nightshift
       end
 
       # Decide: retry or stop
-      if Judge.retryable?(verdict, retry_count)
+      if CI::Judge.retryable?(verdict, retry_count)
         # Apply patch if skill_defect with good confidence
         if verdict[:verdict] == "skill_defect" && verdict[:suggested_patch] && verdict[:confidence] >= 0.5
           sha = apply_patch(skill, verdict[:suggested_patch])
@@ -131,7 +132,7 @@ module Nightshift
         # Clean up worktree before reset — the reconciler will create a fresh one
         branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
                                  chdir: worktree_path)
-        Worktree.cleanup(branch.strip)
+        Integrations::Worktree.cleanup(branch.strip)
 
         # Reset to pending — the reconciler will re-launch on next cycle
         @store.update_backlog_status(backlog_item[:id], "pending",
@@ -139,14 +140,14 @@ module Nightshift
                                      last_verdict: verdict[:verdict])
         @store.db[:backlog_items].where(id: backlog_item[:id])
           .update(retry_count: Sequel.expr(:retry_count) + 1)
-        puts "  🔄 reset to pending (retry #{retry_count + 1}/#{Judge::MAX_RETRIES}) — reconciler will re-launch"
+        puts "  🔄 reset to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES}) — reconciler will re-launch"
       else
-        reason = retry_count >= Judge::MAX_RETRIES ? "autolearn_exhausted" : verdict[:verdict]
+        reason = retry_count >= CI::Judge::MAX_RETRIES ? "autolearn_exhausted" : verdict[:verdict]
 
         # Clean up worktree before marking as skipped
         branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD",
                                  chdir: worktree_path)
-        Worktree.cleanup(branch.strip)
+        Integrations::Worktree.cleanup(branch.strip)
 
         @store.update_backlog_status(backlog_item[:id], "skipped",
                                      failure_reason: reason, branch: nil,
@@ -236,5 +237,6 @@ module Nightshift
     def nightshift_dir
       File.expand_path("../../..", __dir__)
     end
+  end
   end
 end

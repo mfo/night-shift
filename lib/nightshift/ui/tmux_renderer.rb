@@ -1,7 +1,8 @@
 require "open3"
 
 module Nightshift
-  class Renderer
+  module UI
+  class TmuxRenderer
     BINSTUB = File.expand_path("../../../bin/nightshift-rb", __dir__).freeze
 
     def initialize(session: ENV.fetch("NIGHTSHIFT_SESSION"))
@@ -102,5 +103,6 @@ module Nightshift
       $stderr.puts "nightshift: window not found for #{branch} (#{caller_action})" if caller_action
       nil
     end
+  end
   end
 end

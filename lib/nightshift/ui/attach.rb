@@ -1,6 +1,7 @@
 require "open3"
 
 module Nightshift
+  module UI
   module Attach
     BINSTUB = File.expand_path("../../../bin/nightshift-rb", __dir__).freeze
 
@@ -29,20 +30,20 @@ module Nightshift
       puts ""
 
       # Count worktrees
-      worktrees = Worktree.list(repo_path)
+      worktrees = Integrations::Worktree.list(repo_path)
       puts "  ◎ #{worktrees.size} worktrees found"
 
       # Fetch PRs
       puts "  ◎ fetching PRs from GitHub ..."
-      store = Store.new
+      store = Core::Store.new
       begin
-        prs = GitHub.fetch_prs
+        prs = Integrations::GitHub.fetch_prs
         prs.each { |pr| store.reconcile_pr(pr) }
         open_count = prs.count { |pr| pr.github_state == "OPEN" }
         puts "  ✓ #{open_count} open PRs"
-      rescue GitHub::Error => e
+      rescue Integrations::GitHub::Error => e
         $stderr.puts "  ⚠ #{e.message}"
-        prs = store.all_prs.map { |r| PR.from_db(r) }
+        prs = store.all_prs.map { |r| Core::PR.from_db(r) }
         puts "  ⚠ using cached PRs (#{prs.size})"
       end
 
@@ -51,7 +52,7 @@ module Nightshift
 
       # Create session with main window
       puts "  ◎ building tmux session ..."
-      main_path = Worktree.main_path(repo_path)
+      main_path = Integrations::Worktree.main_path(repo_path)
       system("tmux", "new-session", "-d", "-s", session, "-n", "📦 main", "-c", main_path)
       system("tmux", "set-option", "-w", "-t", session, "allow-rename", "off")
       # Show pane titles in border (brief per pane)
@@ -100,7 +101,7 @@ module Nightshift
           end
 
           # Per-pane brief (write to file + cat)
-          Brief.write_pane_brief(pr, wt_path)
+          Monitoring::Brief.write_pane_brief(pr, wt_path)
           system("tmux", "send-keys", "-t", "#{session}:#{win_idx}",
                  "cat tmp/pr-brief.txt", "Enter")
 
@@ -158,7 +159,7 @@ module Nightshift
 
     def reattach(session, repo_path)
       # Show teaser if last brief was > 4h ago
-      store = Store.new
+      store = Core::Store.new
       last_brief = store.get_setting("last_brief")
       if last_brief.nil? || (Time.now.to_i - last_brief.to_i) > 14400
         puts "nightshift: brief outdated, run '#{BINSTUB} brief'"
@@ -207,5 +208,6 @@ module Nightshift
       File.chmod(0o755, hook_script)
       system("tmux", "set-hook", "-t", session, "client-attached", "run-shell '#{hook_script}'")
     end
+  end
   end
 end

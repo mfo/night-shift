@@ -6,8 +6,8 @@ class SkillPipelineTest < Minitest::Test
   def setup
     @db = Sequel.sqlite
     Sequel::Migrator.run(@db, "db/migrations")
-    @store = Nightshift::Store.new(@db)
-    @pipeline = Nightshift::SkillPipeline.new(store: @store)
+    @store = Nightshift::Core::Store.new(@db)
+    @pipeline = Nightshift::Skills::Pipeline.new(store: @store)
   end
 
   # --- record_cycle ---
@@ -149,8 +149,8 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: true, suggested_patch: nil, confidence: 0.8
     }
 
-    Nightshift::Judge.stub(:evaluate, retryable_verdict) do
-      Nightshift::Worktree.stub(:cleanup, nil) do
+    Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
+      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
         Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
           @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
         end
@@ -173,8 +173,8 @@ class SkillPipelineTest < Minitest::Test
     }
 
     cleaned_branch = nil
-    Nightshift::Judge.stub(:evaluate, hard_verdict) do
-      Nightshift::Worktree.stub(:cleanup, ->(b) { cleaned_branch = b }) do
+    Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
+      Nightshift::Integrations::Worktree.stub(:cleanup, ->(b) { cleaned_branch = b }) do
         Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
           @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
         end
@@ -200,8 +200,8 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: true, suggested_patch: nil, confidence: 0.8
     }
 
-    Nightshift::Judge.stub(:evaluate, retryable_verdict) do
-      Nightshift::Worktree.stub(:cleanup, nil) do
+    Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
+      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
         Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
           @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
         end
@@ -222,8 +222,8 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.7
     }
 
-    Nightshift::Judge.stub(:evaluate, verdict) do
-      Nightshift::Worktree.stub(:cleanup, nil) do
+    Nightshift::CI::Judge.stub(:evaluate, verdict) do
+      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
         Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
           @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
         end
@@ -240,7 +240,7 @@ class SkillPipelineTest < Minitest::Test
     item = add_backlog_item("haml-migration", "a.haml", status: "running")
     result = { failure_reason: "rate_limited", log_path: "/tmp/test.log", turns_used: 2 }
 
-    Nightshift::Worktree.stub(:cleanup, nil) do
+    Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
       Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
         @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
       end
@@ -265,8 +265,8 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.6
     }
 
-    Nightshift::Judge.stub(:evaluate, verdict) do
-      Nightshift::Worktree.stub(:cleanup, nil) do
+    Nightshift::CI::Judge.stub(:evaluate, verdict) do
+      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
         Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
           @pipeline.handle_failure("haml-migration", "a.haml", "/tmp/wt", item, result)
         end

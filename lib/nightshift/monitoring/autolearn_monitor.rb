@@ -1,4 +1,5 @@
 module Nightshift
+  module Monitoring
   class AutolearnMonitor
     def initialize(store:)
       @store = store
@@ -135,5 +136,6 @@ module Nightshift
       puts "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       puts ""
     end
+  end
   end
 end

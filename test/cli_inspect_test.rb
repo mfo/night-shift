@@ -4,7 +4,7 @@ class CLIInspectTest < Minitest::Test
   def setup
     @db = Sequel.sqlite
     Sequel::Migrator.run(@db, "db/migrations")
-    @store = Nightshift::Store.new(@db)
+    @store = Nightshift::Core::Store.new(@db)
   end
 
   def test_inspect_shows_item_and_cycles

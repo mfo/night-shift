@@ -7,15 +7,15 @@ class SkillRunnerTest < Minitest::Test
   # --- failure_reason ---
 
   def test_failure_reason_success
-    assert_nil Nightshift::SkillRunner.failure_reason(true, true)
+    assert_nil Nightshift::Skills::Runner.failure_reason(true, true)
   end
 
   def test_failure_reason_claude_error
-    assert_equal "claude_error", Nightshift::SkillRunner.failure_reason(false, false)
+    assert_equal "claude_error", Nightshift::Skills::Runner.failure_reason(false, false)
   end
 
   def test_failure_reason_no_diff
-    assert_equal "no_diff", Nightshift::SkillRunner.failure_reason(true, false)
+    assert_equal "no_diff", Nightshift::Skills::Runner.failure_reason(true, false)
   end
 
   # --- count_turns ---
@@ -52,7 +52,7 @@ class SkillRunnerTest < Minitest::Test
       Do things.
     MD
 
-    tools = Nightshift::SkillRunner.extract_allowed_tools("test-skill", dir)
+    tools = Nightshift::Skills::Runner.extract_allowed_tools("test-skill", dir)
     assert_equal %w[Read Edit Bash(git:*)], tools
   ensure
     FileUtils.rm_rf(dir) if dir
@@ -72,7 +72,7 @@ class SkillRunnerTest < Minitest::Test
       # Body
     MD
 
-    tools = Nightshift::SkillRunner.extract_allowed_tools("test-skill", dir)
+    tools = Nightshift::Skills::Runner.extract_allowed_tools("test-skill", dir)
     assert_equal %w[Read Edit Grep], tools
   ensure
     FileUtils.rm_rf(dir) if dir
@@ -80,7 +80,7 @@ class SkillRunnerTest < Minitest::Test
 
   def test_extract_allowed_tools_missing_skill_md
     dir = Dir.mktmpdir
-    tools = Nightshift::SkillRunner.extract_allowed_tools("nonexistent", dir)
+    tools = Nightshift::Skills::Runner.extract_allowed_tools("nonexistent", dir)
     assert_equal [], tools
   ensure
     FileUtils.rm_rf(dir) if dir
@@ -92,7 +92,7 @@ class SkillRunnerTest < Minitest::Test
     FileUtils.mkdir_p(skill_dir)
     File.write(File.join(skill_dir, "SKILL.md"), "# No frontmatter\nJust text.")
 
-    tools = Nightshift::SkillRunner.extract_allowed_tools("test-skill", dir)
+    tools = Nightshift::Skills::Runner.extract_allowed_tools("test-skill", dir)
     assert_equal [], tools
   ensure
     FileUtils.rm_rf(dir) if dir
@@ -110,7 +110,7 @@ class SkillRunnerTest < Minitest::Test
       # Body
     MD
 
-    tools = Nightshift::SkillRunner.extract_allowed_tools("test-skill", dir)
+    tools = Nightshift::Skills::Runner.extract_allowed_tools("test-skill", dir)
     assert_equal [], tools
   ensure
     FileUtils.rm_rf(dir) if dir
@@ -124,7 +124,7 @@ class SkillRunnerTest < Minitest::Test
     log.puts JSON.generate(type: "rate_limit_event", delay: 30)
     log.close
 
-    assert Nightshift::SkillRunner.detect_rate_limit(log.path)
+    assert Nightshift::Skills::Runner.detect_rate_limit(log.path)
   ensure
     log&.unlink
   end
@@ -135,13 +135,13 @@ class SkillRunnerTest < Minitest::Test
     log.puts JSON.generate(type: "result", result: "done")
     log.close
 
-    refute Nightshift::SkillRunner.detect_rate_limit(log.path)
+    refute Nightshift::Skills::Runner.detect_rate_limit(log.path)
   ensure
     log&.unlink
   end
 
   def test_detect_rate_limit_missing_file
-    refute Nightshift::SkillRunner.detect_rate_limit("/nonexistent/path.log")
+    refute Nightshift::Skills::Runner.detect_rate_limit("/nonexistent/path.log")
   end
 
   def test_detect_rate_limit_malformed_lines
@@ -151,7 +151,7 @@ class SkillRunnerTest < Minitest::Test
     log.puts JSON.generate(type: "result", result: "ok")
     log.close
 
-    refute Nightshift::SkillRunner.detect_rate_limit(log.path)
+    refute Nightshift::Skills::Runner.detect_rate_limit(log.path)
   ensure
     log&.unlink
   end
@@ -159,7 +159,7 @@ class SkillRunnerTest < Minitest::Test
   # --- KAIZEN_CATEGORIES ---
 
   def test_kaizen_categories_exist
-    assert_equal "1-haml", Nightshift::SkillRunner::KAIZEN_CATEGORIES["haml-migration"]
-    assert_equal "2-test-optimization", Nightshift::SkillRunner::KAIZEN_CATEGORIES["test-optimization"]
+    assert_equal "1-haml", Nightshift::Skills::Runner::KAIZEN_CATEGORIES["haml-migration"]
+    assert_equal "2-test-optimization", Nightshift::Skills::Runner::KAIZEN_CATEGORIES["test-optimization"]
   end
 end
