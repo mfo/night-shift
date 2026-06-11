@@ -54,7 +54,7 @@ module Nightshift
     end
 
     def report
-      cutoff = Time.now.to_i - 86_400 # 24h
+      cutoff = Time.now.to_i - 86_400 * 10 # 24h
       cycles = @store.db[:autolearn_cycles]
         .where { created_at > cutoff }
         .order(:created_at).all
