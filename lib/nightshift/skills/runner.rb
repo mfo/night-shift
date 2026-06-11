@@ -1,3 +1,5 @@
+# typed: false
+
 require "json"
 require "open3"
 require "shellwords"
@@ -6,8 +8,17 @@ require "yaml"
 module Nightshift
   module Skills
   module Runner
+    extend T::Sig
     module_function
 
+    sig do
+      params(
+        skill_name: String,
+        item: String,
+        worktree_path: String,
+        context: T.nilable(String)
+      ).returns(RunnerResult)
+    end
     def run(skill_name, item:, worktree_path:, context: nil)
       prompt = "/#{skill_name} #{item}"
 
@@ -37,15 +48,16 @@ module Nightshift
                                 chdir: worktree_path)
       has_commits = !commits.strip.empty?
 
-      {
+      RunnerResult.new(
         success: claude_ok && has_commits,
         failure_reason: rate_limited ? "rate_limited" : failure_reason(claude_ok, has_commits),
         log_path: log_path,
         turns_used: Nightshift.count_turns(log_path),
         files_changed: has_commits ? commits.lines.size : 0
-      }
+      )
     end
 
+    sig { params(skill_name: String, worktree_path: String).returns(T::Array[String]) }
     def extract_allowed_tools(skill_name, worktree_path)
       skill_md = File.join(worktree_path, ".claude", "skills", skill_name, "SKILL.md")
       return [] unless File.exist?(skill_md)

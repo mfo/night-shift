@@ -87,8 +87,8 @@ module Nightshift
       session = ENV.fetch("NIGHTSHIFT_SESSION")
 
       item = store.backlog_by_branch(branch)
-      if item && %w[running pr_open].include?(item[:status])
-        store.update_backlog_status(item[:id], "failed", failure_reason: "manual_close")
+      if item && %w[running pr_open].include?(item.status)
+        store.update_backlog_status(item.id, "failed", failure_reason: "manual_close")
         puts "nightshift: backlog item marked failed (manual_close)"
       end
 
@@ -113,12 +113,12 @@ module Nightshift
       end
 
       items.each do |item|
-        if item[:branch]
-          renderer.close_worktree(item[:branch])
-          Integrations::Worktree.cleanup(item[:branch])
+        if item.branch
+          renderer.close_worktree(item.branch)
+          Integrations::Worktree.cleanup(item.branch)
         end
-        store.update_backlog_status(item[:id], "pending", branch: nil, failure_reason: nil)
-        puts "  \u2b1c ##{item[:id]} #{item[:item]} \u2192 pending"
+        store.update_backlog_status(item.id, "pending", branch: nil, failure_reason: nil)
+        puts "  \u2b1c ##{item.id} #{item.item} \u2192 pending"
       end
       puts "nightshift: reset #{items.size} item(s) for #{skill}"
     end
@@ -129,7 +129,7 @@ module Nightshift
     def skill_run(skill, item_path)
       branch, = Open3.capture2("git", "rev-parse", "--abbrev-ref", "HEAD", chdir: Dir.pwd)
       backlog_item = store.backlog_by_branch(branch.strip)
-      context = backlog_item&.dig(:context)
+      context = backlog_item&.context
 
       Skills::Pipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd, context: context)
     end
@@ -142,29 +142,29 @@ module Nightshift
       abort "nightshift: backlog item ##{id} not found" unless item
 
       puts ""
-      puts "  ##{item[:id]} [#{item[:skill]}] #{item[:item]}"
-      puts "  Status: #{item[:status]}#{item[:failure_reason] ? " (#{item[:failure_reason]})" : ""}"
-      puts "  Retries: #{item[:retry_count]}/#{CI::Judge::MAX_RETRIES}  Last verdict: #{item[:last_verdict] || '-'}"
-      puts "  Branch: #{item[:branch] || '-'}"
-      puts "  PR: #{item[:pr_number] ? "##{item[:pr_number]}" : '-'}"
+      puts "  ##{item.id} [#{item.skill}] #{item.item}"
+      puts "  Status: #{item.status}#{item.failure_reason ? " (#{item.failure_reason})" : ""}"
+      puts "  Retries: #{item.retry_count}/#{CI::Judge::MAX_RETRIES}  Last verdict: #{item.last_verdict || '-'}"
+      puts "  Branch: #{item.branch || '-'}"
+      puts "  PR: #{item.pr_number ? "##{item.pr_number}" : '-'}"
 
-      cycles = store.cycles_for_item(item[:id])
+      cycles = store.cycles_for_item(item.id)
       if cycles.empty?
         puts "\n  No autolearn cycles."
       else
         puts "\n  Cycles (#{cycles.size}):"
         cycles.each do |c|
-          conf = c[:confidence] ? format("%.1f", c[:confidence]) : "?"
-          patch_status = if c[:skill_patch_sha]
-                           "applied (#{c[:skill_patch_sha][0, 7]})"
-                         elsif c[:suggested_patch]
+          conf = c.confidence ? format("%.1f", c.confidence) : "?"
+          patch_status = if c.skill_patch_sha
+                           "applied (#{c.skill_patch_sha[0, 7]})"
+                         elsif c.suggested_patch
                            "suggested but NOT applied"
                          else
                            "none"
                          end
-          puts "    ##{c[:id]}  attempt=#{c[:attempt]}  #{c[:verdict]}  confidence=#{conf}  patch=#{patch_status}"
-          puts "         cause: #{c[:root_cause][0, 100]}" if c[:root_cause]
-          puts "         outcome: #{c[:outcome]}" if c[:outcome]
+          puts "    ##{c.id}  attempt=#{c.attempt}  #{c.verdict}  confidence=#{conf}  patch=#{patch_status}"
+          puts "         cause: #{c.root_cause[0, 100]}" if c.root_cause
+          puts "         outcome: #{c.outcome}" if c.outcome
         end
       end
       puts ""

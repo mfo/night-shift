@@ -142,12 +142,15 @@ class SkillPipelineTest < Minitest::Test
 
   def test_handle_failure_retryable_resets_to_pending
     item = add_backlog_item("haml-migration", "a.haml", status: "running")
-    result = { failure_reason: "claude_error", log_path: "/tmp/test.log", turns_used: 10 }
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: "claude_error",
+      log_path: "/tmp/test.log", turns_used: 10, files_changed: 0
+    )
 
-    retryable_verdict = {
+    retryable_verdict = Nightshift::CI::Verdict.new(
       verdict: "skill_defect", root_cause: "missing instruction",
       fixable_by_skill_update: true, suggested_patch: nil, confidence: 0.8
-    }
+    )
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
@@ -165,12 +168,15 @@ class SkillPipelineTest < Minitest::Test
 
   def test_handle_failure_non_retryable_skips_and_cleans_worktree
     item = add_backlog_item("haml-migration", "a.haml", status: "running")
-    result = { failure_reason: "claude_error", log_path: "/tmp/test.log", turns_used: 10 }
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: "claude_error",
+      log_path: "/tmp/test.log", turns_used: 10, files_changed: 0
+    )
 
-    hard_verdict = {
+    hard_verdict = Nightshift::CI::Verdict.new(
       verdict: "item_hard", root_cause: "too complex",
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.9
-    }
+    )
 
     cleaned_branch = nil
     Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
@@ -193,12 +199,15 @@ class SkillPipelineTest < Minitest::Test
     @db[:backlog_items].where(id: item[:id]).update(retry_count: 3)
     item = @db[:backlog_items].where(id: item[:id]).first
 
-    result = { failure_reason: "claude_error", log_path: "/tmp/test.log", turns_used: 10 }
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: "claude_error",
+      log_path: "/tmp/test.log", turns_used: 10, files_changed: 0
+    )
 
-    retryable_verdict = {
+    retryable_verdict = Nightshift::CI::Verdict.new(
       verdict: "skill_defect", root_cause: "still broken",
       fixable_by_skill_update: true, suggested_patch: nil, confidence: 0.8
-    }
+    )
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
@@ -215,12 +224,15 @@ class SkillPipelineTest < Minitest::Test
 
   def test_handle_failure_records_cycle
     item = add_backlog_item("haml-migration", "a.haml", status: "running")
-    result = { failure_reason: "no_diff", log_path: "/tmp/test.log", turns_used: 5 }
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: "no_diff",
+      log_path: "/tmp/test.log", turns_used: 5, files_changed: 0
+    )
 
-    verdict = {
+    verdict = Nightshift::CI::Verdict.new(
       verdict: "item_hard", root_cause: "complex file",
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.7
-    }
+    )
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
@@ -238,7 +250,10 @@ class SkillPipelineTest < Minitest::Test
 
   def test_handle_failure_rate_limited_skips_judge_and_backs_off
     item = add_backlog_item("haml-migration", "a.haml", status: "running")
-    result = { failure_reason: "rate_limited", log_path: "/tmp/test.log", turns_used: 2 }
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: "rate_limited",
+      log_path: "/tmp/test.log", turns_used: 2, files_changed: 0
+    )
 
     Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
       Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
@@ -258,12 +273,15 @@ class SkillPipelineTest < Minitest::Test
 
   def test_handle_failure_infra_error_creates_suggestion
     item = add_backlog_item("haml-migration", "a.haml", status: "running")
-    result = { failure_reason: "claude_error", log_path: "/tmp/test.log", turns_used: 3 }
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: "claude_error",
+      log_path: "/tmp/test.log", turns_used: 3, files_changed: 0
+    )
 
-    verdict = {
+    verdict = Nightshift::CI::Verdict.new(
       verdict: "infra_error", root_cause: "server not started",
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.6
-    }
+    )
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do

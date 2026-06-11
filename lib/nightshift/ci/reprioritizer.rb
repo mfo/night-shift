@@ -9,7 +9,7 @@ module Nightshift
 
     def run(skill_name, store:)
       items = store.all_backlog(skill: skill_name)
-        .select { |i| i[:status] == "pending" }
+        .select { |i| i.status == "pending" }
       return if items.empty?
 
       # Build context for the reprioritize skill
@@ -17,10 +17,10 @@ module Nightshift
         skill: skill_name,
         items: items.map { |i|
           {
-            id: i[:id],
-            item: i[:item],
-            priority: i[:priority],
-            context: i[:context] ? (JSON.parse(i[:context]) rescue nil) : nil
+            id: i.id,
+            item: i.item,
+            priority: i.priority,
+            context: i.context ? (JSON.parse(i.context) rescue nil) : nil
           }
         }
       }
@@ -39,7 +39,7 @@ module Nightshift
       )
 
       unless status.success?
-        puts "nightshift: reprioritize failed (exit #{status.exitstatus})"
+        Log.warn "reprioritize failed (exit #{status.exitstatus})"
         return
       end
 
@@ -75,10 +75,10 @@ module Nightshift
         store.update_backlog_status(id, "skipped", failure_reason: "resolved_upstream")
       end
 
-      puts "nightshift: reprioritized #{updates.size} items, skipped #{skip_ids.size}"
-      puts "  #{data['summary']}" if data["summary"]
+      Log.info "reprioritized #{updates.size} items, skipped #{skip_ids.size}"
+      Log.info "  #{data['summary']}" if data["summary"]
     rescue JSON::ParserError => e
-      puts "nightshift: reprioritize output not parseable: #{e.message}"
+      Log.warn "reprioritize output not parseable: #{e.message}"
     end
   end
   end

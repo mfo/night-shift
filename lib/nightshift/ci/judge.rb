@@ -1,15 +1,18 @@
+# typed: false
+
 require "open3"
 require "json"
 
 module Nightshift
   module CI
   module Judge
+    extend T::Sig
     module_function
 
     VERDICTS = %w[skill_defect item_hard infra_error context_limit].freeze
     MAX_RETRIES = 3
 
-    # Analyze a failed skill run and return a structured verdict.
+    sig { params(skill_name: String, item: String, log_path: String, failure_reason: String).returns(Verdict) }
     def evaluate(skill_name, item:, log_path:, failure_reason:)
       unless File.exist?(log_path)
         return fallback_verdict("log_missing", "Log file not found: #{log_path}")
@@ -24,13 +27,13 @@ module Nightshift
       fallback_verdict("judge_error", e.message)
     end
 
-    # Should this item be retried based on the verdict?
+    sig { params(verdict: Verdict, retry_count: Integer).returns(T::Boolean) }
     def retryable?(verdict, retry_count)
       return false if retry_count >= MAX_RETRIES
-      %w[skill_defect infra_error].include?(verdict[:verdict])
+      %w[skill_defect infra_error].include?(verdict.verdict)
     end
 
-    # Extract relevant signals from a stream-json log (avoid sending 5MB to the judge)
+    sig { params(log_path: String, max_bytes: Integer).returns(String) }
     def extract_digest(log_path, max_bytes: 50_000)
       errors = []
       last_events = []
@@ -69,6 +72,7 @@ module Nightshift
       digest.bytesize > max_bytes ? digest.byteslice(0, max_bytes) : digest
     end
 
+    sig { params(event: T::Hash[String, T.untyped]).returns(T.nilable(String)) }
     def extract_event_text(event)
       case event["type"]
       when "assistant"
@@ -85,6 +89,7 @@ module Nightshift
       end
     end
 
+    sig { params(skill_name: String, item: String, failure_reason: String, log_digest: String).returns(String) }
     def build_prompt(skill_name, item, failure_reason, log_digest)
       <<~PROMPT
         Tu es un juge expert en analyse d'echecs de skills autonomes.
@@ -128,6 +133,7 @@ module Nightshift
       PROMPT
     end
 
+    sig { params(prompt: String).returns(String) }
     def invoke_claude(prompt)
       out, status = Open3.capture2(
         "claude", "-p", prompt,
@@ -140,6 +146,7 @@ module Nightshift
       out
     end
 
+    sig { params(raw: String).returns(Verdict) }
     def parse_verdict(raw)
       # Find the outermost JSON object containing "verdict"
       # Use a balanced brace approach instead of simple regex
@@ -163,23 +170,24 @@ module Nightshift
         return fallback_verdict("unknown_verdict", "Judge returned: #{verdict}")
       end
 
-      {
+      Verdict.new(
         verdict: verdict,
         root_cause: data["root_cause"].to_s[0, 500],
         fixable_by_skill_update: !!data["fixable_by_skill_update"],
         suggested_patch: data["suggested_patch"],
         confidence: (data["confidence"] || 0.5).to_f.clamp(0.0, 1.0)
-      }
+      )
     end
 
+    sig { params(verdict_override: String, reason: String).returns(Verdict) }
     def fallback_verdict(verdict_override, reason)
-      {
+      Verdict.new(
         verdict: "infra_error",
         root_cause: "#{verdict_override}: #{reason}",
         fixable_by_skill_update: false,
         suggested_patch: nil,
         confidence: 0.0
-      }
+      )
     end
   end
   end

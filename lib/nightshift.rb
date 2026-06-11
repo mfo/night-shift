@@ -1,6 +1,7 @@
 abort "nightshift: Ruby 3.3+ required (you have #{RUBY_VERSION})" if RUBY_VERSION < "3.3"
 
 require "dotenv/load"
+require "sorbet-runtime"
 require "sequel"
 require "sequel/extensions/migration"
 require "fileutils"

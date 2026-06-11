@@ -1,8 +1,11 @@
 module Nightshift
   module Core
   class Store
+    extend T::Sig
+
     attr_reader :db
 
+    sig { params(db: Sequel::Database).void }
     def initialize(db = Nightshift.db)
       @db = db
     end
@@ -110,18 +113,19 @@ module Nightshift
       db[:backlog_items].where(id: id).update(priority: priority, updated_at: Time.now.to_i)
     end
 
+    sig { params(skill: String).returns(T.nilable(BacklogItem)) }
     def claim_next(skill)
       db.transaction do
-        item = db[:backlog_items]
+        row = db[:backlog_items]
           .where(skill: skill, status: "pending")
           .where { (retry_after =~ nil) | (retry_after < Time.now.to_i) }
           .order(Sequel.desc(:priority), :created_at)
           .first
-        return nil unless item
+        return nil unless row
         rows = db[:backlog_items]
-          .where(id: item[:id], status: "pending")
+          .where(id: row[:id], status: "pending")
           .update(status: "running", updated_at: Time.now.to_i)
-        rows == 1 ? item.merge(status: "running") : nil
+        rows == 1 ? BacklogItem.from_row(row.merge(status: "running")) : nil
       end
     end
 
@@ -137,25 +141,31 @@ module Nightshift
       db[:backlog_items].where(id: id).update(updates)
     end
 
+    sig { params(branch: String).returns(T.nilable(BacklogItem)) }
     def backlog_by_branch(branch)
-      db[:backlog_items].where(branch: branch).first
+      row = db[:backlog_items].where(branch: branch).first
+      row ? BacklogItem.from_row(row) : nil
     end
 
+    sig { params(skill: T.nilable(String)).returns(T::Array[BacklogItem]) }
     def all_backlog(skill: nil)
       ds = db[:backlog_items]
       ds = ds.where(skill: skill) if skill
-      ds.order(:skill, :created_at).all
+      ds.order(:skill, :created_at).all.map { |row| BacklogItem.from_row(row) }
     end
 
+    sig { params(id: T.any(Integer, String)).returns(T.nilable(BacklogItem)) }
     def get_backlog_item(id)
-      db[:backlog_items].where(id: id.to_i).first
+      row = db[:backlog_items].where(id: id.to_i).first
+      row ? BacklogItem.from_row(row) : nil
     end
 
+    sig { params(backlog_item_id: Integer).returns(T::Array[AutolearnCycle]) }
     def cycles_for_item(backlog_item_id)
       db[:autolearn_cycles]
         .where(backlog_item_id: backlog_item_id)
         .order(:attempt)
-        .all
+        .all.map { |row| AutolearnCycle.from_row(row) }
     end
 
     def retry_backlog_item(id)

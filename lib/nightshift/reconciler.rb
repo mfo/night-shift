@@ -40,21 +40,21 @@ module Nightshift
       active_branches = @worktree_branches || list_worktree_branches
 
       @store.all_backlog.each do |item|
-        case item[:status]
+        case item.status
         when "pr_open"
-          pr = pr_by_branch[item[:branch]]
+          pr = pr_by_branch[item.branch]
           handle_done(item) if pr&.github_state == "MERGED"
         when "running"
           # Zombie recovery: running item but worktree gone
-          if item[:branch] && !active_branches.include?(item[:branch])
-            retry_count = item[:retry_count].to_i
+          if item.branch && !active_branches.include?(item.branch)
+            retry_count = item.retry_count.to_i
             if retry_count < CI::Judge::MAX_RETRIES
-              @store.update_backlog_status(item[:id], "pending",
+              @store.update_backlog_status(item.id, "pending",
                                            branch: nil, failure_reason: nil)
-              @store.db[:backlog_items].where(id: item[:id])
+              @store.db[:backlog_items].where(id: item.id)
                 .update(retry_count: Sequel.expr(:retry_count) + 1)
             else
-              @store.update_backlog_status(item[:id], "skipped",
+              @store.update_backlog_status(item.id, "skipped",
                                            failure_reason: "zombie_exhausted")
             end
           end
@@ -67,11 +67,11 @@ module Nightshift
     private
 
     def handle_done(item)
-      @store.update_backlog_status(item[:id], "done")
-      Integrations::Worktree.cleanup(item[:branch])
-      @renderer.close_worktree(item[:branch])
+      @store.update_backlog_status(item.id, "done")
+      Integrations::Worktree.cleanup(item.branch)
+      @renderer.close_worktree(item.branch)
 
-      maybe_reprioritize(item[:skill])
+      maybe_reprioritize(item.skill)
     end
 
     def maybe_reprioritize(skill_name)
@@ -94,8 +94,8 @@ module Nightshift
         next unless item
 
         # Guard: skip if the target file no longer exists on main
-        unless system("git", "-C", repo_path, "cat-file", "-e", "HEAD:#{item[:item]}", err: File::NULL)
-          @store.update_backlog_status(item[:id], "skipped", failure_reason: "file_not_found")
+        unless system("git", "-C", repo_path, "cat-file", "-e", "HEAD:#{item.item}", err: File::NULL)
+          @store.update_backlog_status(item.id, "skipped", failure_reason: "file_not_found")
           next
         end
 
@@ -106,7 +106,7 @@ module Nightshift
     def launch_skill(skill_name, item)
       require "shellwords"
       repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      slug = short_slug(item[:item], skill_name: skill_name)
+      slug = short_slug(item.item, skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
       wt_path = File.join(File.dirname(repo_path), wt_dir)
@@ -115,10 +115,10 @@ module Nightshift
       Integrations::Worktree.cleanup(branch)
 
       unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
-        @store.update_backlog_status(item[:id], "failed", failure_reason: "worktree_error")
+        @store.update_backlog_status(item.id, "failed", failure_reason: "worktree_error")
         return
       end
-      @store.update_backlog_status(item[:id], "running", branch: branch)
+      @store.update_backlog_status(item.id, "running", branch: branch)
 
       # Ensure gitignored dirs exist + clean logs for fresh investigation
       %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
@@ -151,7 +151,7 @@ module Nightshift
       # Send skill-run command
       binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
       env_prefix = port ? "PORT=#{port}" : ""
-      skill_cmd = "#{env_prefix} '#{binstub}' skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
+      skill_cmd = "#{env_prefix} '#{binstub}' skill-run #{skill_name} #{Shellwords.escape(item.item)}".strip
       system("tmux", "send-keys", "-t", "#{win_id}.0", skill_cmd, "Enter")
     end
 

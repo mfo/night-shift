@@ -9,86 +9,86 @@ class JudgeTest < Minitest::Test
   def test_parse_verdict_valid_json
     raw = '{"verdict":"skill_defect","root_cause":"missing tool","fixable_by_skill_update":true,"suggested_patch":"add Read","confidence":0.9}'
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_equal "skill_defect", result[:verdict]
-    assert_equal "missing tool", result[:root_cause]
-    assert_equal true, result[:fixable_by_skill_update]
-    assert_equal "add Read", result[:suggested_patch]
-    assert_in_delta 0.9, result[:confidence]
+    assert_equal "skill_defect", result.verdict
+    assert_equal "missing tool", result.root_cause
+    assert_equal true, result.fixable_by_skill_update
+    assert_equal "add Read", result.suggested_patch
+    assert_in_delta 0.9, result.confidence
   end
 
   def test_parse_verdict_with_surrounding_text
     raw = "Here is my analysis:\n```json\n{\"verdict\":\"item_hard\",\"root_cause\":\"complex\",\"fixable_by_skill_update\":false,\"suggested_patch\":null,\"confidence\":0.7}\n```\nThat's it."
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_equal "item_hard", result[:verdict]
-    assert_equal "complex", result[:root_cause]
-    assert_in_delta 0.7, result[:confidence]
+    assert_equal "item_hard", result.verdict
+    assert_equal "complex", result.root_cause
+    assert_in_delta 0.7, result.confidence
   end
 
   def test_parse_verdict_nested_json
     raw = '{"verdict":"infra_error","root_cause":"server down","fixable_by_skill_update":false,"suggested_patch":null,"confidence":0.5,"extra":{"nested":"value"}}'
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_equal "infra_error", result[:verdict]
+    assert_equal "infra_error", result.verdict
   end
 
   def test_parse_verdict_no_json
     raw = "No JSON here, just text."
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_equal "infra_error", result[:verdict]
-    assert_includes result[:root_cause], "parse_error"
+    assert_equal "infra_error", result.verdict
+    assert_includes result.root_cause, "parse_error"
   end
 
   def test_parse_verdict_unknown_verdict
     raw = '{"verdict":"unknown_type","root_cause":"???"}'
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_equal "infra_error", result[:verdict]
-    assert_includes result[:root_cause], "unknown_verdict"
+    assert_equal "infra_error", result.verdict
+    assert_includes result.root_cause, "unknown_verdict"
   end
 
   def test_parse_verdict_clamps_confidence
     raw = '{"verdict":"skill_defect","root_cause":"x","confidence":1.5}'
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_in_delta 1.0, result[:confidence]
+    assert_in_delta 1.0, result.confidence
 
     raw_neg = '{"verdict":"skill_defect","root_cause":"x","confidence":-0.5}'
     result_neg = Nightshift::CI::Judge.parse_verdict(raw_neg)
-    assert_in_delta 0.0, result_neg[:confidence]
+    assert_in_delta 0.0, result_neg.confidence
   end
 
   def test_parse_verdict_defaults_confidence_to_0_5
     raw = '{"verdict":"skill_defect","root_cause":"x"}'
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_in_delta 0.5, result[:confidence]
+    assert_in_delta 0.5, result.confidence
   end
 
   def test_parse_verdict_truncates_root_cause
     long = "x" * 1000
     raw = "{\"verdict\":\"item_hard\",\"root_cause\":\"#{long}\"}"
     result = Nightshift::CI::Judge.parse_verdict(raw)
-    assert_equal 500, result[:root_cause].length
+    assert_equal 500, result.root_cause.length
   end
 
   # --- retryable? ---
 
   def test_retryable_skill_defect
-    verdict = { verdict: "skill_defect" }
+    verdict = Nightshift::CI::Verdict.new(verdict: "skill_defect")
     assert Nightshift::CI::Judge.retryable?(verdict, 0)
     assert Nightshift::CI::Judge.retryable?(verdict, 2)
     refute Nightshift::CI::Judge.retryable?(verdict, 3)
   end
 
   def test_retryable_infra_error
-    verdict = { verdict: "infra_error" }
+    verdict = Nightshift::CI::Verdict.new(verdict: "infra_error")
     assert Nightshift::CI::Judge.retryable?(verdict, 0)
     refute Nightshift::CI::Judge.retryable?(verdict, 3)
   end
 
   def test_not_retryable_item_hard
-    verdict = { verdict: "item_hard" }
+    verdict = Nightshift::CI::Verdict.new(verdict: "item_hard")
     refute Nightshift::CI::Judge.retryable?(verdict, 0)
   end
 
   def test_not_retryable_context_limit
-    verdict = { verdict: "context_limit" }
+    verdict = Nightshift::CI::Verdict.new(verdict: "context_limit")
     refute Nightshift::CI::Judge.retryable?(verdict, 0)
   end
 
@@ -182,11 +182,11 @@ class JudgeTest < Minitest::Test
 
   def test_fallback_verdict
     result = Nightshift::CI::Judge.fallback_verdict("test_error", "something broke")
-    assert_equal "infra_error", result[:verdict]
-    assert_includes result[:root_cause], "test_error"
-    assert_includes result[:root_cause], "something broke"
-    assert_equal 0.0, result[:confidence]
-    assert_nil result[:suggested_patch]
+    assert_equal "infra_error", result.verdict
+    assert_includes result.root_cause, "test_error"
+    assert_includes result.root_cause, "something broke"
+    assert_equal 0.0, result.confidence
+    assert_nil result.suggested_patch
   end
 
   # --- VERDICTS constant ---

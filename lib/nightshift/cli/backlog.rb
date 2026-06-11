@@ -40,39 +40,39 @@ module Nightshift
 
         puts ""
         items.each do |item|
-          icon = icons[item[:status]] || "?"
+          icon = icons[item.status] || "?"
           extra = ""
-          extra = " PR##{item[:pr_number]}" if item[:pr_number]
-          extra += " (#{item[:failure_reason]})" if item[:failure_reason]
-          prio = item[:priority].to_i > 0 ? " p:#{item[:priority]}" : ""
-          puts "  #{icon} ##{item[:id]} [#{item[:skill]}] #{item[:item]}#{extra}#{prio}"
+          extra = " PR##{item.pr_number}" if item.pr_number
+          extra += " (#{item.failure_reason})" if item.failure_reason
+          prio = item.priority.to_i > 0 ? " p:#{item.priority}" : ""
+          puts "  #{icon} ##{item.id} [#{item.skill}] #{item.item}#{extra}#{prio}"
         end
         puts ""
-        counts = items.group_by { |i| i[:status] }.transform_values(&:size)
+        counts = items.group_by(&:status).transform_values(&:size)
         puts "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(", ")}"
         puts ""
       end
 
       desc "skip ID", "Skip a failed backlog item"
       def skip(id)
-        item = store.db[:backlog_items].where(id: id.to_i).first
+        item = store.get_backlog_item(id)
         abort "nightshift: backlog item ##{id} not found" unless item
-        unless item[:status] == "failed"
-          abort "nightshift: can only skip failed items (current: #{item[:status]})"
+        unless item.status == "failed"
+          abort "nightshift: can only skip failed items (current: #{item.status})"
         end
-        store.update_backlog_status(item[:id], "skipped")
-        puts "nightshift: skipped backlog item ##{id} (#{item[:item]})"
+        store.update_backlog_status(item.id, "skipped")
+        puts "nightshift: skipped backlog item ##{id} (#{item.item})"
       end
 
       desc "retry ID", "Retry a failed/skipped backlog item"
       def retry_item(id)
         item = store.get_backlog_item(id)
         abort "nightshift: backlog item ##{id} not found" unless item
-        unless %w[failed skipped].include?(item[:status])
-          abort "nightshift: can only retry failed/skipped items (current: #{item[:status]})"
+        unless %w[failed skipped].include?(item.status)
+          abort "nightshift: can only retry failed/skipped items (current: #{item.status})"
         end
-        store.retry_backlog_item(item[:id])
-        puts "nightshift: ⬜ ##{id} #{item[:item]} → pending (retry_count reset)"
+        store.retry_backlog_item(item.id)
+        puts "nightshift: ⬜ ##{id} #{item.item} → pending (retry_count reset)"
       end
       map "retry" => :retry_item
 

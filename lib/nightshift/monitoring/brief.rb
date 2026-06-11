@@ -104,7 +104,7 @@ module Nightshift
       # Backlog summary
       items = store.all_backlog
       if items.any?
-        bl = items.group_by { |i| i[:status] }.transform_values(&:size)
+        bl = items.group_by(&:status).transform_values(&:size)
         bl_parts = bl.map { |k, v| "#{v} #{k}" }.join(", ")
         puts "  backlog: #{bl_parts}"
       end

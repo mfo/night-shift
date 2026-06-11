@@ -14,7 +14,7 @@ module Nightshift
         items = @store.all_backlog(skill: sk)
         next if items.empty?
 
-        counts = items.group_by { |i| i[:status] }.transform_values(&:size)
+        counts = items.group_by(&:status).transform_values(&:size)
         total = items.size
         done = counts["done"] || 0
         failed = counts["failed"] || 0
@@ -23,7 +23,7 @@ module Nightshift
         running = counts["running"] || 0
 
         cycles = @store.db[:autolearn_cycles]
-          .where(backlog_item_id: items.map { |i| i[:id] })
+          .where(backlog_item_id: items.map(&:id))
           .order(Sequel.desc(:created_at))
           .limit(5).all
 
