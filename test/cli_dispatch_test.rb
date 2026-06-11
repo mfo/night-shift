@@ -10,8 +10,8 @@ class CLIDispatchTest < Minitest::Test
   # --- COMMANDS constant ---
 
   def test_commands_list_contains_all_expected
-    expected = %w[attach status watch diagnose autofix brief merge open close
-                  backlog auto skill-run reset inspect autolearn-status autolearn-report refresh]
+    expected = %w[attach watch diagnose autofix brief merge open close
+                  backlog auto skill-run reset inspect autolearn-status autolearn-report]
     expected.each do |cmd|
       assert_includes Nightshift::CLI::COMMANDS, cmd, "Missing command: #{cmd}"
     end
@@ -98,19 +98,7 @@ class CLIDispatchTest < Minitest::Test
     end
   end
 
-  # --- Status / Brief / Inspect ---
-
-  def test_status_shows_prs
-    pr = Nightshift::Core::PR.new(number: 42, branch: "fix/bug",
-                            github_state: "OPEN", ci: "green")
-    @store.upsert(pr)
-
-    output = with_cli_store do
-      capture_io { Nightshift::CLI.cmd_status([]) }.first
-    end
-    assert_includes output, "#42"
-    assert_includes output, "fix/bug"
-  end
+  # --- Merge / Diagnose / Autofix ---
 
   def test_merge_requires_pr_number
     assert_raises(SystemExit) do

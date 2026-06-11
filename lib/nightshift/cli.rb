@@ -2,7 +2,7 @@ require "open3"
 
 module Nightshift
   module CLI
-    COMMANDS = %w[attach refresh status watch diagnose autofix brief merge open close backlog auto skill-run reset inspect autolearn-status autolearn-report].freeze
+    COMMANDS = %w[attach watch diagnose autofix brief merge open close backlog auto skill-run reset inspect autolearn-status autolearn-report].freeze
 
     BINSTUB = File.expand_path("../../bin/nightshift-rb", __dir__).freeze
 
@@ -15,8 +15,6 @@ module Nightshift
     def run(args)
       cmd = args.shift
       case cmd
-      when "status"    then cmd_status(args)
-      when "refresh"   then cmd_refresh(args)
       when "merge"     then cmd_merge(args)
       when "brief"     then cmd_brief(args)
       when "diagnose"  then cmd_diagnose(args)
@@ -37,17 +35,7 @@ module Nightshift
       end
     end
 
-    def cmd_status(_args)
-
-      puts ""
-      store.all_prs.each do |row|
-        pr = Core::PR.from_db(row)
-        puts "  #{pr.badge}  ##{pr.number}  #{pr.branch}"
-      end
-      puts ""
-    end
-
-    def cmd_refresh(_args)
+    def cmd_refresh(_args = [])
       prs = Integrations::GitHub.fetch_prs
       renderer = UI::TmuxRenderer.new
       reconciler = Reconciler.new(store: store, renderer: renderer)
