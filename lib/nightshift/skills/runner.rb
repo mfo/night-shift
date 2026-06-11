@@ -21,7 +21,7 @@ module Nightshift
       FileUtils.mkdir_p(logdir)
       log_path = File.join(logdir, "claude-#{skill_name}.log")
 
-      puts "── SKILL #{skill_name} — #{item} ──────────────────────"
+      Log.info "── SKILL #{skill_name} — #{item} ──────────────────────"
 
       allowed = extract_allowed_tools(skill_name, worktree_path)
       cmd = ["claude", "-p", prompt,
@@ -101,7 +101,7 @@ module Nightshift
         Sois concis et actionnable.
       PROMPT
 
-      puts "── KAIZEN #{skill_name} — analyzing failure ──────────────"
+      Log.info "── KAIZEN #{skill_name} — analyzing failure ──────────────"
       system(
         "claude", "-p", prompt,
         "--permission-mode", "acceptEdits",

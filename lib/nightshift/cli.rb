@@ -197,9 +197,9 @@ module Nightshift
         renderer = UI::TmuxRenderer.new
         reconciler = Reconciler.new(store: store, renderer: renderer)
         reconciler.reconcile(prs)
-        puts "#{Time.now.strftime('%H:%M:%S')} Refreshed (#{prs.size} PRs fetched, worktree-centric)"
+        Log.info "Refreshed (#{prs.size} PRs fetched, worktree-centric)"
       rescue Integrations::GitHub::Error => e
-        $stderr.puts e.message
+        Log.error e.message
       end
     end
   end

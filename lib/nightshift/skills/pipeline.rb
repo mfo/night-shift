@@ -16,7 +16,7 @@ module Nightshift
       backlog_item = @store.backlog_by_branch(branch)
 
       unless backlog_item
-        puts "nightshift: no backlog item for branch #{branch}"
+        Log.warn "no backlog item for branch #{branch}"
         return
       end
 
@@ -47,7 +47,7 @@ module Nightshift
       unless system("git", "push", "-u", "origin", branch, chdir: worktree_path)
         @store.update_backlog_status(backlog_item[:id], "failed",
                                      failure_reason: "push_error")
-        puts "nightshift: push failed"
+        Log.error "push failed for #{branch}"
         return
       end
 
@@ -64,7 +64,7 @@ module Nightshift
 
       @store.update_backlog_status(backlog_item[:id], "pr_open",
                                    pr_number: pr_number, branch: branch)
-      puts "nightshift: PR ##{pr_number} created"
+      Log.info "PR ##{pr_number} created"
 
       record_cycle(backlog_item, verdict: "success", outcome: "improved",
                    log_path: result[:log_path], turns: result[:turns_used])
@@ -76,7 +76,7 @@ module Nightshift
 
       # Rate limit: skip judge (would also be rate-limited), backoff 30min
       if failure_reason == "rate_limited"
-        puts "nightshift: rate limited — backoff 30min"
+        Log.warn "rate limited — backoff 30min"
         record_cycle(backlog_item, verdict: "rate_limited",
                      root_cause: "rate_limited", log_path: result[:log_path],
                      turns: result[:turns_used])
@@ -89,16 +89,16 @@ module Nightshift
         return
       end
 
-      puts "nightshift: skill failed (#{failure_reason}) — invoking judge"
+      Log.error "skill failed (#{failure_reason}) — invoking judge"
 
       # Judge: analyze the failure
       verdict = CI::Judge.evaluate(skill, item: item_path,
                                log_path: result[:log_path],
                                failure_reason: failure_reason)
 
-      puts "  ┌─ verdict: #{verdict[:verdict]} (confidence: #{verdict[:confidence]})"
-      puts "  │  cause: #{verdict[:root_cause]}"
-      puts "  └─ patch: #{verdict[:suggested_patch] ? 'yes' : 'none'}"
+      Log.info "┌─ verdict: #{verdict[:verdict]} (confidence: #{verdict[:confidence]})"
+      Log.info "│  cause: #{verdict[:root_cause]}"
+      Log.info "└─ patch: #{verdict[:suggested_patch] ? 'yes' : 'none'}"
 
       # Record the cycle
       record_cycle(backlog_item, verdict: verdict[:verdict],
@@ -111,7 +111,7 @@ module Nightshift
       if verdict[:verdict] == "infra_error" && verdict[:root_cause]
         @store.add_infra_suggestion(skill: skill, description: verdict[:root_cause],
                                     source: "judge", backlog_item_id: backlog_item[:id])
-        puts "  💡 infra suggestion enregistree"
+        Log.info "💡 infra suggestion enregistree"
       end
 
       # Decide: retry or stop
@@ -140,7 +140,7 @@ module Nightshift
                                      last_verdict: verdict[:verdict])
         @store.db[:backlog_items].where(id: backlog_item[:id])
           .update(retry_count: Sequel.expr(:retry_count) + 1)
-        puts "  🔄 reset to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES}) — reconciler will re-launch"
+        Log.info "🔄 reset to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES}) — reconciler will re-launch"
       else
         reason = retry_count >= CI::Judge::MAX_RETRIES ? "autolearn_exhausted" : verdict[:verdict]
 
@@ -152,7 +152,7 @@ module Nightshift
         @store.update_backlog_status(backlog_item[:id], "skipped",
                                      failure_reason: reason, branch: nil,
                                      last_verdict: verdict[:verdict])
-        puts "  ⏭ skipped (#{reason})"
+        Log.info "⏭ skipped (#{reason})"
       end
     end
 
@@ -171,7 +171,7 @@ module Nightshift
 
       pitfall_count = content.scan(/^### AL-\d+/).size
       if pitfall_count >= 5
-        puts "  🛑 5 auto-pitfalls cap reached — needs kaizen synth"
+        Log.warn "🛑 5 auto-pitfalls cap reached — needs kaizen synth"
         return
       end
 
@@ -183,18 +183,18 @@ module Nightshift
 
       relative_path = patterns_path.sub("#{nightshift_dir}/", "")
       unless system("git", "-C", nightshift_dir, "add", relative_path)
-        puts "  ⚠️ git add failed — patch written but not committed"
+        Log.warn "⚠️ git add failed — patch written but not committed"
         return nil
       end
 
       unless system("git", "-C", nightshift_dir, "commit", "--no-gpg-sign",
                      "-m", "autolearn(#{skill_name}): add #{pitfall_id}")
-        puts "  ⚠️ git commit failed"
+        Log.warn "⚠️ git commit failed"
         return nil
       end
 
       sha, = Open3.capture2("git", "-C", nightshift_dir, "rev-parse", "HEAD")
-      puts "  📝 appended #{pitfall_id} to patterns.md (#{sha.strip[0, 7]})"
+      Log.info "📝 appended #{pitfall_id} to patterns.md (#{sha.strip[0, 7]})"
       sha.strip
     end
 

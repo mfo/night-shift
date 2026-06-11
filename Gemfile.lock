@@ -4,6 +4,7 @@ GEM
     bigdecimal (4.1.1)
     dotenv (3.2.0)
     drb (2.2.3)
+    logger (1.7.0)
     minitest (6.0.4)
       drb (~> 2.0)
       prism (~> 1.5)
@@ -39,6 +40,7 @@ PLATFORMS
 
 DEPENDENCIES
   dotenv
+  logger
   minitest
   minitest-mock
   rake

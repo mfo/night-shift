@@ -92,7 +92,7 @@ module Nightshift
         "-F", '#{window_index} #{@branch}'
       )
       unless status.success?
-        $stderr.puts "nightshift: tmux session #{@session} not found" if caller_action
+        Log.warn "tmux session #{@session} not found (#{caller_action})" if caller_action
         return nil
       end
 
@@ -100,7 +100,7 @@ module Nightshift
         idx, win_branch = line.strip.split(" ", 2)
         return idx if win_branch == branch
       end
-      $stderr.puts "nightshift: window not found for #{branch} (#{caller_action})" if caller_action
+      Log.debug "window not found for #{branch} (#{caller_action})" if caller_action
       nil
     end
   end

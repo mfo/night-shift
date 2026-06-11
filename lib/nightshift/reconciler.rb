@@ -82,7 +82,7 @@ module Nightshift
         .where(skill: skill_name, status: "done").count
       return unless completed > 0 && (completed % 5).zero?
 
-      puts "nightshift: triggering reprioritize for #{skill_name} (#{completed} completed)"
+      Log.info "triggering reprioritize for #{skill_name} (#{completed} completed)"
       CI::Reprioritizer.run(skill_name, store: @store)
     end
 
