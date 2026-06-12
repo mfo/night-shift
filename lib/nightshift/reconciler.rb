@@ -4,6 +4,14 @@
 require 'open3'
 
 module Nightshift
+  #
+  # Reconciler — Main watch loop
+  #
+  # Runs every N seconds: fetches PRs, diffs against stored state,
+  # fires transition handlers (autofix on red, merge on approved,
+  # cleanup on merged), and picks next backlog items to launch.
+  # Only reconciles PRs matching a local worktree branch.
+  #
   class Reconciler
     extend T::Sig
 

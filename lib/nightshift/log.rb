@@ -3,6 +3,12 @@
 require 'logger'
 
 module Nightshift
+  #
+  # Log — Structured logger
+  #
+  # Thin wrapper over Ruby's Logger with timestamp-prefixed output
+  # to stdout. Severity controlled via NIGHTSHIFT_LOG_LEVEL env var.
+  #
   module Log
     module_function
 

@@ -2,6 +2,13 @@
 
 module Nightshift
   module Monitoring
+    #
+    # AutolearnMonitor — Autolearn dashboard and reporting
+    #
+    # Displays per-skill status (pending/running/done/failed counts),
+    # recent autolearn cycles, and a 24h report with verdict breakdown,
+    # applied patches, and infra suggestions.
+    #
     class AutolearnMonitor
       def initialize(store:)
         @store = store

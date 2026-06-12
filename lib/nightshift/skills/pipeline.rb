@@ -5,6 +5,13 @@ require 'open3'
 
 module Nightshift
   module Skills
+    #
+    # Pipeline — Full skill execution lifecycle
+    #
+    # Orchestrates: run skill → on success, push + create PR → pr_open.
+    # On failure, invokes the Judge for a verdict, then either retries
+    # (with optional patterns.md patch) or skips the item.
+    #
     class Pipeline
       extend T::Sig
 

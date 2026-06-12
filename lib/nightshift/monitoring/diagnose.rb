@@ -4,6 +4,13 @@ require 'open3'
 
 module Nightshift
   module Monitoring
+    #
+    # Diagnose — CI failure categorization
+    #
+    # Fetches the latest CI run for a PR, lists failed jobs, and
+    # categorizes them (linter, unit, system, codeql). Provides
+    # log extraction and ANSI stripping utilities used by Autofix.
+    #
     module Diagnose
       module_function
 

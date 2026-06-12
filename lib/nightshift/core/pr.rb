@@ -2,6 +2,13 @@
 
 module Nightshift
   module Core
+    #
+    # PR — Pull request domain model
+    #
+    # Computes a prioritized state (PRState enum) from raw GitHub fields
+    # (CI status, review decision, merge state, deploy status).
+    # Provides display helpers: emoji badges, tmux window names, slugs.
+    #
     class PR
       EMOJI = {
         PRState::Deployed => '🚀', PRState::Merged => '🗑', PRState::Closed => '⊘',

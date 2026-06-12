@@ -3,6 +3,13 @@
 
 module Nightshift
   module Core
+    #
+    # BacklogItem — Single work item in the skill backlog
+    #
+    # Tracks a file to be processed by a skill through its lifecycle:
+    # pending → running → pr_open → done (or failed/skipped).
+    # Carries retry metadata, scheduling, and optional context for the LLM.
+    #
     class BacklogItem < T::Struct
       extend T::Sig
 

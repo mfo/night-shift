@@ -2,6 +2,16 @@
 
 module Nightshift
   module Core
+    #
+    # Store — SQLite persistence layer
+    #
+    # Central data access for all persisted state: PRs, backlog items,
+    # autolearn cycles, state transitions, runs (locks + circuit breakers),
+    # infra suggestions, and key-value settings.
+    #
+    # Uses Sequel with WAL mode. Row hashes are converted to typed structs
+    # (BacklogItem, AutolearnCycle) at the boundary via .from_row.
+    #
     class Store
       extend T::Sig
 

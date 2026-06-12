@@ -6,6 +6,13 @@ require 'tempfile'
 
 module Nightshift
   module CI
+    #
+    # Reprioritizer — Dynamic backlog reordering via LLM
+    #
+    # After every N completed items, invokes the reprioritize skill
+    # to re-rank pending backlog items based on accumulated context.
+    # Applies returned priority scores back to the store.
+    #
     module Reprioritizer
       module_function
 

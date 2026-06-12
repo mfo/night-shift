@@ -3,6 +3,13 @@
 
 module Nightshift
   module Core
+    #
+    # AutolearnCycle — Record of a single autolearn attempt
+    #
+    # Captures the judge's verdict, root cause, suggested patch,
+    # confidence score, and outcome for one retry of a backlog item.
+    # Persisted in the autolearn_cycles table, queried for reporting.
+    #
     class AutolearnCycle < T::Struct
       extend T::Sig
 

@@ -4,6 +4,13 @@ require 'yaml'
 
 module Nightshift
   module Skills
+    #
+    # Loader — Skill prompt reader and parser
+    #
+    # Reads SKILL.md from .claude/skills/<name>/, parses YAML frontmatter
+    # (name, description, allowed_tools), and returns the prompt body.
+    # Also loads optional checklist.md, patterns.md, and template.md.
+    #
     module Loader
       module_function
 

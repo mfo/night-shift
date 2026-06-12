@@ -4,6 +4,13 @@ require 'json'
 
 module Nightshift
   module Integrations
+    #
+    # N1Scanner — Backlog builder from N+1 query logs
+    #
+    # Parses Prosopite detection logs and Skylight endpoint data
+    # to build a deduplicated backlog of N+1 query items grouped
+    # by source file, with priority based on call frequency.
+    #
     module N1Scanner
       SKYLIGHT_APP_URL = 'https://oss.skylight.io/app/applications/auuzqe8XhJIx/recent/6h/endpoints'
 

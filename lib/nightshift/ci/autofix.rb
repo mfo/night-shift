@@ -4,6 +4,19 @@ require 'open3'
 
 module Nightshift
   module CI
+    #
+    # Autofix — Automated CI unblocking
+    #
+    # When a PR goes red, Autofix analyzes failed jobs and applies
+    # fixes by category:
+    #   1. System tests → retry (flaky, 1 max)
+    #   2. Unit specs   → claude -p (Read/Edit/rspec, max 20 turns)
+    #   3. Linters      → rubocop -A, herb, apostrophe, yaml
+    #   4. Verify       → re-run specs + linters to confirm
+    #
+    # Commit and push remain manual.
+    # Built-in circuit breaker (max N runs per time window).
+    #
     module Autofix
       module_function
 

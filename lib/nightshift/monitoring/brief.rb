@@ -4,6 +4,13 @@ require 'open3'
 
 module Nightshift
   module Monitoring
+    #
+    # Brief — Morning PR summary
+    #
+    # Generates an actionable report of open PRs grouped by urgency:
+    # CI red, changes requested, approved (ready to merge), comments
+    # to address, auto-merging, and CI running/green.
+    #
     module Brief
       module_function
 

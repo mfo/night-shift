@@ -2,6 +2,7 @@
 # typed: true
 
 module Nightshift
+  # Computed PR state derived from CI, review, and merge status (priority-ordered)
   class PRState < T::Enum
     enums do
       Deployed          = new('deployed')

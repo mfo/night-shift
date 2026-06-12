@@ -8,6 +8,13 @@ require 'yaml'
 
 module Nightshift
   module Skills
+    #
+    # Runner — Claude Code invocation in a worktree
+    #
+    # Loads the skill prompt via Loader, writes optional context,
+    # invokes `claude -p` with scoped allowed tools, streams output
+    # to a log file, and returns a RunnerResult.
+    #
     module Runner
       extend T::Sig
 

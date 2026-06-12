@@ -5,6 +5,13 @@ require 'json'
 
 module Nightshift
   module Integrations
+    #
+    # GitHub — PR metadata fetcher via gh CLI
+    #
+    # Single GraphQL query to fetch all PRs for the current user,
+    # plus REST release endpoints for deploy detection.
+    # Returns typed Core::PR structs ready for reconciliation.
+    #
     module GitHub
       module_function
 

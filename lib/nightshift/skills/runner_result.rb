@@ -3,6 +3,13 @@
 
 module Nightshift
   module Skills
+    #
+    # RunnerResult — Output of a skill runner invocation
+    #
+    # Carries the success flag, optional failure reason, log path,
+    # turn count, and number of files changed. Consumed by Pipeline
+    # to decide the next step (PR creation or judge evaluation).
+    #
     class RunnerResult < T::Struct
       const :success, T::Boolean
       const :failure_reason, T.nilable(String), default: nil

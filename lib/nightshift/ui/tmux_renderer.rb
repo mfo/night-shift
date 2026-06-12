@@ -4,6 +4,13 @@ require 'open3'
 
 module Nightshift
   module UI
+    #
+    # TmuxRenderer — Tmux side-effect driver
+    #
+    # All tmux mutations go through here: rename windows, set pane
+    # titles with PR badges, trigger autofix/merge/cleanup commands,
+    # and display interactive menus. Used by Reconciler on state changes.
+    #
     class TmuxRenderer
       def initialize(session: ENV.fetch('NIGHTSHIFT_SESSION'))
         @session = session

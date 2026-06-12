@@ -2,6 +2,7 @@
 # typed: true
 
 module Nightshift
+  # Judge verdict outcomes: skill_defect, item_hard, infra_error, context_limit, + sentinels
   class VerdictName < T::Enum
     enums do
       SkillDefect    = new('skill_defect')

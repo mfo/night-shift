@@ -6,6 +6,18 @@ require 'json'
 
 module Nightshift
   module CI
+    #
+    # Judge — LLM verdict after skill failure
+    #
+    # When a skill fails, the Judge analyzes the claude log via an
+    # LLM call and returns a verdict:
+    #   skill_defect  → prompt is missing an instruction (retry + patch patterns.md)
+    #   item_hard     → item is too complex for the skill (skip)
+    #   infra_error   → transient infra issue (retry without patch)
+    #   context_limit → max turns reached without convergence (skip)
+    #
+    # Max 3 retries per item. Each cycle is recorded in DB (autolearn_cycles).
+    #
     module Judge
       extend T::Sig
 

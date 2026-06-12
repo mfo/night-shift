@@ -3,6 +3,13 @@
 require 'yaml'
 
 module Nightshift
+  #
+  # Config — Target repo configuration loader
+  #
+  # Reads .nightshift.yml from the target repo root, parsing skill
+  # definitions (scan globs, ports, priority maps as regexes, scan_proc
+  # references). Exposes the derived SQLite DB path at $REPO/.nightshift/.
+  #
   class Config
     SCAN_PROCS = {
       'n1_scanner' => ->(repo_path, store) { Integrations::N1Scanner.scan(repo_path, store) }

@@ -4,6 +4,13 @@ require 'open3'
 
 module Nightshift
   module Integrations
+    #
+    # Worktree — Git worktree management
+    #
+    # Lists, creates, and removes git worktrees. Each worktree is an
+    # isolated branch checkout used by a skill or a manual PR.
+    # Cleanup includes removing the worktree dir, branch, and test DB.
+    #
     module Worktree
       module_function
 

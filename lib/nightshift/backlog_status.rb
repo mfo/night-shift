@@ -2,6 +2,7 @@
 # typed: true
 
 module Nightshift
+  # BacklogItem lifecycle: pending → running → pr_open → done (or failed/skipped)
   class BacklogStatus < T::Enum
     enums do
       Pending = new('pending')

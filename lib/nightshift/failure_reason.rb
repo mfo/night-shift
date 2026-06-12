@@ -2,6 +2,7 @@
 # typed: true
 
 module Nightshift
+  # Why a backlog item failed: claude_error, no_diff, push_error, worktree_error, etc.
   class FailureReason < T::Enum
     enums do
       ClaudeError         = new('claude_error')

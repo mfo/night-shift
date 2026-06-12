@@ -4,6 +4,13 @@ require 'open3'
 
 module Nightshift
   module UI
+    #
+    # Attach — Tmux session bootstrap
+    #
+    # Creates a tmux session with one window per worktree, sets up
+    # pane titles with PR badges, queues autofix for red PRs, proposes
+    # merge for approved PRs, and launches the watch loop in main.
+    #
     module Attach
       module_function
 
