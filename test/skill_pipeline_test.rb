@@ -12,13 +12,13 @@ class SkillPipelineTest < Minitest::Test
     @pipeline = Nightshift::Skills::Pipeline.new(store: @store)
   end
 
-  # --- record_cycle ---
+  # --- record_cycle (now on Store) ---
 
   def test_record_cycle_inserts_row
     backlog_item = add_backlog_item('haml-migration', 'a.haml')
 
-    @pipeline.record_cycle(backlog_item, verdict: Nightshift::VerdictName::Success, outcome: 'improved',
-                                         log_path: '/tmp/test.log', turns: 42)
+    @store.record_cycle(backlog_item, verdict: Nightshift::VerdictName::Success, outcome: 'improved',
+                                      log_path: '/tmp/test.log', turns: 42)
 
     cycle = @db[:autolearn_cycles].first
     assert_equal backlog_item.id, cycle[:backlog_item_id]
@@ -31,8 +31,8 @@ class SkillPipelineTest < Minitest::Test
   def test_record_cycle_with_skill_patch_sha
     backlog_item = add_backlog_item('haml-migration', 'a.haml')
 
-    @pipeline.record_cycle(backlog_item, verdict: Nightshift::VerdictName::SkillDefect,
-                                         skill_patch_sha: 'abc1234')
+    @store.record_cycle(backlog_item, verdict: Nightshift::VerdictName::SkillDefect,
+                                      skill_patch_sha: 'abc1234')
 
     cycle = @db[:autolearn_cycles].first
     assert_equal 'abc1234', cycle[:skill_patch_sha]
@@ -44,7 +44,7 @@ class SkillPipelineTest < Minitest::Test
     row = @db[:backlog_items].where(id: backlog_item.id).first
     backlog_item = Nightshift::Core::BacklogItem.from_row(row)
 
-    @pipeline.record_cycle(backlog_item, verdict: Nightshift::VerdictName::InfraError)
+    @store.record_cycle(backlog_item, verdict: Nightshift::VerdictName::InfraError)
 
     cycle = @db[:autolearn_cycles].first
     assert_equal 3, cycle[:attempt]
@@ -288,14 +288,173 @@ class SkillPipelineTest < Minitest::Test
     assert_equal 'judge', suggestion[:source]
   end
 
+  # --- execute_batch ---
+
+  def test_execute_batch_all_success
+    bi1 = add_backlog_item('i18n', 'a.rb', batch_id: 'batch123')
+    bi2 = add_backlog_item('i18n', 'b.rb', batch_id: 'batch123')
+
+    success_result = Nightshift::Skills::RunnerResult.new(
+      success: true, failure_reason: nil,
+      log_path: '/tmp/test.log', turns_used: 5, files_changed: 1
+    )
+
+    desc_path = nil
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, '/tmp/wt') do
+      Nightshift::Skills::Runner.stub(:run, success_result) do
+        # Stub pr-description.md existence and content
+        @pipeline.stub(:system, true) do
+          File.stub(:exist?, ->(p) { desc_path = p; true }) do
+            File.stub(:read, "---\ntitle: \"batch PR\"\n---\nBody here") do
+              Open3.stub(:capture2, ["https://github.com/org/repo/pull/42\n", nil]) do
+                @pipeline.execute_batch([bi1, bi2])
+              end
+            end
+          end
+        end
+      end
+    end
+
+    # Both items should be pr_open
+    assert_equal 'pr_open', @db[:backlog_items].where(id: bi1.id).first[:status]
+    assert_equal 'pr_open', @db[:backlog_items].where(id: bi2.id).first[:status]
+
+    # Both share same PR number
+    assert_equal 42, @db[:backlog_items].where(id: bi1.id).first[:pr_number]
+    assert_equal 42, @db[:backlog_items].where(id: bi2.id).first[:pr_number]
+
+    # 2 success cycles recorded
+    cycles = @db[:autolearn_cycles].where(verdict: 'success').all
+    assert_equal 2, cycles.size
+  end
+
+  def test_execute_batch_partial_failure
+    bi1 = add_backlog_item('i18n', 'a.rb', batch_id: 'batch456')
+    bi2 = add_backlog_item('i18n', 'b.rb', batch_id: 'batch456')
+
+    success_result = Nightshift::Skills::RunnerResult.new(
+      success: true, failure_reason: nil,
+      log_path: '/tmp/test.log', turns_used: 5, files_changed: 1
+    )
+    fail_result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: 'claude_error',
+      log_path: '/tmp/test.log', turns_used: 3, files_changed: 0
+    )
+
+    call_count = 0
+    runner_stub = lambda do |_skill, item:, worktree_path:, context: nil|
+      call_count += 1
+      call_count == 1 ? success_result : fail_result
+    end
+
+    hard_verdict = Nightshift::CI::Verdict.new(
+      verdict: Nightshift::VerdictName::ItemHard, root_cause: 'too complex',
+      fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.9
+    )
+
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, '/tmp/wt') do
+      Nightshift::Skills::Runner.stub(:run, runner_stub) do
+        Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
+          Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
+            @pipeline.stub(:system, true) do
+              File.stub(:exist?, true) do
+                File.stub(:read, "---\ntitle: \"partial batch\"\n---\nBody") do
+                  Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
+                    @pipeline.execute_batch([bi1, bi2])
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    # First item succeeded → pr_open
+    assert_equal 'pr_open', @db[:backlog_items].where(id: bi1.id).first[:status]
+    assert_equal 99, @db[:backlog_items].where(id: bi1.id).first[:pr_number]
+
+    # Second item failed → skipped (item_hard)
+    assert_equal 'skipped', @db[:backlog_items].where(id: bi2.id).first[:status]
+  end
+
+  def test_execute_batch_no_worktree
+    bi1 = add_backlog_item('i18n', 'a.rb', batch_id: 'batchXYZ')
+    bi2 = add_backlog_item('i18n', 'b.rb', batch_id: 'batchXYZ')
+
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, nil) do
+      @pipeline.execute_batch([bi1, bi2])
+    end
+
+    assert_equal 'failed', @db[:backlog_items].where(id: bi1.id).first[:status]
+    assert_equal 'failed', @db[:backlog_items].where(id: bi2.id).first[:status]
+  end
+
+  def test_execute_batch_all_fail
+    bi1 = add_backlog_item('i18n', 'a.rb', batch_id: 'batchFAIL')
+
+    fail_result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: 'no_diff',
+      log_path: '/tmp/test.log', turns_used: 5, files_changed: 0
+    )
+
+    hard_verdict = Nightshift::CI::Verdict.new(
+      verdict: Nightshift::VerdictName::ItemHard, root_cause: 'too complex',
+      fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.9
+    )
+
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, '/tmp/wt') do
+      Nightshift::Skills::Runner.stub(:run, fail_result) do
+        Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
+          Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
+            @pipeline.execute_batch([bi1])
+          end
+        end
+      end
+    end
+
+    assert_equal 'skipped', @db[:backlog_items].where(id: bi1.id).first[:status]
+  end
+
+  # --- confidence threshold ---
+
+  def test_handle_failure_low_confidence_skips_patch
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    result = Nightshift::Skills::RunnerResult.new(
+      success: false, failure_reason: 'claude_error',
+      log_path: '/tmp/test.log', turns_used: 10, files_changed: 0
+    )
+
+    low_conf_verdict = Nightshift::CI::Verdict.new(
+      verdict: Nightshift::VerdictName::SkillDefect, root_cause: 'missing instruction',
+      fixable_by_skill_update: true, suggested_patch: 'Add this rule', confidence: 0.6
+    )
+
+    patch_called = false
+    Nightshift::CI::Judge.stub(:evaluate, low_conf_verdict) do
+      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
+        @pipeline.stub(:apply_patch, ->(*) { patch_called = true; 'abc123' }) do
+          @pipeline.handle_failure(backlog_item, result)
+        end
+      end
+    end
+
+    refute patch_called, 'apply_patch should NOT be called at confidence 0.6'
+
+    # Item should still be reset to pending (retryable)
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
+    assert_equal 'pending', updated[:status]
+  end
+
   private
 
-  def add_backlog_item(skill, item, status: 'running')
+  def add_backlog_item(skill, item, status: 'running', batch_id: nil)
     now = Time.now.to_i
     id = @db[:backlog_items].insert(
       skill: skill, item: item, status: status,
       branch: "auto/#{skill}/test", priority: 0,
-      retry_count: 0, created_at: now, updated_at: now
+      retry_count: 0, batch_id: batch_id,
+      created_at: now, updated_at: now
     )
     row = @db[:backlog_items].where(id: id).first
     Nightshift::Core::BacklogItem.from_row(row)

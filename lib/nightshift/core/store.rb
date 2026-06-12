@@ -162,6 +162,41 @@ module Nightshift
         end
       end
 
+      sig { params(skill: String, size: Integer).returns(T::Array[BacklogItem]) }
+      def claim_batch(skill, size)
+        db.transaction do
+          batch_id = SecureRandom.hex(8)
+          items = []
+          claimed_ids = []
+
+          size.times do
+            row = db[:backlog_items]
+                  .where(skill: skill, status: PENDING_S)
+                  .where { (retry_after =~ nil) | (retry_after < Time.now.to_i) }
+                  .exclude(id: claimed_ids)
+                  .order(Sequel.desc(:priority), :created_at)
+                  .first
+            break unless row
+
+            rows_updated = db[:backlog_items]
+                           .where(id: row[:id], status: PENDING_S)
+                           .update(status: RUNNING_S, batch_id: batch_id, updated_at: Time.now.to_i)
+            next unless rows_updated == 1
+
+            claimed_ids << row[:id]
+            items << BacklogItem.from_row(row.merge(status: RUNNING_S, batch_id: batch_id))
+          end
+
+          items
+        end
+      end
+
+      sig { params(batch_id: String).returns(T::Array[BacklogItem]) }
+      def backlog_items_for_batch(batch_id)
+        db[:backlog_items].where(batch_id: batch_id)
+          .order(:created_at).all.map { |row| BacklogItem.from_row(row) }
+      end
+
       sig { params(skill: String).returns(T::Boolean) }
       def active_for_skill?(skill)
         db[:backlog_items]
@@ -209,6 +244,62 @@ module Nightshift
                           .update(status: PENDING_S, retry_count: 0,
                                   last_verdict: nil, failure_reason: nil, branch: nil,
                                   retry_after: nil, updated_at: Time.now.to_i)
+      end
+
+      # --- Autolearn cycles ---
+
+      sig do
+        params(
+          backlog_item: BacklogItem, verdict: VerdictName,
+          root_cause: T.nilable(String), suggested_patch: T.nilable(String),
+          log_path: T.nilable(String), turns: T.nilable(Integer),
+          outcome: T.nilable(String), skill_patch_sha: T.nilable(String),
+          confidence: T.nilable(Float)
+        ).void
+      end
+      def record_cycle(backlog_item, verdict:, root_cause: nil,
+                       suggested_patch: nil, log_path: nil, turns: nil,
+                       outcome: nil, skill_patch_sha: nil, confidence: nil)
+        db[:autolearn_cycles].insert(
+          backlog_item_id: backlog_item.id,
+          attempt: backlog_item.retry_count + 1,
+          verdict: verdict.serialize,
+          root_cause: root_cause,
+          suggested_patch: suggested_patch,
+          confidence: confidence,
+          skill_patch_sha: skill_patch_sha,
+          outcome: outcome,
+          log_path: log_path,
+          turns_used: turns,
+          created_at: Time.now.to_i
+        )
+      end
+
+      sig { params(backlog_item: BacklogItem).returns(T.nilable(Integer)) }
+      def last_cycle_id(backlog_item)
+        db[:autolearn_cycles]
+          .where(backlog_item_id: backlog_item.id)
+          .order(Sequel.desc(:id)).get(:id)
+      end
+
+      sig { params(cycle_id: Integer, sha: String).void }
+      def update_cycle_patch_sha(cycle_id, sha)
+        db[:autolearn_cycles].where(id: cycle_id).update(skill_patch_sha: sha)
+      end
+
+      sig { params(backlog_item_ids: T::Array[Integer], limit: Integer).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def recent_cycles(backlog_item_ids, limit: 5)
+        db[:autolearn_cycles]
+          .where(backlog_item_id: backlog_item_ids)
+          .order(Sequel.desc(:created_at))
+          .limit(limit).all
+      end
+
+      sig { params(cutoff: Integer).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def cycles_since(cutoff)
+        db[:autolearn_cycles]
+          .where { created_at > cutoff }
+          .order(:created_at).all
       end
 
       # --- Infra suggestions ---

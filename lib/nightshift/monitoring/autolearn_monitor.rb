@@ -35,10 +35,7 @@ module Nightshift
           pending = counts[BacklogStatus::Pending] || 0
           running = counts[BacklogStatus::Running] || 0
 
-          cycles = @store.db[:autolearn_cycles]
-                         .where(backlog_item_id: items.map(&:id))
-                         .order(Sequel.desc(:created_at))
-                         .limit(5).all
+          cycles = @store.recent_cycles(items.map(&:id), limit: 5)
 
           puts ''
           puts "  #{sk} (#{total} items)"
@@ -70,9 +67,7 @@ module Nightshift
       sig { void }
       def report
         cutoff = Time.now.to_i - 86_400 * 10 # 24h
-        cycles = @store.db[:autolearn_cycles]
-                       .where { created_at > cutoff }
-                       .order(:created_at).all
+        cycles = @store.cycles_since(cutoff)
 
         if cycles.empty?
           puts "\n  Aucun cycle autolearn dans les dernieres 24h.\n"

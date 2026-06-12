@@ -54,40 +54,66 @@ module Nightshift
           return
         end
 
-        # Read pr-description.md BEFORE removing it from git
-        raw = File.read(desc_path)
-        title, body = parse_pr_description(raw)
+        push_and_create_pr(backlog_item, worktree_path, result)
+      end
 
-        # Remove pr-description.md from git before push (it's a pipeline artifact, not source code)
-        if system('git', 'ls-files', '--error-unmatch', 'pr-description.md', chdir: worktree_path, err: File::NULL)
-          system('git', 'rm', '-f', 'pr-description.md', chdir: worktree_path)
-          system('git', 'commit', '--no-gpg-sign', '-m', 'chore: remove pr-description.md', chdir: worktree_path)
-        end
+      sig { params(backlog_items: T::Array[Core::BacklogItem]).void }
+      def execute_batch(backlog_items)
+        return if backlog_items.empty?
 
-        # Push
-        unless system('git', 'push', '-u', 'origin', branch, chdir: worktree_path)
-          @store.update_backlog_status(backlog_item, BacklogStatus::Failed,
-                                       failure_reason: FailureReason::PushError)
-          Log.error "push failed for #{branch}"
+        first = backlog_items.first
+        branch = first.branch
+        skill = first.skill
+        worktree_path = Integrations::Worktree.path_for_branch(branch)
+
+        unless worktree_path
+          backlog_items.each do |bi|
+            @store.update_backlog_status(bi, BacklogStatus::Failed,
+                                         failure_reason: FailureReason::WorktreeError)
+          end
+          Log.error "no worktree found for branch #{branch}"
           return
         end
 
-        # Create PR
-        pr_args = ['gh', 'pr', 'create', '--head', branch, '--body', body]
-        if title
-          pr_args.push('--title', title)
-        else
-          pr_args.push('--fill')
+        committed = []
+        failed = []
+
+        backlog_items.each do |backlog_item|
+          Log.info "batch #{committed.size + 1}/#{backlog_items.size}: #{backlog_item.item}"
+
+          result = Runner.run(skill, item: backlog_item.item, worktree_path: worktree_path,
+                                     context: backlog_item.context)
+
+          if result.success
+            committed << { backlog_item: backlog_item, result: result }
+            @store.record_cycle(backlog_item, verdict: VerdictName::Success, outcome: 'committed',
+                                              log_path: result.log_path, turns: result.turns_used)
+          else
+            failed << { backlog_item: backlog_item, result: result }
+            handle_failure(backlog_item, result)
+          end
         end
-        pr_url, = Open3.capture2(*pr_args, chdir: worktree_path)
-        pr_number = pr_url.strip.split('/').last.to_i
 
-        @store.update_backlog_status(backlog_item, BacklogStatus::PrOpen,
-                                     pr_number: pr_number, branch: branch)
-        Log.info "PR ##{pr_number} created"
+        if committed.empty?
+          Log.warn "batch: all #{backlog_items.size} items failed"
+          return
+        end
 
-        record_cycle(backlog_item, verdict: VerdictName::Success, outcome: 'improved',
-                                   log_path: result.log_path, turns: result.turns_used)
+        # Check pr-description.md (written by the last successful skill run)
+        desc_path = File.join(worktree_path, 'pr-description.md')
+        unless File.exist?(desc_path)
+          # Use last committed item as the reporter
+          last = committed.last
+          no_desc_result = RunnerResult.new(
+            success: true, failure_reason: FailureReason::NoPrDescription.serialize,
+            log_path: last[:result].log_path, turns_used: last[:result].turns_used,
+            files_changed: last[:result].files_changed
+          )
+          committed.each { |c| handle_failure(c[:backlog_item], no_desc_result) }
+          return
+        end
+
+        push_and_create_pr_batch(committed, worktree_path, branch)
       end
 
       sig { params(backlog_item: Core::BacklogItem, result: RunnerResult).void }
@@ -101,9 +127,9 @@ module Nightshift
         # Rate limit: skip judge (would also be rate-limited), backoff 30min
         if failure_reason == FailureReason::RateLimited.serialize
           Log.warn 'rate limited — backoff 30min'
-          record_cycle(backlog_item, verdict: VerdictName::RateLimited,
-                                     root_cause: 'rate_limited', log_path: result.log_path,
-                                     turns: result.turns_used)
+          @store.record_cycle(backlog_item, verdict: VerdictName::RateLimited,
+                                            root_cause: 'rate_limited', log_path: result.log_path,
+                                            turns: result.turns_used)
           Integrations::Worktree.cleanup(branch)
           @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
                                        branch: nil, failure_reason: nil,
@@ -123,11 +149,11 @@ module Nightshift
         Log.info "└─ patch: #{verdict.suggested_patch ? 'yes' : 'none'}"
 
         # Record the cycle
-        record_cycle(backlog_item, verdict: verdict.verdict,
-                                   root_cause: verdict.root_cause,
-                                   suggested_patch: verdict.suggested_patch,
-                                   confidence: verdict.confidence,
-                                   log_path: result.log_path, turns: result.turns_used)
+        @store.record_cycle(backlog_item, verdict: verdict.verdict,
+                                          root_cause: verdict.root_cause,
+                                          suggested_patch: verdict.suggested_patch,
+                                          confidence: verdict.confidence,
+                                          log_path: result.log_path, turns: result.turns_used)
 
         # Store infra suggestion if infra_error
         if verdict.verdict == VerdictName::InfraError && verdict.root_cause
@@ -138,19 +164,15 @@ module Nightshift
 
         # Decide: retry or stop
         if CI::Judge.retryable?(verdict, retry_count)
-          # Apply patch if skill_defect with good confidence
-          if verdict.verdict == VerdictName::SkillDefect && verdict.suggested_patch && verdict.confidence >= 0.5
+          # Apply patch if skill_defect with high confidence
+          if verdict.verdict == VerdictName::SkillDefect && verdict.suggested_patch && verdict.confidence >= 0.75
             sha = apply_patch(skill, verdict.suggested_patch)
             if sha
-              last_cycle_id = @store.db[:autolearn_cycles]
-                                    .where(backlog_item_id: backlog_item.id)
-                                    .order(Sequel.desc(:id)).get(:id)
-              if last_cycle_id
-                @store.db[:autolearn_cycles]
-                      .where(id: last_cycle_id)
-                      .update(skill_patch_sha: sha)
-              end
+              cycle_id = @store.last_cycle_id(backlog_item)
+              @store.update_cycle_patch_sha(cycle_id, sha) if cycle_id
             end
+          elsif verdict.verdict == VerdictName::SkillDefect && verdict.suggested_patch && verdict.confidence >= 0.5
+            Log.warn "low-confidence patch (#{verdict.confidence}) — skipping auto-apply, needs manual review"
           end
 
           Integrations::Worktree.cleanup(branch)
@@ -172,6 +194,75 @@ module Nightshift
                                        last_verdict: verdict.verdict)
           Log.info "⏭ skipped (#{failure.serialize})"
         end
+      end
+
+      def push_and_create_pr(backlog_item, worktree_path, result)
+        branch = backlog_item.branch
+
+        # Read pr-description.md BEFORE removing it from git
+        desc_path = File.join(worktree_path, 'pr-description.md')
+        raw = File.read(desc_path)
+        title, body = parse_pr_description(raw)
+
+        remove_pr_description(worktree_path)
+
+        unless system('git', 'push', '-u', 'origin', branch, chdir: worktree_path)
+          @store.update_backlog_status(backlog_item, BacklogStatus::Failed,
+                                       failure_reason: FailureReason::PushError)
+          Log.error "push failed for #{branch}"
+          return
+        end
+
+        pr_number = create_gh_pr(branch, title, body, worktree_path)
+        @store.update_backlog_status(backlog_item, BacklogStatus::PrOpen,
+                                     pr_number: pr_number, branch: branch)
+        Log.info "PR ##{pr_number} created"
+
+        @store.record_cycle(backlog_item, verdict: VerdictName::Success, outcome: 'improved',
+                                          log_path: result.log_path, turns: result.turns_used)
+      end
+
+      def push_and_create_pr_batch(committed, worktree_path, branch)
+        desc_path = File.join(worktree_path, 'pr-description.md')
+        raw = File.read(desc_path)
+        title, body = parse_pr_description(raw)
+
+        remove_pr_description(worktree_path)
+
+        unless system('git', 'push', '-u', 'origin', branch, chdir: worktree_path)
+          committed.each do |c|
+            @store.update_backlog_status(c[:backlog_item], BacklogStatus::Failed,
+                                         failure_reason: FailureReason::PushError)
+          end
+          Log.error "push failed for #{branch}"
+          return
+        end
+
+        pr_number = create_gh_pr(branch, title, body, worktree_path)
+
+        committed.each do |c|
+          @store.update_backlog_status(c[:backlog_item], BacklogStatus::PrOpen,
+                                       pr_number: pr_number, branch: branch)
+        end
+        Log.info "PR ##{pr_number} created (#{committed.size} items)"
+      end
+
+      def remove_pr_description(worktree_path)
+        if system('git', 'ls-files', '--error-unmatch', 'pr-description.md', chdir: worktree_path, err: File::NULL)
+          system('git', 'rm', '-f', 'pr-description.md', chdir: worktree_path)
+          system('git', 'commit', '--no-gpg-sign', '-m', 'chore: remove pr-description.md', chdir: worktree_path)
+        end
+      end
+
+      def create_gh_pr(branch, title, body, worktree_path)
+        pr_args = ['gh', 'pr', 'create', '--head', branch, '--body', body]
+        if title
+          pr_args.push('--title', title)
+        else
+          pr_args.push('--fill')
+        end
+        pr_url, = Open3.capture2(*pr_args, chdir: worktree_path)
+        pr_url.strip.split('/').last.to_i
       end
 
       def apply_patch(skill_name, patch_text)
@@ -214,25 +305,6 @@ module Nightshift
         sha, = Open3.capture2('git', '-C', nightshift_dir, 'rev-parse', 'HEAD')
         Log.info "📝 appended #{pitfall_id} to patterns.md (#{sha.strip[0, 7]})"
         sha.strip
-      end
-
-      def record_cycle(backlog_item, verdict:, root_cause: nil,
-                       suggested_patch: nil, log_path: nil, turns: nil,
-                       outcome: nil, skill_patch_sha: nil, confidence: nil)
-        retry_count = backlog_item.retry_count.to_i
-        @store.db[:autolearn_cycles].insert(
-          backlog_item_id: backlog_item.id,
-          attempt: retry_count + 1,
-          verdict: verdict.serialize,
-          root_cause: root_cause,
-          suggested_patch: suggested_patch,
-          confidence: confidence,
-          skill_patch_sha: skill_patch_sha,
-          outcome: outcome,
-          log_path: log_path,
-          turns_used: turns,
-          created_at: Time.now.to_i
-        )
       end
 
       # Parse pr-description.md: extract frontmatter title and body

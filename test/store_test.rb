@@ -490,6 +490,122 @@ class StoreTest < Minitest::Test
     refute run[:success]
   end
 
+  # --- claim_batch ---
+
+  def test_claim_batch_claims_multiple_items
+    @store.add_backlog('i18n', 'a.rb', priority: 0)
+    @store.add_backlog('i18n', 'b.rb', priority: 0)
+    @store.add_backlog('i18n', 'c.rb', priority: 0)
+
+    items = @store.claim_batch('i18n', 3)
+    assert_equal 3, items.size
+    assert_equal %w[a.rb b.rb c.rb], items.map(&:item)
+    items.each do |bi|
+      assert_equal Nightshift::BacklogStatus::Running, bi.status
+      refute_nil bi.batch_id
+    end
+    # All share the same batch_id
+    assert_equal 1, items.map(&:batch_id).uniq.size
+  end
+
+  def test_claim_batch_respects_priority_order
+    @store.add_backlog('i18n', 'low.rb', priority: 0)
+    @store.add_backlog('i18n', 'high.rb', priority: 5)
+    @store.add_backlog('i18n', 'mid.rb', priority: 2)
+
+    items = @store.claim_batch('i18n', 3)
+    assert_equal %w[high.rb mid.rb low.rb], items.map(&:item)
+  end
+
+  def test_claim_batch_returns_fewer_when_not_enough_pending
+    @store.add_backlog('i18n', 'only.rb')
+
+    items = @store.claim_batch('i18n', 5)
+    assert_equal 1, items.size
+    assert_equal 'only.rb', items.first.item
+  end
+
+  def test_claim_batch_returns_empty_when_no_pending
+    items = @store.claim_batch('i18n', 3)
+    assert_equal [], items
+  end
+
+  def test_claim_batch_skips_items_with_future_retry_after
+    @store.add_backlog('i18n', 'deferred.rb')
+    @store.add_backlog('i18n', 'ready.rb')
+    @db[:backlog_items].where(item: 'deferred.rb').update(retry_after: Time.now.to_i + 1800)
+
+    items = @store.claim_batch('i18n', 3)
+    assert_equal 1, items.size
+    assert_equal 'ready.rb', items.first.item
+  end
+
+  def test_backlog_items_for_batch
+    @store.add_backlog('i18n', 'a.rb')
+    @store.add_backlog('i18n', 'b.rb')
+    items = @store.claim_batch('i18n', 2)
+    batch_id = items.first.batch_id
+
+    found = @store.backlog_items_for_batch(batch_id)
+    assert_equal 2, found.size
+    assert_equal batch_id, found.first.batch_id
+  end
+
+  # --- record_cycle (Store) ---
+
+  def test_store_record_cycle
+    @store.add_backlog('haml', 'a.haml')
+    bi = @store.claim_next('haml')
+
+    @store.record_cycle(bi, verdict: Nightshift::VerdictName::Success, outcome: 'improved', turns: 10)
+
+    cycle = @db[:autolearn_cycles].first
+    assert_equal bi.id, cycle[:backlog_item_id]
+    assert_equal 'success', cycle[:verdict]
+    assert_equal 'improved', cycle[:outcome]
+  end
+
+  def test_last_cycle_id
+    @store.add_backlog('haml', 'a.haml')
+    bi = @store.claim_next('haml')
+    @store.record_cycle(bi, verdict: Nightshift::VerdictName::SkillDefect)
+    @store.record_cycle(bi, verdict: Nightshift::VerdictName::Success)
+
+    last_id = @store.last_cycle_id(bi)
+    cycles = @db[:autolearn_cycles].order(:id).all
+    assert_equal cycles.last[:id], last_id
+  end
+
+  def test_update_cycle_patch_sha
+    @store.add_backlog('haml', 'a.haml')
+    bi = @store.claim_next('haml')
+    @store.record_cycle(bi, verdict: Nightshift::VerdictName::SkillDefect)
+
+    cycle_id = @store.last_cycle_id(bi)
+    @store.update_cycle_patch_sha(cycle_id, 'abc1234')
+
+    cycle = @db[:autolearn_cycles].where(id: cycle_id).first
+    assert_equal 'abc1234', cycle[:skill_patch_sha]
+  end
+
+  def test_recent_cycles
+    @store.add_backlog('haml', 'a.haml')
+    bi = @store.claim_next('haml')
+    3.times { |i| @store.record_cycle(bi, verdict: Nightshift::VerdictName::SkillDefect) }
+
+    cycles = @store.recent_cycles([bi.id], limit: 2)
+    assert_equal 2, cycles.size
+  end
+
+  def test_cycles_since
+    @store.add_backlog('haml', 'a.haml')
+    bi = @store.claim_next('haml')
+    @store.record_cycle(bi, verdict: Nightshift::VerdictName::Success)
+
+    cycles = @store.cycles_since(Time.now.to_i - 60)
+    assert_equal 1, cycles.size
+  end
+
   private
 
   def seed_pr(number)

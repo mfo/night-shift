@@ -56,6 +56,14 @@ module Nightshift
       Skills::Pipeline.new(store: store).execute(backlog_item)
     end
 
+    desc 'skill_run_batch SKILL BATCH_ID', 'Run a batch of skill items (internal)', hide: true
+    def skill_run_batch(skill, batch_id)
+      backlog_items = store.backlog_items_for_batch(batch_id)
+      abort "nightshift: no items found for batch #{batch_id}" if backlog_items.empty?
+
+      Skills::Pipeline.new(store: store).execute_batch(backlog_items)
+    end
+
     # --- Subcommands ---
 
     desc 'backlog SUBCOMMAND ...ARGS', 'Manage backlog items'

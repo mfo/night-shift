@@ -103,19 +103,34 @@ module Nightshift
     sig { void }
     def pick_next_items
       repo_path = Nightshift.repo_path
-      Nightshift.skills.each_key do |skill_name|
+      Nightshift.skills.each do |skill_name, skill_config|
         next if @store.active_for_skill?(skill_name)
 
-        backlog_item = @store.claim_next(skill_name)
-        next unless backlog_item
+        batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
 
-        # Guard: skip if the target file no longer exists on main
-        unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
-          @store.update_backlog_status(backlog_item, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound)
-          next
+        if batch_size > 1
+          items = @store.claim_batch(skill_name, batch_size)
+          next if items.empty?
+
+          # Guard: skip items whose target file no longer exists on main
+          valid, stale = items.partition do |bi|
+            system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{bi.item}", err: File::NULL)
+          end
+          stale.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound) }
+          next if valid.empty?
+
+          launch_batch(skill_name, valid)
+        else
+          backlog_item = @store.claim_next(skill_name)
+          next unless backlog_item
+
+          unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
+            @store.update_backlog_status(backlog_item, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound)
+            next
+          end
+
+          launch_skill(skill_name, backlog_item)
         end
-
-        launch_skill(skill_name, backlog_item)
       end
     end
 
@@ -168,6 +183,50 @@ module Nightshift
       # Send skill-run command
       env_prefix = port ? "PORT=#{port}" : ''
       skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(backlog_item.item)}".strip
+      system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
+    end
+
+    sig { params(skill_name: String, backlog_items: T::Array[Core::BacklogItem]).void }
+    def launch_batch(skill_name, backlog_items)
+      require 'shellwords'
+      repo_path = Nightshift.repo_path
+      batch_id = backlog_items.first.batch_id
+      branch = "auto/#{skill_name}/batch-#{batch_id[0, 8]}"
+      wt_dir = "auto-#{skill_name}-batch-#{batch_id[0, 8]}"
+      wt_path = File.join(File.dirname(repo_path), wt_dir)
+
+      Integrations::Worktree.cleanup(branch)
+
+      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
+        backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError) }
+        return
+      end
+      backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Running, branch: branch) }
+
+      %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
+      Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
+
+      session = ENV.fetch('NIGHTSHIFT_SESSION')
+      skill_config = Nightshift.skills[skill_name] || {}
+
+      win_id, = Open3.capture2('tmux', 'new-window', '-t', session,
+                               '-n', "🤖 #{skill_name}-batch-#{batch_id[0, 8]}",
+                               '-c', wt_path, '-P', '-F', '#{window_id}')
+      win_id = win_id.strip
+      system('tmux', 'set-option', '-w', '-t', win_id, '@branch', branch)
+
+      port = skill_config[:port]
+      if skill_config[:needs_server] && port
+        File.write(File.join(wt_path, '.env.development.local'),
+                   "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
+        system('tmux', 'split-window', '-t', win_id, '-v', '-l', '20%', '-c', wt_path)
+        system('tmux', 'send-keys', '-t', "#{win_id}.1",
+               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", 'Enter')
+        system('tmux', 'select-pane', '-t', "#{win_id}.0")
+      end
+
+      env_prefix = port ? "PORT=#{port}" : ''
+      skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run-batch #{skill_name} #{batch_id}".strip
       system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
     end
 

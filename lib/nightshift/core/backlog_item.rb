@@ -25,6 +25,7 @@ module Nightshift
       const :last_verdict, T.nilable(String), default: nil
       const :retry_after, T.nilable(Integer), default: nil
       const :context, T.nilable(String), default: nil
+      const :batch_id, T.nilable(String), default: nil
       const :created_at, Integer
       const :updated_at, Integer
 
@@ -37,7 +38,7 @@ module Nightshift
           pr_number: row[:pr_number], failure_reason: row[:failure_reason],
           priority: row[:priority] || 0, retry_count: row[:retry_count] || 0,
           last_verdict: row[:last_verdict], retry_after: row[:retry_after],
-          context: row[:context],
+          context: row[:context], batch_id: row[:batch_id],
           created_at: row[:created_at], updated_at: row[:updated_at]
         )
       end
