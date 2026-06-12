@@ -299,33 +299,33 @@ class SkillPipelineTest < Minitest::Test
       log_path: '/tmp/test.log', turns_used: 5, files_changed: 1
     )
 
-    desc_path = nil
-    Nightshift::Integrations::Worktree.stub(:path_for_branch, '/tmp/wt') do
+    wt = Dir.mktmpdir
+    FileUtils.mkdir_p(File.join(wt, 'tmp'))
+    File.write(File.join(wt, 'pr-description.md'), "---\ntitle: \"batch PR\"\n---\nBody here")
+
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, wt) do
       Nightshift::Skills::Runner.stub(:run, success_result) do
-        # Stub pr-description.md existence and content
         @pipeline.stub(:system, true) do
-          File.stub(:exist?, ->(p) { desc_path = p; true }) do
-            File.stub(:read, "---\ntitle: \"batch PR\"\n---\nBody here") do
-              Open3.stub(:capture2, ["https://github.com/org/repo/pull/42\n", nil]) do
-                @pipeline.execute_batch([bi1, bi2])
-              end
-            end
+          Open3.stub(:capture2, ["https://github.com/org/repo/pull/42\n", nil]) do
+            @pipeline.execute_batch([bi1, bi2])
           end
         end
       end
     end
 
-    # Both items should be pr_open
     assert_equal 'pr_open', @db[:backlog_items].where(id: bi1.id).first[:status]
     assert_equal 'pr_open', @db[:backlog_items].where(id: bi2.id).first[:status]
-
-    # Both share same PR number
     assert_equal 42, @db[:backlog_items].where(id: bi1.id).first[:pr_number]
     assert_equal 42, @db[:backlog_items].where(id: bi2.id).first[:pr_number]
 
-    # 2 success cycles recorded
     cycles = @db[:autolearn_cycles].where(verdict: 'success').all
     assert_equal 2, cycles.size
+
+    # Descriptions persisted to disk
+    descs = Dir.glob(File.join(wt, 'tmp', 'batch-descriptions', '*.md'))
+    assert_equal 2, descs.size
+  ensure
+    FileUtils.rm_rf(wt)
   end
 
   def test_execute_batch_partial_failure
@@ -352,17 +352,17 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.9
     )
 
-    Nightshift::Integrations::Worktree.stub(:path_for_branch, '/tmp/wt') do
+    wt = Dir.mktmpdir
+    FileUtils.mkdir_p(File.join(wt, 'tmp'))
+    File.write(File.join(wt, 'pr-description.md'), "---\ntitle: \"partial batch\"\n---\nBody")
+
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, wt) do
       Nightshift::Skills::Runner.stub(:run, runner_stub) do
         Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
           Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
             @pipeline.stub(:system, true) do
-              File.stub(:exist?, true) do
-                File.stub(:read, "---\ntitle: \"partial batch\"\n---\nBody") do
-                  Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
-                    @pipeline.execute_batch([bi1, bi2])
-                  end
-                end
+              Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
+                @pipeline.execute_batch([bi1, bi2])
               end
             end
           end
@@ -370,12 +370,11 @@ class SkillPipelineTest < Minitest::Test
       end
     end
 
-    # First item succeeded → pr_open
     assert_equal 'pr_open', @db[:backlog_items].where(id: bi1.id).first[:status]
     assert_equal 99, @db[:backlog_items].where(id: bi1.id).first[:pr_number]
-
-    # Second item failed → skipped (item_hard)
     assert_equal 'skipped', @db[:backlog_items].where(id: bi2.id).first[:status]
+  ensure
+    FileUtils.rm_rf(wt)
   end
 
   def test_execute_batch_no_worktree
@@ -403,7 +402,10 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.9
     )
 
-    Nightshift::Integrations::Worktree.stub(:path_for_branch, '/tmp/wt') do
+    wt = Dir.mktmpdir
+    FileUtils.mkdir_p(File.join(wt, 'tmp'))
+
+    Nightshift::Integrations::Worktree.stub(:path_for_branch, wt) do
       Nightshift::Skills::Runner.stub(:run, fail_result) do
         Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
           Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
@@ -414,6 +416,8 @@ class SkillPipelineTest < Minitest::Test
     end
 
     assert_equal 'skipped', @db[:backlog_items].where(id: bi1.id).first[:status]
+  ensure
+    FileUtils.rm_rf(wt)
   end
 
   # --- confidence threshold ---

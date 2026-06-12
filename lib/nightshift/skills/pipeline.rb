@@ -78,13 +78,21 @@ module Nightshift
         committed = []
         failed = []
 
-        backlog_items.each do |backlog_item|
+        desc_path = File.join(worktree_path, 'pr-description.md')
+        desc_dir = File.join(worktree_path, 'tmp', 'batch-descriptions')
+        FileUtils.mkdir_p(desc_dir)
+
+        backlog_items.each_with_index do |backlog_item, idx|
           Log.info "batch #{committed.size + 1}/#{backlog_items.size}: #{backlog_item.item}"
 
           result = Runner.run(skill, item: backlog_item.item, worktree_path: worktree_path,
                                      context: backlog_item.context)
 
           if result.success
+            # Persist pr-description.md to disk (survives crash, not just RAM)
+            if File.exist?(desc_path)
+              FileUtils.cp(desc_path, File.join(desc_dir, "#{idx}.md"))
+            end
             committed << { backlog_item: backlog_item, result: result }
             @store.record_cycle(backlog_item, verdict: VerdictName::Success, outcome: 'committed',
                                               log_path: result.log_path, turns: result.turns_used)
@@ -99,10 +107,8 @@ module Nightshift
           return
         end
 
-        # Check pr-description.md (written by the last successful skill run)
-        desc_path = File.join(worktree_path, 'pr-description.md')
-        unless File.exist?(desc_path)
-          # Use last committed item as the reporter
+        # Check that at least one item produced a pr-description
+        unless Dir.glob(File.join(desc_dir, '*.md')).any?
           last = committed.last
           no_desc_result = RunnerResult.new(
             success: true, failure_reason: FailureReason::NoPrDescription.serialize,
@@ -223,9 +229,7 @@ module Nightshift
       end
 
       def push_and_create_pr_batch(committed, worktree_path, branch)
-        desc_path = File.join(worktree_path, 'pr-description.md')
-        raw = File.read(desc_path)
-        title, body = parse_pr_description(raw)
+        title, body = combine_batch_descriptions(worktree_path)
 
         remove_pr_description(worktree_path)
 
@@ -245,6 +249,25 @@ module Nightshift
                                        pr_number: pr_number, branch: branch)
         end
         Log.info "PR ##{pr_number} created (#{committed.size} items)"
+      end
+
+      def combine_batch_descriptions(worktree_path)
+        desc_dir = File.join(worktree_path, 'tmp', 'batch-descriptions')
+        files = Dir.glob(File.join(desc_dir, '*.md')).sort
+
+        if files.size == 1
+          return parse_pr_description(File.read(files.first))
+        end
+
+        titles = []
+        bodies = []
+        files.each do |f|
+          t, b = parse_pr_description(File.read(f))
+          titles << t if t
+          bodies << b if b && !b.empty?
+        end
+
+        [titles.first, bodies.join("\n\n---\n\n")]
       end
 
       def remove_pr_description(worktree_path)
