@@ -39,7 +39,7 @@ module Nightshift
         abort "nightshift: backlog item ##{id} not found" unless item
 
         say ''
-        say "  ##{item.id} [#{item.skill.serialize}] #{item.item}"
+        say "  ##{item.id} [#{item.skill}] #{item.item}"
         say "  Status: #{item.status.serialize}#{item.failure_reason ? " (#{item.failure_reason})" : ''}"
         say "  Retries: #{item.retry_count}/#{CI::Judge::MAX_RETRIES}  Last verdict: #{item.last_verdict || '-'}"
         say "  Branch: #{item.branch || '-'}"

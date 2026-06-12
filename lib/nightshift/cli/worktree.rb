@@ -24,7 +24,7 @@ module Nightshift
 
       desc 'open BRANCH', 'Open a new worktree and tmux window'
       def open(branch)
-        repo_path = ENV.fetch('NIGHTSHIFT_REPO')
+        repo_path = Nightshift.repo_path
         session = ENV.fetch('NIGHTSHIFT_SESSION')
         wt_path = File.join(File.dirname(repo_path), branch)
 

@@ -5,8 +5,6 @@ require 'open3'
 module Nightshift
   module UI
     class TmuxRenderer
-      BINSTUB = File.expand_path('../../../bin/nightshift-rb', __dir__).freeze
-
       def initialize(session: ENV.fetch('NIGHTSHIFT_SESSION'))
         @session = session
       end
@@ -38,7 +36,7 @@ module Nightshift
         return unless target
 
         system('tmux', 'send-keys', '-t', "#{@session}:#{target}",
-               "#{BINSTUB} autofix #{pr.number}", 'Enter')
+               "#{Nightshift.binstub_cmd} pr autofix #{pr.number}", 'Enter')
       end
 
       def propose_merge(pr)
@@ -89,7 +87,7 @@ module Nightshift
 
         system('tmux', 'display-menu', '-t', "#{@session}:#{target}",
                '-T', "PR ##{pr.number} #{pr.github_state == 'MERGED' ? 'merged' : 'deployed'}",
-               'Close worktree', 'c', "send-keys -t #{@session}:#{target} '#{BINSTUB} close #{pr.branch}' Enter",
+               'Close worktree', 'c', "send-keys -t #{@session}:#{target} '#{Nightshift.binstub_cmd} worktree close #{pr.branch}' Enter",
                'Keep', 'k', '')
       end
 
@@ -100,7 +98,7 @@ module Nightshift
 
         out, _, status = Open3.capture3(
           'tmux', 'list-windows', '-t', @session,
-          '-F', "#{window_index} #{@branch}"
+          '-F', '#{window_index} #{@branch}'
         )
         unless status.success?
           Log.warn "tmux session #{@session} not found (#{caller_action})" if caller_action

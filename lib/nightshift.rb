@@ -10,32 +10,22 @@ require 'fileutils'
 require 'zeitwerk'
 
 module Nightshift
-  SKILLS = {
-    'haml-migration' => { scan: 'app/views/**/*.html.haml', needs_server: true, port: 3210 },
-    'test-optimization' => { scan: 'spec/**/*_spec.rb' },
-    'i18n-hardcoded' => {
-      scan: 'app/{mailers,components}/**/*.{rb,html.erb}',
-      needs_server: true, port: 3220,
-      priority_map: {
-        %r{/dossiers/|/users/|quotient_familial|notification_mailer|user_mailer|phishing_alert} => 3,
-        %r{/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer} => 2
-      }
-    },
-    'n1-query-fix' => {
-      scan_proc: lambda { |repo_path, store|
-        Integrations::N1Scanner.scan(repo_path, store)
-      }
-    },
-    'reprioritize' => { meta: true }
-  }.freeze
-
   BranchName = T.type_alias { String }
 
-  def self.skill_names = SKILLS.keys
+  BINSTUB = File.expand_path('../bin/nightshift-rb', __dir__).freeze
+
+  class << self
+    attr_accessor :config
+
+    def repo_path = config.repo_path
+    def skill_names = config.skill_names
+    def skills = config.skills
+    def binstub_cmd = "#{BINSTUB} --repo #{repo_path}"
+  end
 
   def self.db
     @db ||= begin
-      path = ENV.fetch('NIGHTSHIFT_DB_PATH')
+      path = config.db_path
       FileUtils.mkdir_p(File.dirname(path))
       db = Sequel.sqlite(path)
       db.run('PRAGMA journal_mode=WAL')

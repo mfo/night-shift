@@ -7,8 +7,8 @@ module Nightshift
       extend T::Sig
 
       const :id, Integer
-      const :skill, SkillName
-      const :item, Pathname
+      const :skill, String
+      const :item, String
       const :status, BacklogStatus
       const :branch, T.nilable(String), default: nil
       const :pr_number, T.nilable(Integer), default: nil
@@ -25,7 +25,7 @@ module Nightshift
       sig { params(row: T::Hash[Symbol, T.untyped]).returns(BacklogItem) }
       def self.from_row(row)
         new(
-          id: row[:id], skill: SkillName.deserialize(row[:skill]), item: Pathname.new(row[:item]),
+          id: row[:id], skill: row[:skill], item: row[:item],
           status: BacklogStatus.deserialize(row[:status]), branch: row[:branch],
           pr_number: row[:pr_number], failure_reason: row[:failure_reason],
           priority: row[:priority] || 0, retry_count: row[:retry_count] || 0,

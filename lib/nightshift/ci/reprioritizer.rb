@@ -20,7 +20,7 @@ module Nightshift
           items: items.map do |i|
             {
               id: i.id,
-              item: i.item.to_s,
+              item: i.item,
               priority: i.priority,
               context: if i.context
                          begin

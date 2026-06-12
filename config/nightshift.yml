@@ -1,0 +1,25 @@
+# .nightshift.yml — reference config (copy to target repo root)
+#
+# Each target repo gets its own .nightshift.yml defining which skills
+# to run and how to scan for backlog items.
+#
+# DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
+
+skills:
+  haml-migration:
+    scan: "app/views/**/*.html.haml"
+    needs_server: true
+    port: 3210
+  test-optimization:
+    scan: "spec/**/*_spec.rb"
+  i18n-hardcoded:
+    scan: "app/{mailers,components}/**/*.{rb,html.erb}"
+    needs_server: true
+    port: 3220
+    priority_map:
+      "/dossiers/|/users/|quotient_familial|notification_mailer|user_mailer|phishing_alert": 3
+      "/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer": 2
+  n1-query-fix:
+    scan_proc: n1_scanner
+  reprioritize:
+    meta: true

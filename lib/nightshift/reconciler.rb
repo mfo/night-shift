@@ -14,7 +14,6 @@ module Nightshift
       @worktree_branches = worktree_branches
     end
 
-    SKILLS = Nightshift::SKILLS
 
     sig { params(prs: T::Array[Core::PR]).void }
     def reconcile(prs)
@@ -77,12 +76,12 @@ module Nightshift
       Integrations::Worktree.cleanup(item.branch)
       @renderer.close_worktree(item.branch)
 
-      maybe_reprioritize(item.skill.serialize)
+      maybe_reprioritize(item.skill)
     end
 
     sig { params(skill_name: String).void }
     def maybe_reprioritize(skill_name)
-      config = SKILLS[skill_name]
+      config = Nightshift.skills[skill_name]
       return unless config&.dig(:scan_proc) # only for skills with dynamic scan
 
       completed = @store.db[:backlog_items]
@@ -95,8 +94,8 @@ module Nightshift
 
     sig { void }
     def pick_next_items
-      repo_path = ENV.fetch('NIGHTSHIFT_REPO')
-      SKILLS.each_key do |skill_name|
+      repo_path = Nightshift.repo_path
+      Nightshift.skills.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
 
         item = @store.claim_next(skill_name)
@@ -115,7 +114,7 @@ module Nightshift
     sig { params(skill_name: String, item: Core::BacklogItem).void }
     def launch_skill(skill_name, item)
       require 'shellwords'
-      repo_path = ENV.fetch('NIGHTSHIFT_REPO')
+      repo_path = Nightshift.repo_path
       slug = short_slug(item.item, skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
@@ -135,13 +134,13 @@ module Nightshift
       Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
 
       session = ENV.fetch('NIGHTSHIFT_SESSION')
-      skill_config = SKILLS[skill_name] || {}
+      skill_config = Nightshift.skills[skill_name] || {}
 
       # Reuse existing window if one already has this branch (e.g. from attach)
       win_id = find_window_by_branch(session, branch)
       unless win_id
         win_id, = Open3.capture2('tmux', 'new-window', '-t', session, '-n', "🤖 #{skill_name}-#{slug}",
-                                 '-c', wt_path, '-P', '-F', window_id.to_s)
+                                 '-c', wt_path, '-P', '-F', '#{window_id}')
         win_id = win_id.strip
         system('tmux', 'set-option', '-w', '-t', win_id, '@branch', branch)
       end
@@ -159,9 +158,8 @@ module Nightshift
       end
 
       # Send skill-run command
-      binstub = File.expand_path('../../bin/nightshift-rb', __dir__)
       env_prefix = port ? "PORT=#{port}" : ''
-      skill_cmd = "#{env_prefix} '#{binstub}' skill-run #{skill_name} #{Shellwords.escape(item.item)}".strip
+      skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(item.item)}".strip
       system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
     end
 
@@ -171,7 +169,7 @@ module Nightshift
 
       out, _, status = Open3.capture3(
         'tmux', 'list-windows', '-t', session,
-        '-F', "#{window_id} #{@branch}"
+        '-F', '#{window_id} #{@branch}'
       )
       return nil unless status.success?
 

@@ -25,7 +25,7 @@ module Nightshift
 
       def run_pipeline(pr_number, store:, repo:, result: {})
         # Resolve worktree path: use the PR's worktree if it exists, fallback to main repo
-        base_repo = ENV.fetch('NIGHTSHIFT_REPO')
+        base_repo = Nightshift.repo_path
         row = store.db[:prs].where(number: pr_number.to_i).first
         branch = row&.dig(:branch)
         repo_path = (branch && Integrations::Worktree.path_for_branch(branch, base_repo)) || base_repo

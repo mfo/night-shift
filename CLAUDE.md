@@ -31,7 +31,7 @@ Reconciler.reconcile(prs)
 
 ### Types riches (T::Enum)
 
-5 enums Sorbet remplacent les magic strings/symbols dans toute la codebase :
+4 enums Sorbet remplacent les magic strings/symbols dans toute la codebase :
 
 | Enum | Valeurs | Usage |
 |---|---|---|
@@ -39,11 +39,10 @@ Reconciler.reconcile(prs)
 | `BacklogStatus` | Pending, Running, PrOpen, Done, Failed, Skipped | `BacklogItem#status`, Store queries |
 | `VerdictName` | SkillDefect, ItemHard, InfraError, ContextLimit, Success, RateLimited, + sentinels | `Verdict#verdict`, Judge, Pipeline |
 | `FailureReason` | ClaudeError, NoDiff, RateLimited, NoPrDescription, PushError, FileNotFound, WorktreeError, ZombieExhausted, ResolvedUpstream, ManualClose, AutolearnExhausted | `failure_reason` DB column via `.serialize` |
-| `SkillName` | HamlMigration, TestOptimization, I18nHardcoded, N1QueryFix, Reprioritize | `BacklogItem#skill` |
 
 **Serialisation** : `enum.serialize` → String (DB/log), `EnumClass.deserialize(str)` → Enum. La frontière est le Store.
 **Gotcha** : `T::Enum#to_s` retourne `#<ClassName::Member>`, PAS la valeur. Toujours utiliser `.serialize` pour interpolation et DB.
-**SKILLS hash** : les clés restent String (défini avant `loader.setup`). Lookup : `SKILLS[skill_name.serialize]`.
+**Skills** : définis dans `.nightshift.yml` du repo cible, chargés par `Nightshift::Config`. Accès via `Nightshift.skills` (Hash String→Hash).
 
 ### Contrats typés (T::Struct)
 
@@ -56,7 +55,7 @@ Les modules communiquent via 4 structs Sorbet immutables :
 | `CI::Verdict` | `Judge.evaluate` | `Pipeline.handle_failure` |
 | `Skills::RunnerResult` | `Runner.run` | `Pipeline.execute` |
 
-Les rows SQLite brutes (hashes Sequel) sont converties via `BacklogItem.from_row(row)` et `AutolearnCycle.from_row(row)` dans le Store. En aval, tout le code utilise la notation `.field` (pas `[:field]`). `BacklogItem.item` est typé `Pathname`.
+Les rows SQLite brutes (hashes Sequel) sont converties via `BacklogItem.from_row(row)` et `AutolearnCycle.from_row(row)` dans le Store. En aval, tout le code utilise la notation `.field` (pas `[:field]`).
 
 ### CLI (Thor)
 

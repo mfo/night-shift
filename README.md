@@ -69,7 +69,7 @@ Chaque git worktree = une fenêtre tmux, nommée avec le statut PR en temps rée
 
 ```bash
 # Session
-nightshift attach              # Crée/rattache la session tmux + lance le watch
+nightshift --repo ~/dev/mon-projet attach   # Crée/rattache la session tmux + lance le watch
 
 # PR lifecycle
 nightshift pr merge <pr>       # Auto-merge squash via gh
@@ -160,11 +160,15 @@ Documentation détaillée : [`docs/autolearn.md`](docs/autolearn.md)
 
 ### Configuration
 
+Le repo cible contient un `.nightshift.yml` (config des skills) et `.nightshift/nightshift.db` (état local, auto-créé). Voir `config/nightshift.yml` pour un exemple.
+
 ```bash
-export NIGHTSHIFT_REPO=~/dev/mon-projet       # Repo cible (défaut: ~/dev/demarches-simplifiees.fr)
+# Flag obligatoire
+nightshift --repo ~/dev/mon-projet attach
+
+# Variables d'environnement (.env dans le repo night-shift)
 export NIGHTSHIFT_SESSION=nightshift           # Nom de session tmux
 export NIGHTSHIFT_WATCH_INTERVAL=120           # Intervalle de refresh en secondes
-export NIGHTSHIFT_DB_PATH=~/.nightshift.db     # Base SQLite (backlog, PRs, cycles)
 export NIGHTSHIFT_USER=mfo                     # Utilisateur GitHub (filtrage PRs)
 export NIGHTSHIFT_AUTOFIX_MAX=3                # Autofix max par PR par fenêtre
 export NIGHTSHIFT_AUTOFIX_WINDOW=3600          # Fenêtre autofix en secondes
@@ -186,7 +190,9 @@ La review d'équipe, pas la production de PRs. Le pipeline est limité à **1 PR
 night-shift/
 ├── bin/nightshift                     # Orchestrateur tmux (bash)
 ├── bin/nightshift-rb                  # CLI Ruby (commandes métier)
+├── config/nightshift.yml              # Référence .nightshift.yml (à copier dans le repo cible)
 ├── lib/nightshift/                    # Harness Ruby (Zeitwerk autoloaded)
+│   ├── config.rb                      # Chargement .nightshift.yml (skills, DB path)
 │   ├── cli.rb                         # CLI Thor — squelette + daemon + subcommands
 │   ├── cli/                           # Subcommands Thor (1 fichier = 1 groupe)
 │   │   ├── backlog.rb                 # nightshift backlog {add,scan,list,skip,retry}

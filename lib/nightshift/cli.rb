@@ -18,8 +18,6 @@ require 'thor'
 
 module Nightshift
   class CLI < Thor
-    BINSTUB = File.expand_path('../../bin/nightshift-rb', __dir__).freeze
-
     def self.exit_on_failure? = true
 
     class << self

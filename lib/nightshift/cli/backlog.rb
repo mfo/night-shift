@@ -34,9 +34,9 @@ module Nightshift
 
       desc 'scan SKILL', 'Scan repo for backlog items'
       def scan(skill)
-        config = Nightshift::SKILLS[skill]
+        config = Nightshift.skills[skill]
         abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
-        repo_path = ENV.fetch('NIGHTSHIFT_REPO')
+        repo_path = Nightshift.repo_path
 
         if config[:scan_proc]
           count = config[:scan_proc].call(repo_path, store)
@@ -69,7 +69,7 @@ module Nightshift
           extra = " PR##{item.pr_number}" if item.pr_number
           extra += " (#{item.failure_reason})" if item.failure_reason
           prio = item.priority.to_i.positive? ? " p:#{item.priority}" : ''
-          say "  #{icon} ##{item.id} [#{item.skill.serialize}] #{item.item}#{extra}#{prio}"
+          say "  #{icon} ##{item.id} [#{item.skill}] #{item.item}#{extra}#{prio}"
         end
         say ''
         counts = items.group_by(&:status).transform_values(&:size)

@@ -5,12 +5,10 @@ require 'open3'
 module Nightshift
   module UI
     module Attach
-      BINSTUB = File.expand_path('../../../bin/nightshift-rb', __dir__).freeze
-
       module_function
 
       def run
-        repo_path = ENV.fetch('NIGHTSHIFT_REPO')
+        repo_path = Nightshift.repo_path
         session = ENV.fetch('NIGHTSHIFT_SESSION')
 
         abort 'error: tmux not installed' unless system('command', '-v', 'tmux', out: File::NULL, err: File::NULL)
@@ -57,7 +55,7 @@ module Nightshift
         system('tmux', 'set-option', '-w', '-t', session, 'allow-rename', 'off')
         # Show pane titles in border (brief per pane)
         system('tmux', 'set-option', '-t', session, 'pane-border-status', 'top')
-        system('tmux', 'set-option', '-t', session, 'pane-border-format', " #{pane_title} ")
+        system('tmux', 'set-option', '-t', session, 'pane-border-format', ' #{pane_title} ')
 
         n_red = 0
         n_green = 0
@@ -79,7 +77,7 @@ module Nightshift
           system('tmux', 'new-window', '-t', session, '-n', name, '-c', wt_path)
 
           # Store metadata in tmux window options
-          out, = Open3.capture2('tmux', 'list-windows', '-t', session, '-F', window_index.to_s)
+          out, = Open3.capture2('tmux', 'list-windows', '-t', session, '-F', '#{window_index}')
           win_idx = out.lines.last&.strip
           system('tmux', 'set-option', '-w', '-t', "#{session}:#{win_idx}", '@worktree_path', wt_path)
           system('tmux', 'set-option', '-w', '-t', "#{session}:#{win_idx}", '@branch', wt_branch)
@@ -108,7 +106,7 @@ module Nightshift
             # Auto-actions
             if pr.ci == 'red' && pr.github_state == 'OPEN'
               system('tmux', 'send-keys', '-t', "#{session}:#{win_idx}",
-                     "#{BINSTUB} autofix #{pr.number}", 'Enter')
+                     "#{Nightshift.binstub_cmd} pr autofix #{pr.number}", 'Enter')
             elsif pr.review_decision == 'APPROVED' && pr.github_state == 'OPEN' && !pr.auto_merge
               n_approved += 1
               approved_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, win_idx: win_idx }
@@ -145,7 +143,7 @@ module Nightshift
 
         # Launch brief + auto (skill picking + watch) in main window
         system('tmux', 'send-keys', '-t', "#{session}:0",
-               "#{BINSTUB} brief && #{BINSTUB} watch", 'Enter')
+               "#{Nightshift.binstub_cmd} pr brief && #{Nightshift.binstub_cmd} watch", 'Enter')
 
         # Select main window and attach
         system('tmux', 'select-window', '-t', "#{session}:0")
@@ -161,7 +159,7 @@ module Nightshift
         store = Core::Store.new
         last_brief = store.get_setting('last_brief')
         if last_brief.nil? || (Time.now.to_i - last_brief.to_i) > 14_400
-          puts "nightshift: brief outdated, run '#{BINSTUB} brief'"
+          puts "nightshift: brief outdated, run '#{Nightshift.binstub_cmd} pr brief'"
         end
 
         puts "nightshift: session exists, attaching (use 'refresh' to update)"
@@ -183,7 +181,7 @@ module Nightshift
         if approved_prs.any?
           menu_args = approved_prs.map do |pr|
             label = Shellwords.escape("✅ ##{pr[:number]} #{pr[:slug]}")
-            cmd = Shellwords.escape("#{BINSTUB} merge #{pr[:number]}")
+            cmd = Shellwords.escape("#{Nightshift.binstub_cmd} pr merge #{pr[:number]}")
             "#{label} #{pr[:number]} \"run-shell #{cmd}\""
           end.join(' ')
           menu_args += " '' '' '' 'ignorer' q ''"
@@ -194,9 +192,9 @@ module Nightshift
         cleanup_prs.each do |pr|
           emoji = pr[:deployed] ? '🚀' : '🗑'
           target = Shellwords.escape("#{session}:#{pr[:win_idx]}")
-          Shellwords.escape("#{BINSTUB} close #{pr[:branch]}")
+          Shellwords.escape("#{Nightshift.binstub_cmd} worktree close #{pr[:branch]}")
           lines << "tmux display-menu -t #{target} -T '#{emoji} ##{pr[:number]} #{pr[:slug]}' " \
-                   "'Fermer worktree' c \"send-keys -t #{target} '#{BINSTUB} close #{pr[:branch]}' Enter\" " \
+                   "'Fermer worktree' c \"send-keys -t #{target} '#{Nightshift.binstub_cmd} worktree close #{pr[:branch]}' Enter\" " \
                    "'Garder' k ''"
         end
 

@@ -151,7 +151,7 @@ module Nightshift
       end
 
       def gh_repo
-        repo_path = ENV.fetch('NIGHTSHIFT_REPO')
+        repo_path = Nightshift.repo_path
         capture('gh', 'repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner',
                 chdir: repo_path).strip
       end

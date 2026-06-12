@@ -158,7 +158,7 @@ class StoreTest < Minitest::Test
     @store.add_backlog('haml-migration', 'first.haml')
     @store.add_backlog('haml-migration', 'second.haml')
     item = @store.claim_next('haml-migration')
-    assert_equal 'first.haml', item.item.to_s
+    assert_equal 'first.haml', item.item
     assert_equal Nightshift::BacklogStatus::Running, item.status
   end
 
@@ -167,7 +167,7 @@ class StoreTest < Minitest::Test
     @store.claim_next('haml-migration')
     @store.add_backlog('haml-migration', 'second.haml')
     item = @store.claim_next('haml-migration')
-    assert_equal 'second.haml', item.item.to_s
+    assert_equal 'second.haml', item.item
   end
 
   def test_claim_next_returns_nil_when_empty
@@ -217,7 +217,7 @@ class StoreTest < Minitest::Test
     item = @store.claim_next('haml-migration')
     @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running, branch: 'auto/haml-migration/foo')
     found = @store.backlog_by_branch('auto/haml-migration/foo')
-    assert_equal 'foo.haml', found.item.to_s
+    assert_equal 'foo.haml', found.item
   end
 
   def test_backlog_by_branch_not_found
@@ -251,7 +251,7 @@ class StoreTest < Minitest::Test
 
     # Third should be "c.haml"
     item3 = @store.claim_next('haml-migration')
-    assert_equal 'c.haml', item3.item.to_s
+    assert_equal 'c.haml', item3.item
   end
 
   def test_all_backlog_ordered_by_skill_then_created
@@ -260,7 +260,7 @@ class StoreTest < Minitest::Test
     @store.add_backlog('haml-migration', 'z.haml')
     items = @store.all_backlog
     skills = items.map(&:skill)
-    assert_equal %w[haml-migration haml-migration test-optimization], skills.map(&:serialize)
+    assert_equal %w[haml-migration haml-migration test-optimization], skills
   end
 
   def test_add_backlog_with_priority
@@ -274,14 +274,14 @@ class StoreTest < Minitest::Test
     @store.add_backlog('test-optimization', 'slow_spec.rb', priority: 6641)
     @store.add_backlog('test-optimization', 'medium_spec.rb', priority: 500)
     item = @store.claim_next('test-optimization')
-    assert_equal 'slow_spec.rb', item.item.to_s
+    assert_equal 'slow_spec.rb', item.item
   end
 
   def test_claim_next_fifo_within_same_priority
     @store.add_backlog('haml-migration', 'a.haml', priority: 0)
     @store.add_backlog('haml-migration', 'b.haml', priority: 0)
     item = @store.claim_next('haml-migration')
-    assert_equal 'a.haml', item.item.to_s
+    assert_equal 'a.haml', item.item
   end
 
   def test_claim_next_skips_items_with_future_retry_after
@@ -291,7 +291,7 @@ class StoreTest < Minitest::Test
     @db[:backlog_items].where(item: 'a.haml').update(retry_after: Time.now.to_i + 1800)
 
     item = @store.claim_next('haml-migration')
-    assert_equal 'b.haml', item.item.to_s
+    assert_equal 'b.haml', item.item
   end
 
   def test_claim_next_picks_items_with_past_retry_after
@@ -300,7 +300,7 @@ class StoreTest < Minitest::Test
     @db[:backlog_items].where(item: 'a.haml').update(retry_after: Time.now.to_i - 1)
 
     item = @store.claim_next('haml-migration')
-    assert_equal 'a.haml', item.item.to_s
+    assert_equal 'a.haml', item.item
   end
 
   # --- Inspect / Retry ---
@@ -309,7 +309,7 @@ class StoreTest < Minitest::Test
     @store.add_backlog('haml-migration', 'foo.haml')
     item = @db[:backlog_items].first
     found = @store.get_backlog_item(item[:id])
-    assert_equal 'foo.haml', found.item.to_s
+    assert_equal 'foo.haml', found.item
   end
 
   def test_get_backlog_item_not_found
@@ -320,7 +320,7 @@ class StoreTest < Minitest::Test
     @store.add_backlog('haml-migration', 'foo.haml')
     item = @db[:backlog_items].first
     found = @store.get_backlog_item(item[:id].to_s)
-    assert_equal 'foo.haml', found.item.to_s
+    assert_equal 'foo.haml', found.item
   end
 
   def test_cycles_for_item

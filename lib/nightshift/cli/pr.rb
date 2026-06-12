@@ -24,7 +24,7 @@ module Nightshift
       desc 'merge PR_NUMBER', 'Merge a PR with auto-squash'
       def merge(pr_number)
         system('gh', 'pr', 'merge', pr_number, '--auto', '--squash',
-               chdir: ENV.fetch('NIGHTSHIFT_REPO'))
+               chdir: Nightshift.repo_path)
       end
 
       desc 'brief', 'Generate brief of open PRs'

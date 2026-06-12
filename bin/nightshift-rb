@@ -6,14 +6,18 @@ Dotenv.load(File.expand_path('../.env', __dir__))
 
 require_relative '../lib/nightshift'
 
+# Pre-parse --repo before Thor (config must be initialized first)
+repo_idx = ARGV.index('--repo')
+abort 'nightshift: --repo /path/to/repo required' unless repo_idx && ARGV[repo_idx + 1]
+repo_path = ARGV.slice!(repo_idx, 2).last
+
 %w[
-  NIGHTSHIFT_REPO
   NIGHTSHIFT_SESSION
-  NIGHTSHIFT_DB_PATH
   NIGHTSHIFT_USER
   NIGHTSHIFT_WATCH_INTERVAL
   NIGHTSHIFT_AUTOFIX_MAX
   NIGHTSHIFT_AUTOFIX_WINDOW
 ].each { |var| ENV.fetch(var) { abort "nightshift: missing env var #{var}" } }
 
+Nightshift.config = Nightshift::Config.new(repo_path: repo_path)
 Nightshift::CLI.start(ARGV)
