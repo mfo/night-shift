@@ -20,7 +20,13 @@ module Nightshift
     def repo_path = config.repo_path
     def skill_names = config.skill_names
     def skills = config.skills
+    def runner = config.runner
     def binstub_cmd = "#{BINSTUB} --repo #{repo_path}"
+
+    # Returns the runner binary for a given skill, falling back to global runner
+    def runner_for(skill_name)
+      skills.dig(skill_name, :runner)&.to_s || runner
+    end
   end
 
   def self.db

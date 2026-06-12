@@ -17,7 +17,9 @@ module Nightshift
       'n1_scanner' => ->(repo_path, store) { Integrations::N1Scanner.scan(repo_path, store) }
     }.freeze
 
-    attr_reader :repo_path, :skills
+    DEFAULT_RUNNER = 'claude'
+
+    attr_reader :repo_path, :skills, :runner
 
     REQUIRED_BINARIES = %w[tmux gh claude].freeze
 
@@ -28,6 +30,7 @@ module Nightshift
       yaml_path = File.join(repo_path, '.nightshift.yml')
       abort "nightshift: .nightshift.yml not found in #{repo_path}" unless File.exist?(yaml_path)
       raw = YAML.safe_load_file(yaml_path, symbolize_names: true)
+      @runner = raw[:runner]&.to_s || DEFAULT_RUNNER
       @skills = parse_skills(raw.fetch(:skills))
     end
 

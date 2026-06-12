@@ -144,12 +144,13 @@ module Nightshift
             Do NOT commit. Do NOT push.
           PROMPT
 
-          puts '  → claude fixing specs ...'
+          binary = Nightshift.runner
+          puts "  → #{binary} fixing specs ..."
           claude_log = File.join(logdir, 'claude.log')
           puts "  → logs: #{claude_log}"
 
           claude_ok = system(
-            'claude', '-p', claude_prompt,
+            binary, '-p', claude_prompt,
             '--allowedTools', 'Read,Edit,Glob,Grep,Bash(bundle exec rspec:*),Bash(git diff:*),Bash(git status)',
             '--output-format', 'stream-json', '--verbose', '--max-turns', '20',
             chdir: repo_path,

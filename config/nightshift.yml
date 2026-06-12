@@ -5,6 +5,10 @@
 #
 # DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
 
+# Global runner binary (default: claude). Used for skills, judge, autofix.
+# Override per-skill with runner: in the skill config.
+# runner: claude-ds4
+
 skills:
   haml-migration:
     scan: "app/views/**/*.html.haml"

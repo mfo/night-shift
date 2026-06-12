@@ -153,8 +153,9 @@ module Nightshift
 
       sig { params(prompt: String).returns(String) }
       def invoke_claude(prompt)
+        binary = Nightshift.runner
         out, status = Open3.capture2(
-          'claude', '-p', prompt,
+          binary, '-p', prompt,
           '--output-format', 'text',
           '--max-turns', '5'
         )

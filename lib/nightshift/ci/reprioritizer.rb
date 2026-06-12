@@ -47,8 +47,9 @@ module Nightshift
         ctx_file.close
 
         prompt = "/reprioritize #{skill_name}"
+        binary = Nightshift.runner
         out, status = Open3.capture2(
-          'claude', '-p', prompt,
+          binary, '-p', prompt,
           '--permission-mode', 'acceptEdits',
           '--output-format', 'text',
           '--max-turns', '30',

@@ -44,7 +44,8 @@ module Nightshift
         Log.info "── SKILL #{skill_name} — #{item} ──────────────────────"
 
         allowed = extract_allowed_tools(skill_name, worktree_path)
-        cmd = ['claude', '-p', prompt,
+        binary = Nightshift.runner_for(skill_name)
+        cmd = [binary, '-p', prompt,
                '--permission-mode', 'acceptEdits',
                '--output-format', 'stream-json',
                '--verbose', '--max-turns', '200']
@@ -123,8 +124,9 @@ module Nightshift
         PROMPT
 
         Log.info "── KAIZEN #{skill_name} — analyzing failure ──────────────"
+        binary = Nightshift.runner_for(skill_name)
         system(
-          'claude', '-p', prompt,
+          binary, '-p', prompt,
           '--permission-mode', 'acceptEdits',
           '--output-format', 'stream-json',
           '--verbose', '--max-turns', '15',
