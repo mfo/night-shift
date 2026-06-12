@@ -18,8 +18,10 @@ module Nightshift
     # Built-in circuit breaker (max N runs per time window).
     #
     module Autofix
+      extend T::Sig
       module_function
 
+      sig { params(pr_number: Integer, store: Core::Store).void }
       def run(pr_number, store:)
         repo = Integrations::GitHub.gh_repo
 
@@ -36,6 +38,7 @@ module Nightshift
         end || puts('  ⏳ autofix already running, skipping')
       end
 
+      sig { params(pr_number: Integer, store: Core::Store, repo: String, result: T::Hash[Symbol, T.untyped]).void }
       def run_pipeline(pr_number, store:, repo:, result: {})
         # Resolve worktree path: use the PR's worktree if it exists, fallback to main repo
         base_repo = Nightshift.repo_path

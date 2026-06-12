@@ -157,17 +157,17 @@ class StoreTest < Minitest::Test
   def test_claim_next_fifo
     @store.add_backlog('haml-migration', 'first.haml')
     @store.add_backlog('haml-migration', 'second.haml')
-    item = @store.claim_next('haml-migration')
-    assert_equal 'first.haml', item.item
-    assert_equal Nightshift::BacklogStatus::Running, item.status
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal 'first.haml', backlog_item.item
+    assert_equal Nightshift::BacklogStatus::Running, backlog_item.status
   end
 
   def test_claim_next_skips_non_pending
     @store.add_backlog('haml-migration', 'first.haml')
     @store.claim_next('haml-migration')
     @store.add_backlog('haml-migration', 'second.haml')
-    item = @store.claim_next('haml-migration')
-    assert_equal 'second.haml', item.item
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal 'second.haml', backlog_item.item
   end
 
   def test_claim_next_returns_nil_when_empty
@@ -183,30 +183,30 @@ class StoreTest < Minitest::Test
 
   def test_active_for_skill_pr_open
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
     assert @store.active_for_skill?('haml-migration')
   end
 
   def test_active_for_skill_failed_not_active
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Failed, failure_reason: 'no_diff')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed, failure_reason: 'no_diff')
     refute @store.active_for_skill?('haml-migration'),
            'failed item should not block pipeline'
   end
 
   def test_active_for_skill_done_not_active
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Done)
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Done)
     refute @store.active_for_skill?('haml-migration')
   end
 
   def test_update_backlog_status_with_extras
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Failed, failure_reason: 'no_diff')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed, failure_reason: 'no_diff')
     row = @db[:backlog_items].first
     assert_equal 'failed', row[:status]
     assert_equal 'no_diff', row[:failure_reason]
@@ -214,8 +214,8 @@ class StoreTest < Minitest::Test
 
   def test_backlog_by_branch
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running, branch: 'auto/haml-migration/foo')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running, branch: 'auto/haml-migration/foo')
     found = @store.backlog_by_branch('auto/haml-migration/foo')
     assert_equal 'foo.haml', found.item
   end
@@ -233,8 +233,8 @@ class StoreTest < Minitest::Test
 
   def test_active_for_skill_skipped_not_active
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Skipped)
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Skipped)
     refute @store.active_for_skill?('haml-migration')
   end
 
@@ -244,14 +244,14 @@ class StoreTest < Minitest::Test
     @store.add_backlog('haml-migration', 'c.haml')
 
     # Claim and finish first two
-    item1 = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item1.id, Nightshift::BacklogStatus::Done)
-    item2 = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item2.id, Nightshift::BacklogStatus::Done)
+    bi1 = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi1, Nightshift::BacklogStatus::Done)
+    bi2 = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi2, Nightshift::BacklogStatus::Done)
 
     # Third should be "c.haml"
-    item3 = @store.claim_next('haml-migration')
-    assert_equal 'c.haml', item3.item
+    bi3 = @store.claim_next('haml-migration')
+    assert_equal 'c.haml', bi3.item
   end
 
   def test_all_backlog_ordered_by_skill_then_created
@@ -273,15 +273,15 @@ class StoreTest < Minitest::Test
     @store.add_backlog('test-optimization', 'fast_spec.rb', priority: 100)
     @store.add_backlog('test-optimization', 'slow_spec.rb', priority: 6641)
     @store.add_backlog('test-optimization', 'medium_spec.rb', priority: 500)
-    item = @store.claim_next('test-optimization')
-    assert_equal 'slow_spec.rb', item.item
+    backlog_item = @store.claim_next('test-optimization')
+    assert_equal 'slow_spec.rb', backlog_item.item
   end
 
   def test_claim_next_fifo_within_same_priority
     @store.add_backlog('haml-migration', 'a.haml', priority: 0)
     @store.add_backlog('haml-migration', 'b.haml', priority: 0)
-    item = @store.claim_next('haml-migration')
-    assert_equal 'a.haml', item.item
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal 'a.haml', backlog_item.item
   end
 
   def test_claim_next_skips_items_with_future_retry_after
@@ -290,8 +290,8 @@ class StoreTest < Minitest::Test
     # Set a.haml retry_after to 30 min from now
     @db[:backlog_items].where(item: 'a.haml').update(retry_after: Time.now.to_i + 1800)
 
-    item = @store.claim_next('haml-migration')
-    assert_equal 'b.haml', item.item
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal 'b.haml', backlog_item.item
   end
 
   def test_claim_next_picks_items_with_past_retry_after
@@ -299,8 +299,8 @@ class StoreTest < Minitest::Test
     # Set retry_after to 1 second ago
     @db[:backlog_items].where(item: 'a.haml').update(retry_after: Time.now.to_i - 1)
 
-    item = @store.claim_next('haml-migration')
-    assert_equal 'a.haml', item.item
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal 'a.haml', backlog_item.item
   end
 
   # --- Inspect / Retry ---
@@ -325,34 +325,36 @@ class StoreTest < Minitest::Test
 
   def test_cycles_for_item
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @db[:backlog_items].first
+    backlog_item = @store.claim_next('haml-migration')
     2.times do |i|
       @db[:autolearn_cycles].insert(
-        backlog_item_id: item[:id], attempt: i + 1,
+        backlog_item_id: backlog_item.id, attempt: i + 1,
         verdict: 'skill_defect', created_at: Time.now.to_i + i
       )
     end
-    cycles = @store.cycles_for_item(item[:id])
+    cycles = @store.cycles_for_item(backlog_item)
     assert_equal 2, cycles.size
     assert_equal 1, cycles.first.attempt
     assert_equal 2, cycles.last.attempt
   end
 
   def test_cycles_for_item_empty
-    assert_equal [], @store.cycles_for_item(999)
+    @store.add_backlog('haml-migration', 'orphan.haml')
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal [], @store.cycles_for_item(backlog_item)
   end
 
   def test_retry_backlog_item
     @store.add_backlog('haml-migration', 'foo.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Skipped,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Skipped,
                                  failure_reason: 'autolearn_exhausted',
                                  last_verdict: 'skill_defect')
-    @db[:backlog_items].where(id: item.id).update(retry_count: 3)
+    @db[:backlog_items].where(id: backlog_item.id).update(retry_count: 3)
 
-    @store.retry_backlog_item(item.id)
+    @store.retry_backlog_item(backlog_item)
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pending', updated[:status]
     assert_equal 0, updated[:retry_count]
     assert_nil updated[:last_verdict]

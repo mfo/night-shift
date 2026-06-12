@@ -40,9 +40,9 @@ module Nightshift
       def close(branch)
         session = ENV.fetch('NIGHTSHIFT_SESSION')
 
-        item = store.backlog_by_branch(branch)
-        if item && [BacklogStatus::Running, BacklogStatus::PrOpen].include?(item.status)
-          store.update_backlog_status(item.id, BacklogStatus::Failed, failure_reason: FailureReason::ManualClose.serialize)
+        backlog_item = store.backlog_by_branch(branch)
+        if backlog_item && [BacklogStatus::Running, BacklogStatus::PrOpen].include?(backlog_item.status)
+          store.update_backlog_status(backlog_item, BacklogStatus::Failed, failure_reason: FailureReason::ManualClose)
           say_status :close, "backlog item marked failed (manual_close)", :yellow
         end
 
@@ -58,23 +58,23 @@ module Nightshift
         session = ENV.fetch('NIGHTSHIFT_SESSION')
         renderer = UI::TmuxRenderer.new(session: session)
 
-        items = store.all_backlog(skill: skill).select do |i|
-          [BacklogStatus::Running, BacklogStatus::Failed].include?(i.status) || (i.status == BacklogStatus::Pending && i.branch)
+        backlog_items = store.all_backlog(skill: skill).select do |bi|
+          [BacklogStatus::Running, BacklogStatus::Failed].include?(bi.status) || (bi.status == BacklogStatus::Pending && bi.branch)
         end
-        if items.empty?
+        if backlog_items.empty?
           say_status :reset, "nothing to reset for #{skill}", :yellow
           return
         end
 
-        items.each do |item|
-          if item.branch
-            renderer.close_worktree(item.branch)
-            Integrations::Worktree.cleanup(item.branch)
+        backlog_items.each do |backlog_item|
+          if backlog_item.branch
+            renderer.close_worktree(backlog_item.branch)
+            Integrations::Worktree.cleanup(backlog_item.branch)
           end
-          store.update_backlog_status(item.id, BacklogStatus::Pending, branch: nil, failure_reason: nil)
-          say "  \u2b1c ##{item.id} #{item.item} \u2192 pending"
+          store.update_backlog_status(backlog_item, BacklogStatus::Pending, branch: nil, failure_reason: nil)
+          say "  \u2b1c ##{backlog_item.id} #{backlog_item.item} \u2192 pending"
         end
-        say_status :reset, "#{items.size} item(s) for #{skill}", :green
+        say_status :reset, "#{backlog_items.size} item(s) for #{skill}", :green
       end
 
       private

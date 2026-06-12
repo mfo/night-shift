@@ -35,17 +35,17 @@ module Nightshift
 
       desc 'inspect ID', 'Inspect a backlog item and its autolearn cycles'
       def inspect(id)
-        item = store.get_backlog_item(id)
-        abort "nightshift: backlog item ##{id} not found" unless item
+        backlog_item = store.get_backlog_item(id)
+        abort "nightshift: backlog item ##{id} not found" unless backlog_item
 
         say ''
-        say "  ##{item.id} [#{item.skill}] #{item.item}"
-        say "  Status: #{item.status.serialize}#{item.failure_reason ? " (#{item.failure_reason})" : ''}"
-        say "  Retries: #{item.retry_count}/#{CI::Judge::MAX_RETRIES}  Last verdict: #{item.last_verdict || '-'}"
-        say "  Branch: #{item.branch || '-'}"
-        say "  PR: #{item.pr_number ? "##{item.pr_number}" : '-'}"
+        say "  ##{backlog_item.id} [#{backlog_item.skill}] #{backlog_item.item}"
+        say "  Status: #{backlog_item.status.serialize}#{backlog_item.failure_reason ? " (#{backlog_item.failure_reason})" : ''}"
+        say "  Retries: #{backlog_item.retry_count}/#{CI::Judge::MAX_RETRIES}  Last verdict: #{backlog_item.last_verdict || '-'}"
+        say "  Branch: #{backlog_item.branch || '-'}"
+        say "  PR: #{backlog_item.pr_number ? "##{backlog_item.pr_number}" : '-'}"
 
-        cycles = store.cycles_for_item(item.id)
+        cycles = store.cycles_for_item(backlog_item)
         if cycles.empty?
           say "\n  No autolearn cycles."
         else

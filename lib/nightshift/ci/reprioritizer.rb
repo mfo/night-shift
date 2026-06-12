@@ -14,8 +14,10 @@ module Nightshift
     # Applies returned priority scores back to the store.
     #
     module Reprioritizer
+      extend T::Sig
       module_function
 
+      sig { params(skill_name: String, store: Core::Store).void }
       def run(skill_name, store:)
         items = store.all_backlog(skill: skill_name)
                      .select { |i| i.status == BacklogStatus::Pending }
@@ -90,7 +92,10 @@ module Nightshift
         end
 
         skip_ids.each do |id|
-          store.update_backlog_status(id, BacklogStatus::Skipped, failure_reason: FailureReason::ResolvedUpstream.serialize)
+          item = store.get_backlog_item(id)
+          next unless item
+
+          store.update_backlog_status(item, BacklogStatus::Skipped, failure_reason: FailureReason::ResolvedUpstream)
         end
 
         Log.info "reprioritized #{updates.size} items, skipped #{skip_ids.size}"

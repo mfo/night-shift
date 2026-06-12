@@ -15,13 +15,13 @@ class SkillPipelineTest < Minitest::Test
   # --- record_cycle ---
 
   def test_record_cycle_inserts_row
-    item = add_backlog_item('haml-migration', 'a.haml')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml')
 
-    @pipeline.record_cycle(item, verdict: Nightshift::VerdictName::Success, outcome: 'improved',
-                                 log_path: '/tmp/test.log', turns: 42)
+    @pipeline.record_cycle(backlog_item, verdict: Nightshift::VerdictName::Success, outcome: 'improved',
+                                         log_path: '/tmp/test.log', turns: 42)
 
     cycle = @db[:autolearn_cycles].first
-    assert_equal item.id, cycle[:backlog_item_id]
+    assert_equal backlog_item.id, cycle[:backlog_item_id]
     assert_equal 1, cycle[:attempt]
     assert_equal 'success', cycle[:verdict]
     assert_equal 'improved', cycle[:outcome]
@@ -29,22 +29,22 @@ class SkillPipelineTest < Minitest::Test
   end
 
   def test_record_cycle_with_skill_patch_sha
-    item = add_backlog_item('haml-migration', 'a.haml')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml')
 
-    @pipeline.record_cycle(item, verdict: Nightshift::VerdictName::SkillDefect,
-                                 skill_patch_sha: 'abc1234')
+    @pipeline.record_cycle(backlog_item, verdict: Nightshift::VerdictName::SkillDefect,
+                                         skill_patch_sha: 'abc1234')
 
     cycle = @db[:autolearn_cycles].first
     assert_equal 'abc1234', cycle[:skill_patch_sha]
   end
 
   def test_record_cycle_respects_retry_count
-    item = add_backlog_item('haml-migration', 'a.haml')
-    @db[:backlog_items].where(id: item.id).update(retry_count: 2)
-    row = @db[:backlog_items].where(id: item.id).first
-    item = Nightshift::Core::BacklogItem.from_row(row)
+    backlog_item = add_backlog_item('haml-migration', 'a.haml')
+    @db[:backlog_items].where(id: backlog_item.id).update(retry_count: 2)
+    row = @db[:backlog_items].where(id: backlog_item.id).first
+    backlog_item = Nightshift::Core::BacklogItem.from_row(row)
 
-    @pipeline.record_cycle(item, verdict: Nightshift::VerdictName::InfraError)
+    @pipeline.record_cycle(backlog_item, verdict: Nightshift::VerdictName::InfraError)
 
     cycle = @db[:autolearn_cycles].first
     assert_equal 3, cycle[:attempt]
@@ -144,7 +144,7 @@ class SkillPipelineTest < Minitest::Test
   # --- handle_failure ---
 
   def test_handle_failure_retryable_resets_to_pending
-    item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'claude_error',
       log_path: '/tmp/test.log', turns_used: 10, files_changed: 0
@@ -157,20 +157,18 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
-          @pipeline.handle_failure('haml-migration', 'a.haml', '/tmp/wt', item, result)
-        end
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pending', updated[:status]
     assert_equal 1, updated[:retry_count]
     assert_equal 'skill_defect', updated[:last_verdict]
   end
 
   def test_handle_failure_non_retryable_skips_and_cleans_worktree
-    item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'claude_error',
       log_path: '/tmp/test.log', turns_used: 10, files_changed: 0
@@ -184,24 +182,22 @@ class SkillPipelineTest < Minitest::Test
     cleaned_branch = nil
     Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, ->(b) { cleaned_branch = b }) do
-        Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
-          @pipeline.handle_failure('haml-migration', 'a.haml', '/tmp/wt', item, result)
-        end
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'skipped', updated[:status]
     assert_equal 'item_hard', updated[:failure_reason]
     assert_nil updated[:branch], 'branch should be cleared on skip'
-    assert_equal 'auto/haml-migration/a', cleaned_branch, 'worktree should be cleaned up'
+    assert_equal 'auto/haml-migration/test', cleaned_branch, 'worktree should be cleaned up'
   end
 
   def test_handle_failure_exhausted_retries_skips
-    item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
-    @db[:backlog_items].where(id: item.id).update(retry_count: 3)
-    row = @db[:backlog_items].where(id: item.id).first
-    item = Nightshift::Core::BacklogItem.from_row(row)
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    @db[:backlog_items].where(id: backlog_item.id).update(retry_count: 3)
+    row = @db[:backlog_items].where(id: backlog_item.id).first
+    backlog_item = Nightshift::Core::BacklogItem.from_row(row)
 
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'claude_error',
@@ -215,19 +211,17 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
-          @pipeline.handle_failure('haml-migration', 'a.haml', '/tmp/wt', item, result)
-        end
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'skipped', updated[:status]
     assert_equal 'autolearn_exhausted', updated[:failure_reason]
   end
 
   def test_handle_failure_records_cycle
-    item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'no_diff',
       log_path: '/tmp/test.log', turns_used: 5, files_changed: 0
@@ -240,9 +234,7 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
-          @pipeline.handle_failure('haml-migration', 'a.haml', '/tmp/wt', item, result)
-        end
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
@@ -253,19 +245,17 @@ class SkillPipelineTest < Minitest::Test
   end
 
   def test_handle_failure_rate_limited_skips_judge_and_backs_off
-    item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'rate_limited',
       log_path: '/tmp/test.log', turns_used: 2, files_changed: 0
     )
 
     Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-      Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
-        @pipeline.handle_failure('haml-migration', 'a.haml', '/tmp/wt', item, result)
-      end
+      @pipeline.handle_failure(backlog_item, result)
     end
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pending', updated[:status]
     assert_nil updated[:branch]
     assert updated[:retry_after] > Time.now.to_i,
@@ -276,7 +266,7 @@ class SkillPipelineTest < Minitest::Test
   end
 
   def test_handle_failure_infra_error_creates_suggestion
-    item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
+    backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'claude_error',
       log_path: '/tmp/test.log', turns_used: 3, files_changed: 0
@@ -289,9 +279,7 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Open3.stub(:capture2, ["auto/haml-migration/a\n", nil]) do
-          @pipeline.handle_failure('haml-migration', 'a.haml', '/tmp/wt', item, result)
-        end
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 

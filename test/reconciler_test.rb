@@ -176,8 +176,8 @@ class ReconcilerTest < Minitest::Test
 
   def test_reconcile_skills_detect_merge_marks_done
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::PrOpen,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-foo', pr_number: 42)
 
     pr = Nightshift::Core::PR.new(number: 42, branch: 'auto/haml-migration/views-foo',
@@ -185,7 +185,7 @@ class ReconcilerTest < Minitest::Test
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'done', updated[:status]
   end
 
@@ -207,8 +207,8 @@ class ReconcilerTest < Minitest::Test
   def test_failed_item_does_not_block_pick
     @store.add_backlog('haml-migration', 'a.haml')
     @store.add_backlog('haml-migration', 'b.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Failed, failure_reason: 'test')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed, failure_reason: 'test')
     refute @store.active_for_skill?('haml-migration'),
            'failed item should not block new picks'
   end
@@ -216,9 +216,9 @@ class ReconcilerTest < Minitest::Test
   def test_skipped_item_unblocks_pick
     @store.add_backlog('haml-migration', 'a.haml')
     @store.add_backlog('haml-migration', 'b.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Failed, failure_reason: 'test')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Skipped)
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed, failure_reason: 'test')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Skipped)
     refute @store.active_for_skill?('haml-migration'),
            'skipped item should not block new picks'
   end
@@ -252,14 +252,14 @@ class ReconcilerTest < Minitest::Test
 
   def test_zombie_recovery_resets_to_pending
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/views-foo')
 
     # Add a pr_open item to block pick_next_items from re-claiming
     @store.add_backlog('haml-migration', 'app/views/bar.html.haml')
     bar = @store.claim_next('haml-migration')
-    @store.update_backlog_status(bar.id, Nightshift::BacklogStatus::PrOpen,
+    @store.update_backlog_status(bar, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-bar')
 
     # Reconcile with worktree_branches that do NOT include the zombie branch
@@ -268,7 +268,7 @@ class ReconcilerTest < Minitest::Test
                                             worktree_branches: branches_without_zombie)
     reconciler.reconcile([])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pending', updated[:status]
     assert_nil updated[:branch]
     assert_equal 1, updated[:retry_count]
@@ -276,46 +276,46 @@ class ReconcilerTest < Minitest::Test
 
   def test_zombie_recovery_skips_when_retries_exhausted
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/views-foo')
-    @db[:backlog_items].where(id: item.id).update(retry_count: 3)
+    @db[:backlog_items].where(id: backlog_item.id).update(retry_count: 3)
 
     branches_without_zombie = Set.new(%w[fix/bug fix/other])
     reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                             worktree_branches: branches_without_zombie)
     reconciler.reconcile([])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'skipped', updated[:status]
     assert_equal 'zombie_exhausted', updated[:failure_reason]
   end
 
   def test_zombie_recovery_ignores_running_with_active_worktree
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/views-foo')
 
     # Worktree exists — should NOT recover
     @reconciler.reconcile([])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'running', updated[:status]
   end
 
   def test_zombie_recovery_skips_items_without_branch
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
+    backlog_item = @store.claim_next('haml-migration')
     # Running but no branch assigned yet (edge case: claimed but not launched)
-    assert_nil item.branch
+    assert_nil backlog_item.branch
 
     branches = Set.new(%w[fix/bug])
     reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                             worktree_branches: branches)
     reconciler.reconcile([])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'running', updated[:status], 'should not touch running items with nil branch'
   end
 
@@ -323,8 +323,8 @@ class ReconcilerTest < Minitest::Test
 
   def test_handle_done_closes_worktree_via_renderer
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::PrOpen,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-foo', pr_number: 42)
 
     pr = Nightshift::Core::PR.new(number: 42, branch: 'auto/haml-migration/views-foo',
@@ -337,8 +337,8 @@ class ReconcilerTest < Minitest::Test
 
   def test_handle_done_ignores_pr_open_not_merged
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::PrOpen,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-foo', pr_number: 42)
 
     pr = Nightshift::Core::PR.new(number: 42, branch: 'auto/haml-migration/views-foo',
@@ -346,7 +346,7 @@ class ReconcilerTest < Minitest::Test
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pr_open', updated[:status]
   end
 
@@ -372,12 +372,12 @@ class ReconcilerTest < Minitest::Test
   def test_full_backlog_lifecycle_pending_to_done
     # pending → claim → running → pr_open → merged → done
     @store.add_backlog('haml-migration', 'app/views/bar.html.haml')
-    item = @store.claim_next('haml-migration')
-    assert_equal Nightshift::BacklogStatus::Running, item.status
+    backlog_item = @store.claim_next('haml-migration')
+    assert_equal Nightshift::BacklogStatus::Running, backlog_item.status
 
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running,
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/views-bar')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::PrOpen,
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-bar', pr_number: 99)
 
     pr = Nightshift::Core::PR.new(number: 99, branch: 'auto/haml-migration/views-bar',
@@ -385,7 +385,7 @@ class ReconcilerTest < Minitest::Test
     @store.reconcile_pr(pr)
     @reconciler.reconcile([pr])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'done', updated[:status]
   end
 
@@ -393,13 +393,13 @@ class ReconcilerTest < Minitest::Test
     # pending → claim → running → zombie_recovered (reset to pending) → re-claimable
     @store.add_backlog('haml-migration', 'a.haml')
     @store.add_backlog('haml-migration', 'b.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Running,
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/a')
 
     # Add a pr_open blocker so pick_next_items doesn't interfere
     blocker = @store.claim_next('haml-migration')
-    @store.update_backlog_status(blocker.id, Nightshift::BacklogStatus::PrOpen,
+    @store.update_backlog_status(blocker, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-bar')
 
     # Worktree for zombie disappears, blocker worktree stays
@@ -408,7 +408,7 @@ class ReconcilerTest < Minitest::Test
                                             worktree_branches: branches)
     reconciler.reconcile([])
 
-    updated = @db[:backlog_items].where(id: item.id).first
+    updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pending', updated[:status]
     assert_nil updated[:branch]
     assert_equal 1, updated[:retry_count]

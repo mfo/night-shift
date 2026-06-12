@@ -97,22 +97,22 @@ class CLIDispatchTest < Minitest::Test
 
   def test_backlog_skip_requires_failed_status
     @store.add_backlog('haml-migration', 'a.haml')
-    item = @store.claim_next('haml-migration')
+    backlog_item = @store.claim_next('haml-migration')
 
     assert_raises(SystemExit) do
       with_cli_store do
-        capture_io { Nightshift::CLI.start(['backlog', 'skip', item.id.to_s]) }
+        capture_io { Nightshift::CLI.start(['backlog', 'skip', backlog_item.id.to_s]) }
       end
     end
   end
 
   def test_backlog_skip_works_on_failed
     @store.add_backlog('haml-migration', 'a.haml')
-    item = @store.claim_next('haml-migration')
-    @store.update_backlog_status(item.id, Nightshift::BacklogStatus::Failed, failure_reason: 'test')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed, failure_reason: 'test')
 
     with_cli_store do
-      capture_io { Nightshift::CLI.start(['backlog', 'skip', item.id.to_s]) }
+      capture_io { Nightshift::CLI.start(['backlog', 'skip', backlog_item.id.to_s]) }
     end
     assert_equal 'skipped', @db[:backlog_items].first[:status]
   end

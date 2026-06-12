@@ -51,9 +51,9 @@ module Nightshift
     def skill_run(skill, item_path)
       branch, = Open3.capture2('git', 'rev-parse', '--abbrev-ref', 'HEAD', chdir: Dir.pwd)
       backlog_item = store.backlog_by_branch(branch.strip)
-      context = backlog_item&.context
+      abort "nightshift: no backlog item for branch #{branch.strip}" unless backlog_item
 
-      Skills::Pipeline.new(store: store).execute(skill, item_path, worktree_path: Dir.pwd, context: context)
+      Skills::Pipeline.new(store: store).execute(backlog_item)
     end
 
     # --- Subcommands ---

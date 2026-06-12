@@ -13,11 +13,10 @@ module Nightshift
     # Returns typed Core::PR structs ready for reconciliation.
     #
     module GitHub
+      extend T::Sig
       module_function
 
-      # Fetch all PRs for the current user via a single GraphQL query
-      # + deployed PRs from releases (REST)
-      # Returns Array<PR>
+      sig { returns(T::Array[Core::PR]) }
       def fetch_prs
         repo = gh_repo
         gh_user = ENV.fetch('NIGHTSHIFT_USER')
@@ -31,7 +30,7 @@ module Nightshift
         end
       end
 
-      # Fetch PR numbers deployed in recent releases (last 5)
+      sig { params(repo: String).returns(T::Array[Integer]) }
       def fetch_deployed_prs(repo = gh_repo)
         output = capture('gh', 'api', "repos/#{repo}/releases?per_page=5", '--jq', '.[].body')
         output.scan(/#(\d+)/).flatten.map(&:to_i).uniq
@@ -157,6 +156,7 @@ module Nightshift
         end
       end
 
+      sig { returns(String) }
       def gh_repo
         repo_path = Nightshift.repo_path
         capture('gh', 'repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner',

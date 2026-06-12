@@ -51,23 +51,23 @@ module Nightshift
       pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
       active_branches = @worktree_branches || list_worktree_branches
 
-      @store.all_backlog.each do |item|
-        case item.status
+      @store.all_backlog.each do |backlog_item|
+        case backlog_item.status
         when BacklogStatus::PrOpen
-          pr = pr_by_branch[item.branch]
-          handle_done(item) if pr&.github_state == 'MERGED'
+          pr = pr_by_branch[backlog_item.branch]
+          handle_done(backlog_item) if pr&.github_state == 'MERGED'
         when BacklogStatus::Running
           # Zombie recovery: running item but worktree gone
-          if item.branch && !active_branches.include?(item.branch)
-            retry_count = item.retry_count.to_i
+          if backlog_item.branch && !active_branches.include?(backlog_item.branch)
+            retry_count = backlog_item.retry_count.to_i
             if retry_count < CI::Judge::MAX_RETRIES
-              @store.update_backlog_status(item.id, BacklogStatus::Pending,
+              @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
                                            branch: nil, failure_reason: nil)
-              @store.db[:backlog_items].where(id: item.id)
+              @store.db[:backlog_items].where(id: backlog_item.id)
                     .update(retry_count: Sequel.expr(:retry_count) + 1)
             else
-              @store.update_backlog_status(item.id, BacklogStatus::Skipped,
-                                           failure_reason: FailureReason::ZombieExhausted.serialize)
+              @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
+                                           failure_reason: FailureReason::ZombieExhausted)
             end
           end
         end
@@ -78,13 +78,13 @@ module Nightshift
 
     private
 
-    sig { params(item: Core::BacklogItem).void }
-    def handle_done(item)
-      @store.update_backlog_status(item.id, BacklogStatus::Done)
-      Integrations::Worktree.cleanup(item.branch)
-      @renderer.close_worktree(item.branch)
+    sig { params(backlog_item: Core::BacklogItem).void }
+    def handle_done(backlog_item)
+      @store.update_backlog_status(backlog_item, BacklogStatus::Done)
+      Integrations::Worktree.cleanup(backlog_item.branch)
+      @renderer.close_worktree(backlog_item.branch)
 
-      maybe_reprioritize(item.skill)
+      maybe_reprioritize(backlog_item.skill)
     end
 
     sig { params(skill_name: String).void }
@@ -106,24 +106,24 @@ module Nightshift
       Nightshift.skills.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
 
-        item = @store.claim_next(skill_name)
-        next unless item
+        backlog_item = @store.claim_next(skill_name)
+        next unless backlog_item
 
         # Guard: skip if the target file no longer exists on main
-        unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{item.item}", err: File::NULL)
-          @store.update_backlog_status(item.id, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound.serialize)
+        unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
+          @store.update_backlog_status(backlog_item, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound)
           next
         end
 
-        launch_skill(skill_name, item)
+        launch_skill(skill_name, backlog_item)
       end
     end
 
-    sig { params(skill_name: String, item: Core::BacklogItem).void }
-    def launch_skill(skill_name, item)
+    sig { params(skill_name: String, backlog_item: Core::BacklogItem).void }
+    def launch_skill(skill_name, backlog_item)
       require 'shellwords'
       repo_path = Nightshift.repo_path
-      slug = short_slug(item.item, skill_name: skill_name)
+      slug = short_slug(backlog_item.item, skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
       wt_path = File.join(File.dirname(repo_path), wt_dir)
@@ -132,10 +132,10 @@ module Nightshift
       Integrations::Worktree.cleanup(branch)
 
       unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
-        @store.update_backlog_status(item.id, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError.serialize)
+        @store.update_backlog_status(backlog_item, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError)
         return
       end
-      @store.update_backlog_status(item.id, BacklogStatus::Running, branch: branch)
+      @store.update_backlog_status(backlog_item, BacklogStatus::Running, branch: branch)
 
       # Ensure gitignored dirs exist + clean logs for fresh investigation
       %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
@@ -167,7 +167,7 @@ module Nightshift
 
       # Send skill-run command
       env_prefix = port ? "PORT=#{port}" : ''
-      skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(item.item)}".strip
+      skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(backlog_item.item)}".strip
       system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
     end
 

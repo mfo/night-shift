@@ -29,6 +29,7 @@ module Nightshift
         @db = db
       end
 
+      sig { params(pr: Core::PR).void }
       def upsert(pr)
         db[:prs].insert_conflict(target: :number, update: {
                                    branch: pr.branch, state: pr.state.serialize, github_state: pr.github_state,
@@ -40,11 +41,13 @@ module Nightshift
                                  }).insert(pr.to_db_hash)
       end
 
+      sig { params(pr_number: Integer).returns(T.nilable(PRState)) }
       def get_state(pr_number)
         row = db[:prs].where(number: pr_number).first
         row&.dig(:state)&.then { |s| PRState.deserialize(s) }
       end
 
+      sig { params(pr_number: Integer, from: PRState, to: PRState).void }
       def record_transition(pr_number, from, to)
         db[:transitions].insert(
           pr_number: pr_number, from_state: from.serialize,
@@ -52,6 +55,7 @@ module Nightshift
         )
       end
 
+      sig { params(pr_number: Integer, kind: String, max: Integer, window: Integer).returns(T::Boolean) }
       def circuit_breaker?(pr_number, kind: 'autofix',
                            max: ENV.fetch('NIGHTSHIFT_AUTOFIX_MAX').to_i,
                            window: ENV.fetch('NIGHTSHIFT_AUTOFIX_WINDOW').to_i)
@@ -61,18 +65,21 @@ module Nightshift
           .count >= max
       end
 
+      sig { params(pr_number: Integer, kind: String).void }
       def record_run(pr_number, kind:)
         now = Time.now.to_i
         db[:runs].insert(pr_number: pr_number, kind: kind,
                          created_at: now, started_at: now, finished_at: now)
       end
 
+      sig { params(pr_number: Integer, kind: String, timeout: Integer).returns(T::Boolean) }
       def locked?(pr_number, kind:, timeout: 900)
         expire_zombies(kind: kind, timeout: timeout)
         active_lock?(pr_number, kind: kind)
       end
 
-      def with_lock(pr_number, kind:, timeout: 900)
+      sig { params(pr_number: Integer, kind: String, timeout: Integer, blk: T.proc.params(result: T::Hash[Symbol, T.untyped]).void).returns(T::Boolean) }
+      def with_lock(pr_number, kind:, timeout: 900, &blk)
         return false unless acquire_lock(pr_number, kind: kind, timeout: timeout)
 
         result = { success: nil }
@@ -88,6 +95,7 @@ module Nightshift
         true
       end
 
+      sig { params(pr_number: Integer, kind: String, timeout: Integer).returns(T::Boolean) }
       def acquire_lock(pr_number, kind:, timeout: 900)
         db.transaction do
           expire_zombies(kind: kind, timeout: timeout)
@@ -102,6 +110,7 @@ module Nightshift
         end
       end
 
+      sig { params(pr_number: Integer, kind: String, success: T.nilable(T::Boolean), extras: T.untyped).void }
       def release_lock(pr_number, kind:, success: nil, **extras)
         updates = { finished_at: Time.now.to_i, success: success }
         updates.merge!(extras)
@@ -109,10 +118,12 @@ module Nightshift
                  .update(updates)
       end
 
+      sig { params(key: String).returns(T.nilable(String)) }
       def get_setting(key)
         db[:settings].where(key: key).get(:value)
       end
 
+      sig { params(key: String, value: String).void }
       def set_setting(key, value)
         db[:settings].insert_conflict(target: :key, update: { value: value.to_s })
                      .insert(key: key, value: value.to_s)
@@ -120,6 +131,7 @@ module Nightshift
 
       # --- Backlog ---
 
+      sig { params(skill: String, item: String, priority: Integer, context: T.nilable(String)).void }
       def add_backlog(skill, item, priority: 0, context: nil)
         now = Time.now.to_i
         db[:backlog_items].insert_conflict(target: %i[skill item])
@@ -128,6 +140,7 @@ module Nightshift
                                   created_at: now, updated_at: now)
       end
 
+      sig { params(id: Integer, priority: Integer).void }
       def update_backlog_priority(id, priority)
         db[:backlog_items].where(id: id).update(priority: priority, updated_at: Time.now.to_i)
       end
@@ -149,17 +162,18 @@ module Nightshift
         end
       end
 
+      sig { params(skill: String).returns(T::Boolean) }
       def active_for_skill?(skill)
         db[:backlog_items]
           .where(skill: skill, status: ACTIVE_STATUSES)
           .count.positive?
       end
 
-      sig { params(id: Integer, status: BacklogStatus, extras: T.untyped).void }
-      def update_backlog_status(id, status, **extras)
+      sig { params(backlog_item: BacklogItem, status: BacklogStatus, extras: T.untyped).void }
+      def update_backlog_status(backlog_item, status, **extras)
         updates = { status: status.serialize, updated_at: Time.now.to_i }
-        updates.merge!(extras)
-        db[:backlog_items].where(id: id).update(updates)
+        extras.each { |k, v| updates[k] = v.is_a?(T::Enum) ? v.serialize : v }
+        db[:backlog_items].where(id: backlog_item.id).update(updates)
       end
 
       sig { params(branch: String).returns(T.nilable(BacklogItem)) }
@@ -181,16 +195,17 @@ module Nightshift
         row ? BacklogItem.from_row(row) : nil
       end
 
-      sig { params(backlog_item_id: Integer).returns(T::Array[AutolearnCycle]) }
-      def cycles_for_item(backlog_item_id)
+      sig { params(backlog_item: BacklogItem).returns(T::Array[AutolearnCycle]) }
+      def cycles_for_item(backlog_item)
         db[:autolearn_cycles]
-          .where(backlog_item_id: backlog_item_id)
+          .where(backlog_item_id: backlog_item.id)
           .order(:attempt)
           .all.map { |row| AutolearnCycle.from_row(row) }
       end
 
-      def retry_backlog_item(id)
-        db[:backlog_items].where(id: id.to_i)
+      sig { params(backlog_item: BacklogItem).void }
+      def retry_backlog_item(backlog_item)
+        db[:backlog_items].where(id: backlog_item.id)
                           .update(status: PENDING_S, retry_count: 0,
                                   last_verdict: nil, failure_reason: nil, branch: nil,
                                   retry_after: nil, updated_at: Time.now.to_i)
@@ -198,6 +213,7 @@ module Nightshift
 
       # --- Infra suggestions ---
 
+      sig { params(skill: String, description: String, source: String, target: T.nilable(String), backlog_item_id: T.nilable(Integer)).returns(Integer) }
       def add_infra_suggestion(skill:, description:, source:, target: nil, backlog_item_id: nil)
         # Dedup: si la meme suggestion existe deja en pending, incrementer le compteur
         existing = db[:infra_suggestions]
@@ -216,12 +232,14 @@ module Nightshift
         )
       end
 
+      sig { params(skill: T.nilable(String)).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
       def pending_infra_suggestions(skill: nil)
         ds = db[:infra_suggestions].where(status: 'pending')
         ds = ds.where(skill: skill) if skill
         ds.order(Sequel.desc(:occurrences), :created_at).all
       end
 
+      sig { params(id: Integer, status: String).void }
       def resolve_infra_suggestion(id, status:)
         db[:infra_suggestions].where(id: id)
                               .update(status: status, resolved_at: Time.now.to_i)
@@ -229,17 +247,22 @@ module Nightshift
 
       # --- PRs ---
 
+      sig { params(github_state: T.nilable(String)).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
       def all_prs(github_state: nil)
         ds = db[:prs]
         ds = ds.where(github_state: github_state) if github_state
         ds.all
       end
 
+      sig { params(ttl: Integer).returns(T::Boolean) }
       def fresh?(ttl: 60)
         synced = db[:prs].max(:synced_at)
-        synced && (Time.now.to_i - synced.to_i) < ttl
+        return false unless synced
+
+        (Time.now.to_i - synced.to_i) < ttl
       end
 
+      sig { params(pr: Core::PR).returns(T::Hash[Symbol, T.untyped]) }
       def reconcile_pr(pr)
         old_state = get_state(pr.number)
         old_comment_count = get_comment_count(pr.number)
@@ -257,6 +280,7 @@ module Nightshift
           comment_delta: [comment_delta, 0].max }
       end
 
+      sig { params(pr_number: Integer).returns(T.nilable(Integer)) }
       def get_comment_count(pr_number)
         row = db[:prs].where(number: pr_number).first
         row&.dig(:comment_count)

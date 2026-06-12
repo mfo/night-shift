@@ -56,45 +56,45 @@ module Nightshift
 
       desc 'list [SKILL]', 'List backlog items, optionally filtered by skill'
       def list(skill_filter = nil)
-        items = store.all_backlog(skill: skill_filter)
+        backlog_items = store.all_backlog(skill: skill_filter)
 
         icons = { BacklogStatus::Pending => '⬜', BacklogStatus::Running => '🔄',
                   BacklogStatus::PrOpen => '🔵', BacklogStatus::Done => '✅',
                   BacklogStatus::Failed => '❌', BacklogStatus::Skipped => '⏭' }
 
         say ''
-        items.each do |item|
-          icon = icons[item.status] || '?'
+        backlog_items.each do |backlog_item|
+          icon = icons[backlog_item.status] || '?'
           extra = ''
-          extra = " PR##{item.pr_number}" if item.pr_number
-          extra += " (#{item.failure_reason})" if item.failure_reason
-          prio = item.priority.to_i.positive? ? " p:#{item.priority}" : ''
-          say "  #{icon} ##{item.id} [#{item.skill}] #{item.item}#{extra}#{prio}"
+          extra = " PR##{backlog_item.pr_number}" if backlog_item.pr_number
+          extra += " (#{backlog_item.failure_reason})" if backlog_item.failure_reason
+          prio = backlog_item.priority.to_i.positive? ? " p:#{backlog_item.priority}" : ''
+          say "  #{icon} ##{backlog_item.id} [#{backlog_item.skill}] #{backlog_item.item}#{extra}#{prio}"
         end
         say ''
-        counts = items.group_by(&:status).transform_values(&:size)
-        say "  #{items.size} items: #{counts.map { |k, v| "#{v} #{k.serialize}" }.join(', ')}"
+        counts = backlog_items.group_by(&:status).transform_values(&:size)
+        say "  #{backlog_items.size} items: #{counts.map { |k, v| "#{v} #{k.serialize}" }.join(', ')}"
         say ''
       end
 
       desc 'skip ID', 'Skip a failed backlog item'
       def skip(id)
-        item = store.get_backlog_item(id)
-        abort "nightshift: backlog item ##{id} not found" unless item
-        abort "nightshift: can only skip failed items (current: #{item.status.serialize})" unless item.status == BacklogStatus::Failed
-        store.update_backlog_status(item.id, BacklogStatus::Skipped)
-        say_status :skip, "##{id} #{item.item}", :yellow
+        backlog_item = store.get_backlog_item(id)
+        abort "nightshift: backlog item ##{id} not found" unless backlog_item
+        abort "nightshift: can only skip failed items (current: #{backlog_item.status.serialize})" unless backlog_item.status == BacklogStatus::Failed
+        store.update_backlog_status(backlog_item, BacklogStatus::Skipped)
+        say_status :skip, "##{id} #{backlog_item.item}", :yellow
       end
 
       desc 'retry ID', 'Retry a failed/skipped backlog item'
       def retry_item(id)
-        item = store.get_backlog_item(id)
-        abort "nightshift: backlog item ##{id} not found" unless item
-        unless [BacklogStatus::Failed, BacklogStatus::Skipped].include?(item.status)
-          abort "nightshift: can only retry failed/skipped items (current: #{item.status.serialize})"
+        backlog_item = store.get_backlog_item(id)
+        abort "nightshift: backlog item ##{id} not found" unless backlog_item
+        unless [BacklogStatus::Failed, BacklogStatus::Skipped].include?(backlog_item.status)
+          abort "nightshift: can only retry failed/skipped items (current: #{backlog_item.status.serialize})"
         end
-        store.retry_backlog_item(item.id)
-        say_status :retry, "##{id} #{item.item} → pending (retry_count reset)", :green
+        store.retry_backlog_item(backlog_item)
+        say_status :retry, "##{id} #{backlog_item.item} → pending (retry_count reset)", :green
       end
       map 'retry' => :retry_item
 

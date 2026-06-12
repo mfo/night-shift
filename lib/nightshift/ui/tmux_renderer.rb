@@ -12,10 +12,14 @@ module Nightshift
     # and display interactive menus. Used by Reconciler on state changes.
     #
     class TmuxRenderer
+      extend T::Sig
+
+      sig { params(session: String).void }
       def initialize(session: ENV.fetch('NIGHTSHIFT_SESSION'))
         @session = session
       end
 
+      sig { params(pr: Core::PR).void }
       def update_window(pr)
         target = find_window_by_branch(pr.branch)
         return unless target
@@ -38,6 +42,7 @@ module Nightshift
         parts.compact.join(' ')
       end
 
+      sig { params(pr: Core::PR).void }
       def autofix(pr)
         target = find_window_by_branch(pr.branch, caller_action: "autofix ##{pr.number}")
         return unless target
@@ -46,6 +51,7 @@ module Nightshift
                "#{Nightshift.binstub_cmd} pr autofix #{pr.number}", 'Enter')
       end
 
+      sig { params(pr: Core::PR).void }
       def propose_merge(pr)
         target = find_window_by_branch(pr.branch, caller_action: "propose_merge ##{pr.number}")
         return unless target
@@ -57,6 +63,7 @@ module Nightshift
                'Skip', 's', '')
       end
 
+      sig { params(pr: Core::PR).void }
       def show_comments(pr)
         target = find_window_by_branch(pr.branch, caller_action: "show_comments ##{pr.number}")
         return unless target
@@ -65,6 +72,7 @@ module Nightshift
                "gh pr view #{pr.number} --comments", 'Enter')
       end
 
+      sig { params(branch: String, command: String).void }
       def run_in_window(branch, command)
         target = find_window_by_branch(branch)
         return unless target
@@ -73,6 +81,7 @@ module Nightshift
                command, 'Enter')
       end
 
+      sig { params(branch: String).void }
       def close_worktree(branch)
         target = find_window_by_branch(branch)
         return unless target
@@ -80,6 +89,7 @@ module Nightshift
         system('tmux', 'kill-window', '-t', "#{@session}:#{target}")
       end
 
+      sig { params(pr: Core::PR).void }
       def notify_fixed(pr)
         target = find_window_by_branch(pr.branch)
         return unless target
@@ -88,6 +98,7 @@ module Nightshift
                "CI fixed on ##{pr.number} ✅")
       end
 
+      sig { params(pr: Core::PR).void }
       def propose_cleanup(pr)
         target = find_window_by_branch(pr.branch, caller_action: "propose_cleanup ##{pr.number}")
         return unless target

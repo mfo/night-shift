@@ -12,17 +12,13 @@ module Nightshift
     # merge for approved PRs, and launches the watch loop in main.
     #
     module Attach
+      extend T::Sig
       module_function
 
+      sig { void }
       def run
         repo_path = Nightshift.repo_path
         session = ENV.fetch('NIGHTSHIFT_SESSION')
-
-        abort 'error: tmux not installed' unless system('command', '-v', 'tmux', out: File::NULL, err: File::NULL)
-
-        unless File.directory?(File.join(repo_path, '.git')) || File.exist?(File.join(repo_path, '.git'))
-          abort "error: #{repo_path} is not a git repo"
-        end
 
         # If session exists, just attach
         if system('tmux', 'has-session', '-t', session, out: File::NULL, err: File::NULL)

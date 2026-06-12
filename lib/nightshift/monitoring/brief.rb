@@ -12,8 +12,10 @@ module Nightshift
     # to address, auto-merging, and CI running/green.
     #
     module Brief
+      extend T::Sig
       module_function
 
+      sig { params(store: Core::Store).void }
       def generate(store)
         rows = store.all_prs
         prs = rows.map { |r| Core::PR.from_db(r) }
@@ -158,6 +160,7 @@ module Nightshift
         []
       end
 
+      sig { params(pr_number: Integer).returns(T::Hash[Symbol, T.untyped]) }
       def fetch_all_comments(pr_number)
         review = fetch_review_comments(pr_number)
         issue = fetch_issue_comments(pr_number)

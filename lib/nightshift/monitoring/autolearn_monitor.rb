@@ -10,10 +10,14 @@ module Nightshift
     # applied patches, and infra suggestions.
     #
     class AutolearnMonitor
+      extend T::Sig
+
+      sig { params(store: Core::Store).void }
       def initialize(store:)
         @store = store
       end
 
+      sig { params(skill: T.nilable(String)).void }
       def status(skill: nil)
         puts ''
         puts '━━ autolearn status ━━'
@@ -63,6 +67,7 @@ module Nightshift
         puts ''
       end
 
+      sig { void }
       def report
         cutoff = Time.now.to_i - 86_400 * 10 # 24h
         cycles = @store.db[:autolearn_cycles]

@@ -12,9 +12,10 @@ module Nightshift
     # Cleanup includes removing the worktree dir, branch, and test DB.
     #
     module Worktree
+      extend T::Sig
       module_function
 
-      # Returns Set of branch names from all worktrees
+      sig { params(repo_path: String).returns(T::Set[String]) }
       def branches(repo_path = Nightshift.repo_path)
         out, = Open3.capture2('git', '-C', repo_path, 'worktree', 'list')
         branches = Set.new
@@ -25,7 +26,7 @@ module Nightshift
         branches
       end
 
-      # Returns [[path, branch], ...] for all worktrees (excluding main)
+      sig { params(repo_path: String).returns(T::Array[[String, String]]) }
       def list(repo_path = Nightshift.repo_path)
         out, = Open3.capture2('git', '-C', repo_path, 'worktree', 'list')
         out.lines.drop(1).filter_map do |line|
@@ -37,7 +38,7 @@ module Nightshift
         end
       end
 
-      # Returns worktree path for a given branch, or nil
+      sig { params(branch: String, repo_path: String).returns(T.nilable(String)) }
       def path_for_branch(branch, repo_path = Nightshift.repo_path)
         out, = Open3.capture2('git', '-C', repo_path, 'worktree', 'list')
         out.each_line do |line|
@@ -46,14 +47,14 @@ module Nightshift
         nil
       end
 
-      # Returns main worktree path
+      sig { params(repo_path: String).returns(String) }
       def main_path(repo_path = Nightshift.repo_path)
         out, = Open3.capture2('git', '-C', repo_path, 'worktree', 'list')
         path = out.lines.first&.split&.first
         path&.sub(/^~/, Dir.home) || repo_path
       end
 
-      # Remove a worktree, its branch, and its test database
+      sig { params(branch: String, repo_path: String).void }
       def cleanup(branch, repo_path: Nightshift.repo_path)
         wt_path = path_for_branch(branch, repo_path)
 

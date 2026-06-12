@@ -10,15 +10,23 @@ module Nightshift
   # to stdout. Severity controlled via NIGHTSHIFT_LOG_LEVEL env var.
   #
   module Log
+    extend T::Sig
     module_function
 
     def logger
       @logger ||= build_logger
     end
 
+    sig { params(msg: String).void }
     def info(msg) = logger.info(msg)
+
+    sig { params(msg: String).void }
     def warn(msg) = logger.warn(msg)
+
+    sig { params(msg: String).void }
     def error(msg) = logger.error(msg)
+
+    sig { params(msg: String).void }
     def debug(msg) = logger.debug(msg)
 
     private

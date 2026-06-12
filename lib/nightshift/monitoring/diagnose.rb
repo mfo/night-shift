@@ -12,8 +12,10 @@ module Nightshift
     # log extraction and ANSI stripping utilities used by Autofix.
     #
     module Diagnose
+      extend T::Sig
       module_function
 
+      sig { params(pr_number: T.any(Integer, String)).void }
       def run(pr_number)
         repo = Integrations::GitHub.gh_repo
 
@@ -60,6 +62,7 @@ module Nightshift
         puts ''
       end
 
+      sig { params(repo: String, pr_number: T.any(Integer, String)).returns(T.nilable(String)) }
       def extract_run_id(repo, pr_number)
         out = Integrations::GitHub.capture('gh', 'pr', 'checks', pr_number.to_s,
                                            '--repo', repo, '--json', 'link', '--jq', '.[0].link')
@@ -67,6 +70,7 @@ module Nightshift
         match&.captures&.first
       end
 
+      sig { params(repo: String, run_id: String).returns(T::Array[[String, String]]) }
       def fetch_failed_jobs(repo, run_id)
         out = Integrations::GitHub.capture('gh', 'api', "repos/#{repo}/actions/runs/#{run_id}/jobs",
                                            '--jq', '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"')
@@ -91,6 +95,7 @@ module Nightshift
         end
       end
 
+      sig { params(repo: String, job_id: String).returns(T.nilable(String)) }
       def fetch_logs(repo, job_id)
         out = Integrations::GitHub.capture('gh', 'api', "repos/#{repo}/actions/jobs/#{job_id}/logs")
         out.empty? ? nil : out
@@ -124,6 +129,7 @@ module Nightshift
         end
       end
 
+      sig { params(text: String).returns(String) }
       def strip_ansi(text)
         text.gsub(/\e\[[0-9;]*m/, '')
       end

@@ -20,29 +20,25 @@ module Nightshift
         @store = store
       end
 
-      sig do
-        params(
-          skill: String,
-          item_path: String,
-          worktree_path: String,
-          context: T.nilable(String)
-        ).void
-      end
-      def execute(skill, item_path, worktree_path:, context: nil)
-        result = Runner.run(skill, item: item_path, worktree_path: worktree_path, context: context)
+      sig { params(backlog_item: Core::BacklogItem).void }
+      def execute(backlog_item)
+        skill = backlog_item.skill
+        item_path = backlog_item.item
+        context = backlog_item.context
+        branch = backlog_item.branch
+        worktree_path = Integrations::Worktree.path_for_branch(branch)
 
-        branch, = Open3.capture2('git', 'rev-parse', '--abbrev-ref', 'HEAD',
-                                 chdir: worktree_path)
-        branch = branch.strip
-        backlog_item = @store.backlog_by_branch(branch)
-
-        unless backlog_item
-          Log.warn "no backlog item for branch #{branch}"
+        unless worktree_path
+          @store.update_backlog_status(backlog_item, BacklogStatus::Failed,
+                                       failure_reason: FailureReason::WorktreeError)
+          Log.error "no worktree found for branch #{branch}"
           return
         end
 
+        result = Runner.run(skill, item: item_path, worktree_path: worktree_path, context: context)
+
         unless result.success
-          handle_failure(skill, item_path, worktree_path, backlog_item, result)
+          handle_failure(backlog_item, result)
           return
         end
 
@@ -54,7 +50,7 @@ module Nightshift
             log_path: result.log_path, turns_used: result.turns_used,
             files_changed: result.files_changed
           )
-          handle_failure(skill, item_path, worktree_path, backlog_item, no_desc_result)
+          handle_failure(backlog_item, no_desc_result)
           return
         end
 
@@ -70,8 +66,8 @@ module Nightshift
 
         # Push
         unless system('git', 'push', '-u', 'origin', branch, chdir: worktree_path)
-          @store.update_backlog_status(backlog_item.id, BacklogStatus::Failed,
-                                       failure_reason: FailureReason::PushError.serialize)
+          @store.update_backlog_status(backlog_item, BacklogStatus::Failed,
+                                       failure_reason: FailureReason::PushError)
           Log.error "push failed for #{branch}"
           return
         end
@@ -86,7 +82,7 @@ module Nightshift
         pr_url, = Open3.capture2(*pr_args, chdir: worktree_path)
         pr_number = pr_url.strip.split('/').last.to_i
 
-        @store.update_backlog_status(backlog_item.id, BacklogStatus::PrOpen,
+        @store.update_backlog_status(backlog_item, BacklogStatus::PrOpen,
                                      pr_number: pr_number, branch: branch)
         Log.info "PR ##{pr_number} created"
 
@@ -94,16 +90,11 @@ module Nightshift
                                    log_path: result.log_path, turns: result.turns_used)
       end
 
-      sig do
-        params(
-          skill: String,
-          item_path: String,
-          worktree_path: String,
-          backlog_item: Core::BacklogItem,
-          result: RunnerResult
-        ).void
-      end
-      def handle_failure(skill, item_path, worktree_path, backlog_item, result)
+      sig { params(backlog_item: Core::BacklogItem, result: RunnerResult).void }
+      def handle_failure(backlog_item, result)
+        skill = backlog_item.skill
+        item_path = backlog_item.item
+        branch = backlog_item.branch
         failure_reason = result.failure_reason
         retry_count = backlog_item.retry_count.to_i
 
@@ -113,10 +104,8 @@ module Nightshift
           record_cycle(backlog_item, verdict: VerdictName::RateLimited,
                                      root_cause: 'rate_limited', log_path: result.log_path,
                                      turns: result.turns_used)
-          branch, = Open3.capture2('git', 'rev-parse', '--abbrev-ref', 'HEAD',
-                                   chdir: worktree_path)
-          Integrations::Worktree.cleanup(branch.strip)
-          @store.update_backlog_status(backlog_item.id, BacklogStatus::Pending,
+          Integrations::Worktree.cleanup(branch)
+          @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
                                        branch: nil, failure_reason: nil,
                                        retry_after: Time.now.to_i + 1800)
           return
@@ -164,30 +153,24 @@ module Nightshift
             end
           end
 
-          # Clean up worktree before reset — the reconciler will create a fresh one
-          branch, = Open3.capture2('git', 'rev-parse', '--abbrev-ref', 'HEAD',
-                                   chdir: worktree_path)
-          Integrations::Worktree.cleanup(branch.strip)
+          Integrations::Worktree.cleanup(branch)
 
           # Reset to pending — the reconciler will re-launch on next cycle
-          @store.update_backlog_status(backlog_item.id, BacklogStatus::Pending,
+          @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
                                        branch: nil, failure_reason: nil,
-                                       last_verdict: verdict.verdict.serialize)
+                                       last_verdict: verdict.verdict)
           @store.db[:backlog_items].where(id: backlog_item.id)
                 .update(retry_count: Sequel.expr(:retry_count) + 1)
           Log.info "🔄 reset to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES}) — reconciler will re-launch"
         else
-          reason = retry_count >= CI::Judge::MAX_RETRIES ? FailureReason::AutolearnExhausted.serialize : verdict.verdict.serialize
+          failure = retry_count >= CI::Judge::MAX_RETRIES ? FailureReason::AutolearnExhausted : verdict.verdict
 
-          # Clean up worktree before marking as skipped
-          branch, = Open3.capture2('git', 'rev-parse', '--abbrev-ref', 'HEAD',
-                                   chdir: worktree_path)
-          Integrations::Worktree.cleanup(branch.strip)
+          Integrations::Worktree.cleanup(branch)
 
-          @store.update_backlog_status(backlog_item.id, BacklogStatus::Skipped,
-                                       failure_reason: reason, branch: nil,
-                                       last_verdict: verdict.verdict.serialize)
-          Log.info "⏭ skipped (#{reason})"
+          @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
+                                       failure_reason: failure, branch: nil,
+                                       last_verdict: verdict.verdict)
+          Log.info "⏭ skipped (#{failure.serialize})"
         end
       end
 
