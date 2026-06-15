@@ -1,0 +1,28 @@
+# .nightshift.yml — demarches-simplifiees.fr
+#
+# Copy to $REPO/.nightshift.yml to activate nightshift on this repo.
+# DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
+
+# Global runner binary. Override per-skill with runner: in skill config.
+# runner: claude-ds4
+
+skills:
+  haml-migration:
+    scan: "app/views/**/*.html.haml"
+    needs_server: true
+    port: 3210
+    batch_size: 3
+  test-optimization:
+    scan: "spec/**/*_spec.rb"
+  i18n-hardcoded:
+    scan: "app/{mailers,components}/**/*.{rb,html.erb}"
+    needs_server: true
+    port: 3220
+    batch_size: 5
+    priority_map:
+      "/dossiers/|/users/|quotient_familial|notification_mailer|user_mailer|phishing_alert": 3
+      "/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer": 2
+  n1-query-fix:
+    scan_proc: n1_scanner
+  reprioritize:
+    meta: true
