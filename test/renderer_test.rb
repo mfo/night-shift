@@ -4,7 +4,7 @@ require_relative 'test_helper'
 
 class RendererTest < Minitest::Test
   def setup
-    @renderer = Nightshift::UI::TmuxRenderer.new(session: 'test-session')
+    @renderer = Nightshift::UI::TmuxAdapter.new(session: 'test-session')
   end
 
   def test_pane_brief_line_full

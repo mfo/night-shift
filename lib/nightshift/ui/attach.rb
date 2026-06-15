@@ -5,9 +5,9 @@ require 'open3'
 module Nightshift
   module UI
     #
-    # Attach — Tmux session bootstrap
+    # Attach — Session bootstrap
     #
-    # Creates a tmux session with one window per worktree, sets up
+    # Creates a multiplexer session with one window per worktree, sets up
     # pane titles with PR badges, queues autofix for red PRs, proposes
     # merge for approved PRs, and launches the watch loop in main.
     #
@@ -15,14 +15,13 @@ module Nightshift
       extend T::Sig
       module_function
 
-      sig { void }
-      def run
+      sig { params(renderer: Renderer).void }
+      def run(renderer: TmuxAdapter.new)
         repo_path = Nightshift.repo_path
         session = ENV.fetch('NIGHTSHIFT_SESSION')
 
-        # If session exists, just attach
-        if system('tmux', 'has-session', '-t', session, out: File::NULL, err: File::NULL)
-          reattach(session, repo_path)
+        if renderer.session_exists?
+          reattach(renderer, session)
           return
         end
 
@@ -30,11 +29,9 @@ module Nightshift
         puts '  nightshift'
         puts ''
 
-        # Count worktrees
         worktrees = Integrations::Worktree.list(repo_path)
         puts "  ◎ #{worktrees.size} worktrees found"
 
-        # Fetch PRs
         puts '  ◎ fetching PRs from GitHub ...'
         store = Core::Store.new
         begin
@@ -48,17 +45,11 @@ module Nightshift
           puts "  ⚠ using cached PRs (#{prs.size})"
         end
 
-        # Build PR lookup by branch
         pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
 
-        # Create session with main window
-        puts '  ◎ building tmux session ...'
+        puts '  ◎ building session ...'
         main_path = Integrations::Worktree.main_path(repo_path)
-        system('tmux', 'new-session', '-d', '-s', session, '-n', '📦 main', '-c', main_path)
-        system('tmux', 'set-option', '-w', '-t', session, 'allow-rename', 'off')
-        # Show pane titles in border (brief per pane)
-        system('tmux', 'set-option', '-t', session, 'pane-border-status', 'top')
-        system('tmux', 'set-option', '-t', session, 'pane-border-format', ' #{pane_title} ')
+        renderer.create_session(main_path: main_path)
 
         n_red = 0
         n_green = 0
@@ -77,21 +68,13 @@ module Nightshift
                    "🔨 #{wt_branch}"
                  end
 
-          system('tmux', 'new-window', '-t', session, '-n', name, '-c', wt_path)
+          win_id = renderer.create_window(name: name, path: wt_path, branch: wt_branch)
+          renderer.set_window_metadata(window_id: win_id, key: '@worktree_path', value: wt_path)
 
-          # Store metadata in tmux window options
-          out, = Open3.capture2('tmux', 'list-windows', '-t', session, '-F', '#{window_index}')
-          win_idx = out.lines.last&.strip
-          system('tmux', 'set-option', '-w', '-t', "#{session}:#{win_idx}", '@worktree_path', wt_path)
-          system('tmux', 'set-option', '-w', '-t', "#{session}:#{win_idx}", '@branch', wt_branch)
-
-          # Set pane title with PR brief
           if pr
-            pane_brief = "##{pr.number} #{pr.badge} #{pr.slug}"
-            pane_brief += " by:#{pr.reviewer}" if pr.reviewer && !pr.reviewer.to_s.empty?
-            system('tmux', 'select-pane', '-t', "#{session}:#{win_idx}", '-T', pane_brief)
+            renderer.set_pane_title(window_id: win_id, title: renderer.pane_brief_line(pr))
           else
-            system('tmux', 'select-pane', '-t', "#{session}:#{win_idx}", '-T', wt_branch)
+            renderer.set_pane_title(window_id: win_id, title: wt_branch)
           end
 
           if pr
@@ -101,32 +84,26 @@ module Nightshift
             when 'running' then n_running += 1
             end
 
-            # Per-pane brief (write to file + cat)
             Monitoring::Brief.write_pane_brief(pr, wt_path)
-            system('tmux', 'send-keys', '-t', "#{session}:#{win_idx}",
-                   'cat tmp/pr-brief.txt', 'Enter')
+            renderer.send_keys(target: "#{win_id}.0", command: 'cat tmp/pr-brief.txt')
 
-            # Auto-actions
             if pr.ci == 'red' && pr.github_state == 'OPEN'
-              system('tmux', 'send-keys', '-t', "#{session}:#{win_idx}",
-                     "#{Nightshift.binstub_cmd} pr autofix #{pr.number}", 'Enter')
+              renderer.send_keys(target: "#{win_id}.0",
+                                 command: "#{Nightshift.binstub_cmd} pr autofix #{pr.number}")
             elsif pr.review_decision == 'APPROVED' && pr.github_state == 'OPEN' && !pr.auto_merge
               n_approved += 1
-              approved_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, win_idx: win_idx }
+              approved_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, win_id: win_id }
             end
 
-            # Collect cleanup candidates (menu shown post-attach via hook)
             if %w[MERGED].include?(pr.github_state)
               cleanup_prs << { number: pr.number, branch: wt_branch, slug: pr.slug, deployed: pr.deployed,
-                               win_idx: win_idx }
+                               win_id: win_id }
             end
           end
 
           puts "    #{name}"
         end
 
-        out, = Open3.capture2('tmux', 'list-windows', '-t', session)
-        win_count = out.lines.size.to_s
         status_parts = ''
         status_parts += " #{n_approved}✅" if n_approved.positive?
         status_parts += " #{n_green}🟢" if n_green.positive?
@@ -134,31 +111,25 @@ module Nightshift
         status_parts += " #{n_running}⏳" if n_running.positive?
 
         puts ''
-        puts "  ✓ #{win_count} windows ready#{status_parts}"
+        puts "  ✓ session ready#{status_parts}"
         puts "  ◎ autofix queued for #{n_red} red PR(s)" if n_red.positive?
         puts "  ◎ merge proposed for #{n_approved} approved PR(s)" if n_approved.positive?
         puts "  ◎ #{cleanup_prs.size} worktree(s) to cleanup" if cleanup_prs.any?
         puts '  ◎ launching morning brief ...'
         puts ''
 
-        # Queue menus for after client attaches (display-menu needs active client)
-        setup_post_attach_hook(session, approved_prs, cleanup_prs) if approved_prs.any? || cleanup_prs.any?
+        renderer.send_keys(target: "#{session}:0",
+                           command: "#{Nightshift.binstub_cmd} pr brief && #{Nightshift.binstub_cmd} watch")
+        renderer.select_main_window
 
-        # Launch brief + auto (skill picking + watch) in main window
-        system('tmux', 'send-keys', '-t', "#{session}:0",
-               "#{Nightshift.binstub_cmd} pr brief && #{Nightshift.binstub_cmd} watch", 'Enter')
-
-        # Select main window and attach
-        system('tmux', 'select-window', '-t', "#{session}:0")
-        if ENV['TMUX']
-          system('tmux', 'switch-client', '-t', session)
-        else
-          system('tmux', 'attach', '-t', session)
+        if approved_prs.any? || cleanup_prs.any?
+          renderer.on_post_attach(approved_prs: approved_prs, cleanup_prs: cleanup_prs, session: session)
         end
+
+        renderer.attach_or_switch
       end
 
-      def reattach(session, _repo_path)
-        # Show teaser if last brief was > 4h ago
+      def reattach(renderer, _session)
         store = Core::Store.new
         last_brief = store.get_setting('last_brief')
         if last_brief.nil? || (Time.now.to_i - last_brief.to_i) > 14_400
@@ -166,48 +137,9 @@ module Nightshift
         end
 
         puts "nightshift: session exists, attaching (use 'refresh' to update)"
-        if ENV['TMUX']
-          system('tmux', 'switch-client', '-t', session)
-        else
-          system('tmux', 'attach', '-t', session)
-        end
+        renderer.attach_or_switch
       end
 
-      def setup_post_attach_hook(session, approved_prs, cleanup_prs)
-        require 'shellwords'
-        hook_dir = File.join(Dir.home, '.nightshift')
-        FileUtils.mkdir_p(hook_dir)
-        hook_script = File.join(hook_dir, 'attach_hook.sh')
-
-        lines = ['#!/bin/bash', 'sleep 1']
-
-        if approved_prs.any?
-          menu_args = approved_prs.map do |pr|
-            label = Shellwords.escape("✅ ##{pr[:number]} #{pr[:slug]}")
-            cmd = Shellwords.escape("#{Nightshift.binstub_cmd} pr merge #{pr[:number]}")
-            "#{label} #{pr[:number]} \"run-shell #{cmd}\""
-          end.join(' ')
-          menu_args += " '' '' '' 'ignorer' q ''"
-          lines << "tmux display-menu -T ' PRs à merger ' #{menu_args}"
-        end
-
-        # One popup per cleanup PR, targeted at its own pane
-        cleanup_prs.each do |pr|
-          emoji = pr[:deployed] ? '🚀' : '🗑'
-          target = Shellwords.escape("#{session}:#{pr[:win_idx]}")
-          Shellwords.escape("#{Nightshift.binstub_cmd} worktree close #{pr[:branch]}")
-          lines << "tmux display-menu -t #{target} -T '#{emoji} ##{pr[:number]} #{pr[:slug]}' " \
-                   "'Fermer worktree' c \"send-keys -t #{target} '#{Nightshift.binstub_cmd} worktree close #{pr[:branch]}' Enter\" " \
-                   "'Garder' k ''"
-        end
-
-        escaped_session = Shellwords.escape(session)
-        lines << "tmux set-hook -u -t #{escaped_session} client-attached"
-
-        File.write(hook_script, "#{lines.join("\n")}\n")
-        File.chmod(0o755, hook_script)
-        system('tmux', 'set-hook', '-t', session, 'client-attached', "run-shell '#{hook_script}'")
-      end
     end
   end
 end

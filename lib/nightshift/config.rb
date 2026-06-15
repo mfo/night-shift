@@ -21,7 +21,7 @@ module Nightshift
 
     attr_reader :repo_path, :skills, :runner
 
-    REQUIRED_BINARIES = %w[tmux gh claude].freeze
+    REQUIRED_BINARIES = %w[gh claude].freeze
 
     sig { params(repo_path: String).void }
     def initialize(repo_path:)

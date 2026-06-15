@@ -3,9 +3,13 @@
 require_relative 'test_helper'
 
 class FakeRenderer
+  include Nightshift::UI::Renderer
+
   attr_reader :calls
 
   def initialize = @calls = []
+
+  # Override domain helpers to record calls instead of hitting real adapters
   def run_in_window(branch, cmd) = @calls << [:run_in_window, branch, cmd]
   def close_worktree(branch) = @calls << [:close_worktree, branch]
   def update_window(pr) = @calls << [:update_window, pr.number]
@@ -14,6 +18,25 @@ class FakeRenderer
   def show_comments(pr) = @calls << [:show_comments, pr.number]
   def notify_fixed(pr) = @calls << [:notify_fixed, pr.number]
   def propose_cleanup(pr) = @calls << [:propose_cleanup, pr.number]
+
+  # Primitives (not called in tests, but satisfy the interface)
+  def session_exists? = false
+  def create_session(main_path:) = nil
+  def attach_or_switch = nil
+  def create_window(name:, path:, branch: nil) = branch
+  def find_window(branch:) = nil
+  def rename_window(window_id:, name:) = nil
+  def close_window(branch:) = nil
+  def select_main_window = nil
+  def set_window_metadata(window_id:, key:, value:) = nil
+  def split_pane(window_id:, direction: :vertical, size: '20%', path: nil) = nil
+  def set_pane_title(window_id:, title:) = nil
+  def send_keys(target:, command:) = nil
+  def focus_pane(target:) = nil
+  def notify(target:, message:) = nil
+  def menu(target:, title:, items:) = nil
+  def on_post_attach(approved_prs:, cleanup_prs:, session:) = nil
+  def launch_skill_window(name:, path:, branch:, server_cmd: nil, server_size: '20%') = branch
 end
 
 class ReconcilerTest < Minitest::Test

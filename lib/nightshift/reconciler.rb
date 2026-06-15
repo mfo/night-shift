@@ -15,7 +15,7 @@ module Nightshift
   class Reconciler
     extend T::Sig
 
-    sig { params(store: Core::Store, renderer: T.untyped, worktree_branches: T.nilable(T::Set[String])).void }
+    sig { params(store: Core::Store, renderer: UI::Renderer, worktree_branches: T.nilable(T::Set[String])).void }
     def initialize(store:, renderer:, worktree_branches: nil)
       @store = store
       @renderer = renderer
@@ -25,22 +25,18 @@ module Nightshift
 
     sig { params(prs: T::Array[Core::PR]).void }
     def reconcile(prs)
-      # Worktree-centric: only reconcile PRs that match a local worktree
       branches = @worktree_branches || list_worktree_branches
       active_prs = prs.select { |pr| branches.include?(pr.branch) }
 
       active_prs.each do |pr|
         result = @store.reconcile_pr(pr)
 
-        # 1. Comments FIRST — show if new comments detected
         @renderer.show_comments(pr) if result[:comment_delta].positive?
 
-        # 2. State transitions SECOND
         if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].serialize)
           on_transition(pr, result[:old_state], result[:new_state])
         end
 
-        # 3. Window update LAST
         @renderer.update_window(pr)
       end
       reconcile_skills(active_prs)
@@ -57,7 +53,6 @@ module Nightshift
           pr = pr_by_branch[backlog_item.branch]
           handle_done(backlog_item) if pr&.github_state == 'MERGED'
         when BacklogStatus::Running
-          # Zombie recovery: running item but worktree gone
           if backlog_item.branch && !active_branches.include?(backlog_item.branch)
             retry_count = backlog_item.retry_count.to_i
             if retry_count < CI::Judge::MAX_RETRIES
@@ -90,7 +85,7 @@ module Nightshift
     sig { params(skill_name: String).void }
     def maybe_reprioritize(skill_name)
       config = Nightshift.skills[skill_name]
-      return unless config&.dig(:scan_proc) # only for skills with dynamic scan
+      return unless config&.dig(:scan_proc)
 
       completed = @store.db[:backlog_items]
                         .where(skill: skill_name, status: Core::Store::DONE_S).count
@@ -112,7 +107,6 @@ module Nightshift
           items = @store.claim_batch(skill_name, batch_size)
           next if items.empty?
 
-          # Guard: skip items whose target file no longer exists on main
           valid, stale = items.partition do |bi|
             system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{bi.item}", err: File::NULL)
           end
@@ -143,7 +137,6 @@ module Nightshift
       wt_dir = "auto-#{skill_name}-#{slug}"
       wt_path = File.join(File.dirname(repo_path), wt_dir)
 
-      # Clean up stale branch/dir from previous failed attempts
       Integrations::Worktree.cleanup(branch)
 
       unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
@@ -152,38 +145,28 @@ module Nightshift
       end
       @store.update_backlog_status(backlog_item, BacklogStatus::Running, branch: branch)
 
-      # Ensure gitignored dirs exist + clean logs for fresh investigation
       %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
       Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
 
-      session = ENV.fetch('NIGHTSHIFT_SESSION')
       skill_config = Nightshift.skills[skill_name] || {}
-
-      # Reuse existing window if one already has this branch (e.g. from attach)
-      win_id = find_window_by_branch(session, branch)
-      unless win_id
-        win_id, = Open3.capture2('tmux', 'new-window', '-t', session, '-n', "🤖 #{skill_name}-#{slug}",
-                                 '-c', wt_path, '-P', '-F', '#{window_id}')
-        win_id = win_id.strip
-        system('tmux', 'set-option', '-w', '-t', win_id, '@branch', branch)
-      end
-
-      # Launch server in background pane if skill needs it
       port = skill_config[:port]
-      if skill_config[:needs_server] && port
+
+      server_cmd = if skill_config[:needs_server] && port
         File.write(File.join(wt_path, '.env.development.local'),
                    "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
-        system('tmux', 'split-window', '-t', win_id, '-v', '-l', '20%',
-               '-c', wt_path)
-        system('tmux', 'send-keys', '-t', "#{win_id}.1",
-               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", 'Enter')
-        system('tmux', 'select-pane', '-t', "#{win_id}.0")
+        "PORT=#{port} overmind start -f Procfile.sidekiq.dev"
       end
 
-      # Send skill-run command
+      win_id = @renderer.launch_skill_window(
+        name: "🤖 #{skill_name}-#{slug}",
+        path: wt_path,
+        branch: branch,
+        server_cmd: server_cmd
+      )
+
       env_prefix = port ? "PORT=#{port}" : ''
       skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(backlog_item.item)}".strip
-      system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
+      @renderer.send_keys(target: "#{win_id}.0", command: skill_cmd)
     end
 
     sig { params(skill_name: String, backlog_items: T::Array[Core::BacklogItem]).void }
@@ -206,45 +189,25 @@ module Nightshift
       %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
       Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
 
-      session = ENV.fetch('NIGHTSHIFT_SESSION')
       skill_config = Nightshift.skills[skill_name] || {}
-
-      win_id, = Open3.capture2('tmux', 'new-window', '-t', session,
-                               '-n', "🤖 #{skill_name}-batch-#{batch_id[0, 8]}",
-                               '-c', wt_path, '-P', '-F', '#{window_id}')
-      win_id = win_id.strip
-      system('tmux', 'set-option', '-w', '-t', win_id, '@branch', branch)
-
       port = skill_config[:port]
-      if skill_config[:needs_server] && port
+
+      server_cmd = if skill_config[:needs_server] && port
         File.write(File.join(wt_path, '.env.development.local'),
                    "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
-        system('tmux', 'split-window', '-t', win_id, '-v', '-l', '20%', '-c', wt_path)
-        system('tmux', 'send-keys', '-t', "#{win_id}.1",
-               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", 'Enter')
-        system('tmux', 'select-pane', '-t', "#{win_id}.0")
+        "PORT=#{port} overmind start -f Procfile.sidekiq.dev"
       end
+
+      win_id = @renderer.launch_skill_window(
+        name: "🤖 #{skill_name}-batch-#{batch_id[0, 8]}",
+        path: wt_path,
+        branch: branch,
+        server_cmd: server_cmd
+      )
 
       env_prefix = port ? "PORT=#{port}" : ''
       skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run-batch #{skill_name} #{batch_id}".strip
-      system('tmux', 'send-keys', '-t', "#{win_id}.0", skill_cmd, 'Enter')
-    end
-
-    sig { params(session: String, branch: String).returns(T.nilable(String)) }
-    def find_window_by_branch(session, branch)
-      return nil unless branch
-
-      out, _, status = Open3.capture3(
-        'tmux', 'list-windows', '-t', session,
-        '-F', '#{window_id} #{@branch}'
-      )
-      return nil unless status.success?
-
-      out.each_line do |line|
-        win_id, win_branch = line.strip.split(' ', 2)
-        return win_id if win_branch == branch
-      end
-      nil
+      @renderer.send_keys(target: "#{win_id}.0", command: skill_cmd)
     end
 
     sig { returns(T::Set[String]) }
