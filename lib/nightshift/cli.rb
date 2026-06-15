@@ -10,7 +10,7 @@
 # Les commandes métier sont dans des fichiers dédiés :
 #   cli/backlog.rb    — CRUD backlog items (add, scan, list, skip, retry)
 #   cli/pr.rb         — Cycle de vie PR (merge, brief, diagnose, autofix)
-#   cli/worktree.rb   — Gestion worktrees + tmux (open, close, reset)
+#   cli/worktree.rb   — Gestion worktrees + fenêtres (open, close, reset)
 #   cli/autolearn.rb  — Monitoring autolearn (status, report, inspect)
 
 require 'open3'
@@ -20,24 +20,32 @@ module Nightshift
   class CLI < Thor
     def self.exit_on_failure? = true
 
+    class_option :renderer, type: :string, enum: %w[tmux iterm2],
+                            default: ENV.fetch('NIGHTSHIFT_RENDERER', 'tmux'),
+                            desc: 'Terminal multiplexer adapter (tmux or iterm2)'
+
     class << self
-      attr_writer :store
+      attr_writer :store, :renderer
 
       def store
         @store ||= Core::Store.new
+      end
+
+      def renderer
+        @renderer ||= UI::TmuxAdapter.new
       end
     end
 
     # --- Entry point ---
 
-    desc 'attach', 'Create/attach tmux session and start watching PRs'
+    desc 'attach', 'Create/attach session and start watching PRs'
     def attach
-      UI::Attach.run
+      UI::Attach.run(renderer: build_renderer)
     end
 
-    # --- Internal (called inside tmux panes by attach/reconciler) ---
+    # --- Internal (called inside panes by attach/reconciler) ---
 
-    desc 'watch', 'Refresh and watch PRs periodically (internal, runs in tmux pane)', hide: true
+    desc 'watch', 'Refresh and watch PRs periodically (internal, runs in pane)', hide: true
     def watch
       interval = ENV.fetch('NIGHTSHIFT_WATCH_INTERVAL').to_i
       loop do
@@ -72,7 +80,7 @@ module Nightshift
     desc 'pr SUBCOMMAND ...ARGS', 'PR lifecycle (merge, brief, diagnose, autofix)'
     subcommand 'pr', PR
 
-    desc 'worktree SUBCOMMAND ...ARGS', 'Manage git worktrees and tmux windows'
+    desc 'worktree SUBCOMMAND ...ARGS', 'Manage git worktrees and windows'
     subcommand 'worktree', Worktree
 
     desc 'autolearn SUBCOMMAND ...ARGS', 'Autolearn monitoring and inspection'
@@ -85,12 +93,22 @@ module Nightshift
 
       def refresh
         prs = Integrations::GitHub.fetch_prs
-        renderer = UI::TmuxRenderer.new
+        renderer = self.class.renderer
         reconciler = Reconciler.new(store: store, renderer: renderer)
         reconciler.reconcile(prs)
         Log.info "Refreshed (#{prs.size} PRs fetched, worktree-centric)"
       rescue Integrations::GitHub::Error => e
         Log.error e.message
+      end
+
+      def build_renderer
+        choice = options[:renderer] || ENV.fetch('NIGHTSHIFT_RENDERER', 'tmux')
+        r = case choice
+            when 'iterm2' then UI::TmuxAdapter.new(mode: :cc)
+            else UI::TmuxAdapter.new
+            end
+        self.class.renderer = r
+        r
       end
     end
   end
