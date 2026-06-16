@@ -23,10 +23,8 @@ module Nightshift
     def runner = config.runner
     def binstub_cmd = "#{BINSTUB} --repo #{repo_path}"
 
-    # Returns the runner binary for a given skill, falling back to global runner
-    def runner_for(skill_name)
-      skills.dig(skill_name, :runner)&.to_s || runner
-    end
+    def backend_for(skill_name) = config.backend_for(skill_name)
+    def runner_for(skill_name) = backend_for(skill_name).harness
   end
 
   def self.db
