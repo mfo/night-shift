@@ -72,6 +72,10 @@ class RunnerConfigTest < Minitest::Test
       config.send(:initialize, repo_path: dir)
 
       assert_equal 'claude-ds4', config.runner
+      assert_equal 'claude', config.backend_for('fast-skill').harness
+      assert_equal 4, config.backend_for('fast-skill').concurrency
+      assert_equal 'claude-ds4', config.backend_for('slow-skill').harness
+      assert_equal 1, config.backend_for('slow-skill').concurrency
     end
   rescue SystemExit
     # check_preconditions! may abort if tmux/gh/claude not found in test env
