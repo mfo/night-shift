@@ -110,6 +110,7 @@ module Nightshift
         self.class.renderer = r
         r
       end
+
     end
   end
 end
