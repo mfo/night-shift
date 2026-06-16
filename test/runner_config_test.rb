@@ -78,7 +78,6 @@ class RunnerConfigTest < Minitest::Test
       assert_equal 1, config.backend_for('slow-skill').concurrency
     end
   rescue SystemExit
-    # check_preconditions! may abort if tmux/gh/claude not found in test env
     skip 'preconditions not met in test environment'
   end
 
