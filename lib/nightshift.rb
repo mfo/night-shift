@@ -86,6 +86,7 @@ loader.inflector.inflect(
   'pr' => 'PR',
   'pr_state' => 'PRState',
   'ui' => 'UI',
-  'github' => 'GitHub'
+  'github' => 'GitHub',
+  'llm_backend' => 'LLMBackend'
 )
 loader.setup

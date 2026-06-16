@@ -65,9 +65,12 @@ module Nightshift
       sig { params(repo: String, pr_number: T.any(Integer, String)).returns(T.nilable(String)) }
       def extract_run_id(repo, pr_number)
         out = Integrations::GitHub.capture('gh', 'pr', 'checks', pr_number.to_s,
-                                           '--repo', repo, '--json', 'link', '--jq', '.[0].link')
-        match = out.match(%r{runs/(\d+)})
-        match&.captures&.first
+                                           '--repo', repo, '--json', 'link', '--jq', '.[].link')
+        out.each_line do |link|
+          match = link.match(%r{/actions/runs/(\d+)})
+          return match.captures.first if match
+        end
+        nil
       end
 
       sig { params(repo: String, run_id: String).returns(T::Array[[String, String]]) }

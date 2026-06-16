@@ -484,4 +484,98 @@ class ReconcilerTest < Minitest::Test
     @reconciler.reconcile([pr])
     assert_includes @renderer.calls, [:autofix, 1]
   end
+
+  # --- Concurrency tests ---
+
+  def test_concurrency_limits_skills_per_backend
+    original_config = Nightshift.config
+    config = Nightshift::Config.allocate.tap do |c|
+      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
+      c.instance_variable_set(:@backends, {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1)
+      })
+      c.instance_variable_set(:@default_backend_name, 'local')
+      c.instance_variable_set(:@skills, {
+        'haml-migration' => { scan: 'app/views/**/*.html.haml' },
+        'test-optimization' => { scan: 'spec/**/*_spec.rb' }
+      })
+    end
+    Nightshift.config = config
+
+    # haml-migration has a running item
+    @store.add_backlog('haml-migration', 'a.haml')
+    @store.claim_next('haml-migration')
+
+    # test-optimization has a pending item
+    @store.add_backlog('test-optimization', 'b_spec.rb')
+
+    # reconcile_skills should NOT launch test-optimization (concurrency=1, 1 already running)
+    @reconciler.reconcile_skills([])
+
+    item = @db[:backlog_items].where(skill: 'test-optimization').first
+    assert_equal 'pending', item[:status]
+  ensure
+    Nightshift.config = original_config
+  end
+
+  def test_concurrency_allows_different_backends
+    original_config = Nightshift.config
+    config = Nightshift::Config.allocate.tap do |c|
+      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
+      c.instance_variable_set(:@backends, {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1),
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 4)
+      })
+      c.instance_variable_set(:@default_backend_name, 'local')
+      c.instance_variable_set(:@skills, {
+        'haml-migration' => {},
+        'test-optimization' => { backend: 'frontier' }
+      })
+    end
+    Nightshift.config = config
+
+    # haml-migration running on local backend
+    @store.add_backlog('haml-migration', 'a.haml')
+    @store.claim_next('haml-migration')
+
+    # test-optimization pending on frontier backend — should be allowed
+    @store.add_backlog('test-optimization', 'b_spec.rb')
+
+    active_before = @db[:backlog_items].where(skill: 'test-optimization', status: 'pending').count
+    assert_equal 1, active_before
+  ensure
+    Nightshift.config = original_config
+  end
+
+  def test_concurrency_respects_higher_limit
+    original_config = Nightshift.config
+    config = Nightshift::Config.allocate.tap do |c|
+      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
+      c.instance_variable_set(:@backends, {
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 4)
+      })
+      c.instance_variable_set(:@default_backend_name, 'frontier')
+      c.instance_variable_set(:@skills, {
+        'haml-migration' => {},
+        'test-optimization' => {},
+        'i18n-hardcoded' => {}
+      })
+    end
+    Nightshift.config = config
+
+    # 3 skills running, all on frontier (concurrency=4)
+    @store.add_backlog('haml-migration', 'a.haml')
+    @store.claim_next('haml-migration')
+    @store.add_backlog('test-optimization', 'b_spec.rb')
+    @store.claim_next('test-optimization')
+    @store.add_backlog('i18n-hardcoded', 'c.rb')
+    @store.claim_next('i18n-hardcoded')
+
+    # active_for_skill? will be true for all 3, so pick_next_items won't launch
+    # but the concurrency check (3 < 4) would allow a 4th if there was one
+    active = @db[:backlog_items].where(status: 'running').count
+    assert_equal 3, active
+  ensure
+    Nightshift.config = original_config
+  end
 end

@@ -24,6 +24,7 @@ skills:
     scan: "app/views/**/*.html.haml"
     needs_server: true
     port: 3210
+    # backend: frontier   # override to use frontier for this skill
   test-optimization:
     scan: "spec/**/*_spec.rb"
   i18n-hardcoded:
