@@ -39,6 +39,9 @@ class RunnerConfigTest < Minitest::Test
     Nightshift.config = config
 
     assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration')
+    assert_equal 'claude', Nightshift.runner_for('bugfix')
+    assert_equal 1, Nightshift.backend_for('haml-migration').concurrency
+    assert_equal 4, Nightshift.backend_for('bugfix').concurrency
   end
 
   def test_global_runner_from_yaml
