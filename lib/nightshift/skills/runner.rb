@@ -43,6 +43,11 @@ module Nightshift
 
         Log.info "── SKILL #{skill_name} — #{item} ──────────────────────"
 
+        # Snapshot commit count before run (for batch: detect NEW commits only)
+        commits_before, = Open3.capture2('git', 'rev-list', '--count', 'main..HEAD',
+                                         chdir: worktree_path)
+        commits_before = commits_before.strip.to_i
+
         allowed = extract_allowed_tools(skill_name, worktree_path)
         binary = Nightshift.runner_for(skill_name)
         cmd = [binary, '-p', prompt,
@@ -54,16 +59,17 @@ module Nightshift
         claude_ok = run_with_tee(*cmd, log_path: log_path, chdir: worktree_path)
         rate_limited = !claude_ok && detect_rate_limit(log_path)
 
-        commits, = Open3.capture2('git', 'log', 'main..HEAD', '--oneline',
-                                  chdir: worktree_path)
-        has_commits = !commits.strip.empty?
+        commits_after, = Open3.capture2('git', 'rev-list', '--count', 'main..HEAD',
+                                        chdir: worktree_path)
+        commits_after = commits_after.strip.to_i
+        new_commits = commits_after - commits_before
 
         RunnerResult.new(
-          success: claude_ok && has_commits,
-          failure_reason: rate_limited ? FailureReason::RateLimited.serialize : failure_reason(claude_ok, has_commits),
+          success: claude_ok && new_commits.positive?,
+          failure_reason: rate_limited ? FailureReason::RateLimited.serialize : failure_reason(claude_ok, new_commits.positive?),
           log_path: log_path,
           turns_used: Nightshift.count_turns(log_path),
-          files_changed: has_commits ? commits.lines.size : 0
+          files_changed: new_commits
         )
       end
 
@@ -97,41 +103,64 @@ module Nightshift
         'haml-migration' => '1-haml',
         'test-optimization' => '2-test-optimization',
         'harden-audit' => '5-harden',
-        'harden-pentest' => '5-harden'
+        'harden-pentest' => '5-harden',
+        'bugfix' => '3-bugs',
+        'n1-query-fix' => '4-n1',
+        'i18n-hardcoded' => '7-i18n'
       }.freeze
 
-      def analyze_failure(skill_name, item:, worktree_path:, failure_reason:)
-        log_path = File.join(worktree_path, 'tmp', "claude-#{skill_name}.log")
+      def analyze_run(skill_name, item:, log_path:, outcome:, failure_reason: nil)
         return unless File.exist?(log_path)
 
-        kaizen_local = File.join(worktree_path, 'tmp', 'kaizen.md')
         category = KAIZEN_CATEGORIES[skill_name] || '6-nightshift'
         slug = File.basename(item, File.extname(item)).gsub(/[^a-z0-9]+/i, '-').downcase
         today = Time.now.strftime('%Y-%m-%d')
-        kaizen_nightshift = File.expand_path("~/dev/night-shift/kaizen/#{category}/#{today}-#{slug}-failed.md")
+        suffix = outcome == :success ? 'ok' : 'failed'
+        kaizen_path = File.expand_path("~/dev/night-shift/kaizen/#{category}/#{today}-#{slug}-#{suffix}.md")
 
-        prompt = <<~PROMPT
-          Le skill "#{skill_name}" a echoue en mode auto sur "#{item}" (reason: #{failure_reason}).
+        persistent_log_dir = File.expand_path('~/dev/night-shift/tmp/logs')
+        FileUtils.mkdir_p(persistent_log_dir)
+        persistent_log = File.join(persistent_log_dir, "#{today}-#{skill_name}-#{slug}.log")
+        FileUtils.cp(log_path, persistent_log)
 
-          1. Lis le log #{log_path} (format stream-json)
-          2. Identifie les problemes : permissions denied, fichiers introuvables, boucles/retries, cause racine
-          3. Ecris un kaizen dans DEUX fichiers :
-             - #{kaizen_local}
-             - #{kaizen_nightshift}
+        prompt = if outcome == :success
+                   <<~PROMPT
+                     Le skill "#{skill_name}" a reussi en mode auto sur "#{item}".
 
-          Utilise le format kaizen standard (Ce qui s'est passe, bien passe, mal passe, appris, permissions bloquantes, actions).
-          Sois concis et actionnable.
-        PROMPT
+                     1. Lis le log #{persistent_log} (format stream-json)
+                     2. Identifie : strategies efficaces, tours economises, patterns reutilisables, points d'amelioration
+                     3. Ecris un kaizen dans #{kaizen_path}
 
-        Log.info "── KAIZEN #{skill_name} — analyzing failure ──────────────"
-        binary = Nightshift.runner_for(skill_name)
-        system(
+                     Utilise le format kaizen standard (Ce qui s'est passe, bien passe, mal passe, appris, permissions bloquantes, actions).
+                     Score > 5 = succes. Sois concis et actionnable.
+                   PROMPT
+                 else
+                   <<~PROMPT
+                     Le skill "#{skill_name}" a echoue en mode auto sur "#{item}" (reason: #{failure_reason}).
+
+                     1. Lis le log #{persistent_log} (format stream-json)
+                     2. Identifie les problemes : permissions denied, fichiers introuvables, boucles/retries, cause racine
+                     3. Ecris un kaizen dans #{kaizen_path}
+
+                     Utilise le format kaizen standard (Ce qui s'est passe, bien passe, mal passe, appris, permissions bloquantes, actions).
+                     Sois concis et actionnable.
+                   PROMPT
+                 end
+
+        Log.info "── KAIZEN #{skill_name} — analyzing #{outcome} ──────────────"
+        nightshift_dir = File.expand_path('~/dev/night-shift')
+        binary = Nightshift.runner
+        pid = Process.spawn(
           binary, '-p', prompt,
           '--permission-mode', 'acceptEdits',
-          '--output-format', 'stream-json',
-          '--verbose', '--max-turns', '15',
-          chdir: worktree_path
+          '--output-format', 'text',
+          '--max-turns', '15',
+          chdir: nightshift_dir,
+          out: File::NULL, err: File::NULL
         )
+        Process.detach(pid)
+        Log.info "kaizen analysis spawned (pid: #{pid})"
+        pid
       end
 
       def detect_rate_limit(log_path)

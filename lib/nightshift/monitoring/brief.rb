@@ -115,12 +115,38 @@ module Nightshift
 
         puts "  #{open_prs.size} PRs ouvertes  #{parts.join(' ')}"
 
-        # Backlog summary
+        # Backlog progress per skill
         items = store.all_backlog
         if items.any?
-          bl = items.group_by(&:status).transform_values(&:size)
-          bl_parts = bl.map { |k, v| "#{v} #{k.serialize}" }.join(', ')
-          puts "  backlog: #{bl_parts}"
+          puts ''
+          puts '  BACKLOG'
+          puts ''
+          items.group_by(&:skill).each do |skill, skill_items|
+            total = skill_items.size
+            done = skill_items.count { |i| i.status == BacklogStatus::Done }
+            pct = total.positive? ? (done * 100.0 / total).round : 0
+            bar_width = 20
+            filled = (pct * bar_width / 100.0).round
+            bar = "#{'█' * filled}#{'░' * (bar_width - filled)}"
+            running = skill_items.count { |i| i.status == BacklogStatus::Running }
+            pr_open = skill_items.count { |i| i.status == BacklogStatus::PrOpen }
+            failed = skill_items.count { |i| [BacklogStatus::Failed, BacklogStatus::Skipped].include?(i.status) }
+            pending = skill_items.count { |i| i.status == BacklogStatus::Pending }
+            detail = []
+            detail << "#{running}🔄" if running.positive?
+            detail << "#{pr_open}🔵" if pr_open.positive?
+            detail << "#{failed}❌" if failed.positive?
+            detail << "#{pending}⬜" if pending.positive?
+            puts "    #{skill.ljust(20)} #{bar} #{pct}%  (#{done}/#{total})  #{detail.join(' ')}"
+          end
+        end
+
+        pending_kaizen = count_pending_kaizen
+        if pending_kaizen.positive?
+          puts ''
+          puts '  KAIZEN SYNTH'
+          puts ''
+          puts "    #{pending_kaizen} kaizen(s) en attente de synth → /kaizen synth"
         end
 
         puts ''
@@ -202,6 +228,15 @@ module Nightshift
 
         lines << ''
         lines.join("\n")
+      end
+
+      def count_pending_kaizen
+        kaizen_dir = File.expand_path('~/dev/night-shift/kaizen')
+        Dir.glob(File.join(kaizen_dir, '**/*.md'))
+           .reject { |f| f.include?('templates/') || File.basename(f) == 'README.md' }
+           .count { |f| !File.read(f).include?('status: traité') }
+      rescue StandardError
+        0
       end
 
       def write_pane_brief(pr, worktree_path)

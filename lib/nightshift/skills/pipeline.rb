@@ -35,6 +35,8 @@ module Nightshift
           return
         end
 
+        write_pid_file(worktree_path)
+
         result = Runner.run(skill, item: item_path, worktree_path: worktree_path, context: context)
 
         unless result.success
@@ -55,6 +57,8 @@ module Nightshift
         end
 
         push_and_create_pr(backlog_item, worktree_path, result)
+      ensure
+        remove_pid_file(worktree_path) if worktree_path
       end
 
       sig { params(backlog_items: T::Array[Core::BacklogItem]).void }
@@ -75,6 +79,8 @@ module Nightshift
           return
         end
 
+        write_pid_file(worktree_path)
+
         committed = []
         failed = []
 
@@ -84,6 +90,9 @@ module Nightshift
 
         backlog_items.each_with_index do |backlog_item, idx|
           Log.info "batch #{committed.size + 1}/#{backlog_items.size}: #{backlog_item.item}"
+
+          # Clean pr-description.md before each item so stale descriptions don't leak
+          FileUtils.rm_f(desc_path)
 
           result = Runner.run(skill, item: backlog_item.item, worktree_path: worktree_path,
                                      context: backlog_item.context)
@@ -98,7 +107,7 @@ module Nightshift
                                               log_path: result.log_path, turns: result.turns_used)
           else
             failed << { backlog_item: backlog_item, result: result }
-            handle_failure(backlog_item, result)
+            handle_failure(backlog_item, result, cleanup_worktree: false)
           end
         end
 
@@ -115,15 +124,17 @@ module Nightshift
             log_path: last[:result].log_path, turns_used: last[:result].turns_used,
             files_changed: last[:result].files_changed
           )
-          committed.each { |c| handle_failure(c[:backlog_item], no_desc_result) }
+          committed.each { |c| handle_failure(c[:backlog_item], no_desc_result, cleanup_worktree: false) }
           return
         end
 
         push_and_create_pr_batch(committed, worktree_path, branch)
+      ensure
+        remove_pid_file(worktree_path) if worktree_path
       end
 
-      sig { params(backlog_item: Core::BacklogItem, result: RunnerResult).void }
-      def handle_failure(backlog_item, result)
+      sig { params(backlog_item: Core::BacklogItem, result: RunnerResult, cleanup_worktree: T::Boolean).void }
+      def handle_failure(backlog_item, result, cleanup_worktree: true)
         skill = backlog_item.skill
         item_path = backlog_item.item
         branch = backlog_item.branch
@@ -136,7 +147,7 @@ module Nightshift
           @store.record_cycle(backlog_item, verdict: VerdictName::RateLimited,
                                             root_cause: 'rate_limited', log_path: result.log_path,
                                             turns: result.turns_used)
-          Integrations::Worktree.cleanup(branch)
+          Integrations::Worktree.cleanup(branch) if cleanup_worktree
           @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
                                        branch: nil, failure_reason: nil,
                                        retry_after: Time.now.to_i + 1800)
@@ -181,7 +192,7 @@ module Nightshift
             Log.warn "low-confidence patch (#{verdict.confidence}) — skipping auto-apply, needs manual review"
           end
 
-          Integrations::Worktree.cleanup(branch)
+          Integrations::Worktree.cleanup(branch) if cleanup_worktree
 
           # Reset to pending — the reconciler will re-launch on next cycle
           @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
@@ -191,9 +202,12 @@ module Nightshift
                 .update(retry_count: Sequel.expr(:retry_count) + 1)
           Log.info "🔄 reset to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES}) — reconciler will re-launch"
         else
+          Runner.analyze_run(skill, item: item_path, log_path: result.log_path,
+                             outcome: :failure, failure_reason: failure_reason)
+
           failure = retry_count >= CI::Judge::MAX_RETRIES ? FailureReason::AutolearnExhausted : verdict.verdict
 
-          Integrations::Worktree.cleanup(branch)
+          Integrations::Worktree.cleanup(branch) if cleanup_worktree
 
           @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
                                        failure_reason: failure, branch: nil,
@@ -226,6 +240,9 @@ module Nightshift
 
         @store.record_cycle(backlog_item, verdict: VerdictName::Success, outcome: 'improved',
                                           log_path: result.log_path, turns: result.turns_used)
+
+        Runner.analyze_run(backlog_item.skill, item: backlog_item.item,
+                           log_path: result.log_path, outcome: :success)
       end
 
       def push_and_create_pr_batch(committed, worktree_path, branch)
@@ -249,6 +266,10 @@ module Nightshift
                                        pr_number: pr_number, branch: branch)
         end
         Log.info "PR ##{pr_number} created (#{committed.size} items)"
+
+        last = committed.last
+        Runner.analyze_run(last[:backlog_item].skill, item: last[:backlog_item].item,
+                           log_path: last[:result].log_path, outcome: :success)
       end
 
       def combine_batch_descriptions(worktree_path)
@@ -346,6 +367,16 @@ module Nightshift
       end
 
       private
+
+      def write_pid_file(worktree_path)
+        pid_path = File.join(worktree_path, 'tmp', 'nightshift.pid')
+        FileUtils.mkdir_p(File.dirname(pid_path))
+        File.write(pid_path, Process.pid.to_s)
+      end
+
+      def remove_pid_file(worktree_path)
+        FileUtils.rm_f(File.join(worktree_path, 'tmp', 'nightshift.pid'))
+      end
 
       def nightshift_dir
         File.expand_path('../../..', __dir__)

@@ -182,7 +182,9 @@ class SkillPipelineTest < Minitest::Test
     cleaned_branch = nil
     Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, ->(b) { cleaned_branch = b }) do
-        @pipeline.handle_failure(backlog_item, result)
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          @pipeline.handle_failure(backlog_item, result)
+        end
       end
     end
 
@@ -211,7 +213,9 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        @pipeline.handle_failure(backlog_item, result)
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          @pipeline.handle_failure(backlog_item, result)
+        end
       end
     end
 
@@ -234,7 +238,9 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        @pipeline.handle_failure(backlog_item, result)
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          @pipeline.handle_failure(backlog_item, result)
+        end
       end
     end
 
@@ -279,7 +285,9 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
       Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        @pipeline.handle_failure(backlog_item, result)
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          @pipeline.handle_failure(backlog_item, result)
+        end
       end
     end
 
@@ -301,13 +309,20 @@ class SkillPipelineTest < Minitest::Test
 
     wt = Dir.mktmpdir
     FileUtils.mkdir_p(File.join(wt, 'tmp'))
-    File.write(File.join(wt, 'pr-description.md'), "---\ntitle: \"batch PR\"\n---\nBody here")
+
+    # Simulate the skill writing pr-description.md on each run
+    runner_stub = lambda do |_skill, item:, worktree_path:, context: nil|
+      File.write(File.join(wt, 'pr-description.md'), "---\ntitle: \"batch PR\"\n---\nBody for #{item}")
+      success_result
+    end
 
     Nightshift::Integrations::Worktree.stub(:path_for_branch, wt) do
-      Nightshift::Skills::Runner.stub(:run, success_result) do
-        @pipeline.stub(:system, true) do
-          Open3.stub(:capture2, ["https://github.com/org/repo/pull/42\n", nil]) do
-            @pipeline.execute_batch([bi1, bi2])
+      Nightshift::Skills::Runner.stub(:run, runner_stub) do
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          @pipeline.stub(:system, true) do
+            Open3.stub(:capture2, ["https://github.com/org/repo/pull/42\n", nil]) do
+              @pipeline.execute_batch([bi1, bi2])
+            end
           end
         end
       end
@@ -344,7 +359,12 @@ class SkillPipelineTest < Minitest::Test
     call_count = 0
     runner_stub = lambda do |_skill, item:, worktree_path:, context: nil|
       call_count += 1
-      call_count == 1 ? success_result : fail_result
+      if call_count == 1
+        File.write(File.join(worktree_path, 'pr-description.md'), "---\ntitle: \"partial batch\"\n---\nBody for #{item}")
+        success_result
+      else
+        fail_result
+      end
     end
 
     hard_verdict = Nightshift::CI::Verdict.new(
@@ -354,15 +374,16 @@ class SkillPipelineTest < Minitest::Test
 
     wt = Dir.mktmpdir
     FileUtils.mkdir_p(File.join(wt, 'tmp'))
-    File.write(File.join(wt, 'pr-description.md'), "---\ntitle: \"partial batch\"\n---\nBody")
 
     Nightshift::Integrations::Worktree.stub(:path_for_branch, wt) do
       Nightshift::Skills::Runner.stub(:run, runner_stub) do
-        Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
-          Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-            @pipeline.stub(:system, true) do
-              Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
-                @pipeline.execute_batch([bi1, bi2])
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
+            Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
+              @pipeline.stub(:system, true) do
+                Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
+                  @pipeline.execute_batch([bi1, bi2])
+                end
               end
             end
           end
@@ -407,9 +428,11 @@ class SkillPipelineTest < Minitest::Test
 
     Nightshift::Integrations::Worktree.stub(:path_for_branch, wt) do
       Nightshift::Skills::Runner.stub(:run, fail_result) do
-        Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
-          Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-            @pipeline.execute_batch([bi1])
+        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+          Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
+            Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
+              @pipeline.execute_batch([bi1])
+            end
           end
         end
       end
