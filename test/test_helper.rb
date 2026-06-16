@@ -13,7 +13,10 @@ require 'nightshift'
 # Stub config for tests — no YAML file needed
 Nightshift.config = Nightshift::Config.allocate.tap do |c|
   c.instance_variable_set(:@repo_path, '/tmp/test-repo')
-  c.instance_variable_set(:@runner, 'claude')
+  c.instance_variable_set(:@backends, {
+    'default' => Nightshift::Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 4)
+  })
+  c.instance_variable_set(:@default_backend_name, 'default')
   c.instance_variable_set(:@skills, {
     'haml-migration' => { scan: 'app/views/**/*.html.haml', needs_server: true, port: 3210 },
     'test-optimization' => { scan: 'spec/**/*_spec.rb' },
