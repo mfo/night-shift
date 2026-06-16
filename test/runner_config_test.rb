@@ -44,7 +44,12 @@ class RunnerConfigTest < Minitest::Test
     assert_equal 4, Nightshift.backend_for('bugfix').concurrency
   end
 
-  def test_global_runner_from_yaml
+  def test_backend_for_unknown_skill_returns_default
+    backend = Nightshift.backend_for('nonexistent-skill')
+    assert_equal 'claude', backend.harness
+  end
+
+  def test_config_from_yaml_with_backends
     Dir.mktmpdir do |dir|
       yaml_path = File.join(dir, '.nightshift.yml')
       File.write(yaml_path, <<~YAML)
