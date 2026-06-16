@@ -5,9 +5,19 @@
 #
 # DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
 
-# Global runner binary (default: claude). Used for skills, judge, autofix.
-# Override per-skill with runner: in the skill config.
-# runner: claude-ds4
+# Backends define execution profiles: binary + concurrency.
+# Skills reference a backend by name. Concurrency is enforced per backend
+# (e.g. a local model server handles 1 request at a time).
+backends:
+  local:
+    harness: claude-ds4
+    concurrency: 1
+  frontier:
+    harness: claude
+    concurrency: 4
+
+# Which backend to use when a skill doesn't specify one.
+default_backend: local
 
 skills:
   haml-migration:
