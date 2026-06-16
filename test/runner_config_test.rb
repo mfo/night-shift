@@ -68,7 +68,6 @@ class RunnerConfigTest < Minitest::Test
             scan: "**/*.haml"
       YAML
 
-      # Stub preconditions check
       config = Nightshift::Config.allocate
       config.send(:initialize, repo_path: dir)
 
