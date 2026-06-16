@@ -15,7 +15,7 @@ class RunnerConfigTest < Minitest::Test
     assert_equal 'claude', Nightshift.runner
   end
 
-  def test_runner_for_skill_returns_global_default
+  def test_runner_for_skill_returns_default_backend_harness
     assert_equal 'claude', Nightshift.runner_for('haml-migration')
   end
 
