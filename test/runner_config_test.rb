@@ -51,9 +51,15 @@ class RunnerConfigTest < Minitest::Test
 
   def test_config_from_yaml_with_backends
     Dir.mktmpdir do |dir|
-      yaml_path = File.join(dir, '.nightshift.yml')
-      File.write(yaml_path, <<~YAML)
-        runner: claude-ds4
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        backends:
+          local:
+            harness: claude-ds4
+            concurrency: 1
+          frontier:
+            harness: claude
+            concurrency: 4
+        default_backend: local
         skills:
           test-skill:
             scan: "**/*.rb"
