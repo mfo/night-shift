@@ -24,14 +24,18 @@ class RunnerConfigTest < Minitest::Test
     assert_instance_of Nightshift::Core::LLMBackend, backend
   end
 
-  def test_runner_for_skill_falls_back_to_global
-    config = Nightshift::Config.allocate.tap do |c|
-      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
-      c.instance_variable_set(:@runner, 'claude-ds4')
-      c.instance_variable_set(:@skills, {
-        'haml-migration' => { scan: 'app/views/**/*.html.haml' }
-      })
-    end
+  def test_backend_for_skill_with_override
+    config = build_config(
+      backends: {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1),
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 4)
+      },
+      default_backend: 'local',
+      skills: {
+        'haml-migration' => {},
+        'bugfix' => { backend: 'frontier' }
+      }
+    )
     Nightshift.config = config
 
     assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration')
