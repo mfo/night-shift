@@ -93,8 +93,8 @@ class RunnerConfigTest < Minitest::Test
       config.send(:initialize, repo_path: dir)
 
       assert_equal 'claude', config.runner
-      assert_equal 'claude-ds4', config.skills['fast-skill'][:runner]
-      assert_nil config.skills['slow-skill'][:runner]
+      assert_equal 'claude', config.backend_for('test-skill').harness
+      assert_equal 1, config.backend_for('test-skill').concurrency
     end
   rescue SystemExit
     skip 'preconditions not met in test environment'
