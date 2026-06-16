@@ -99,4 +99,15 @@ class RunnerConfigTest < Minitest::Test
   rescue SystemExit
     skip 'preconditions not met in test environment'
   end
+
+  private
+
+  def build_config(backends:, default_backend:, skills:)
+    Nightshift::Config.allocate.tap do |c|
+      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
+      c.instance_variable_set(:@backends, backends)
+      c.instance_variable_set(:@default_backend_name, default_backend)
+      c.instance_variable_set(:@skills, skills)
+    end
+  end
 end
