@@ -63,6 +63,9 @@ class RunnerConfigTest < Minitest::Test
         skills:
           fast-skill:
             scan: "**/*.rb"
+            backend: frontier
+          slow-skill:
+            scan: "**/*.haml"
       YAML
 
       # Stub preconditions check
