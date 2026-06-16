@@ -19,7 +19,7 @@ module Nightshift
 
     DEFAULT_BACKEND = Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 1).freeze
 
-    attr_reader :repo_path, :skills, :runner
+    attr_reader :repo_path, :skills, :backends
 
     REQUIRED_BINARIES = %w[gh claude].freeze
 
