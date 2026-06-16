@@ -83,9 +83,7 @@ class RunnerConfigTest < Minitest::Test
 
   def test_config_without_backends_uses_default
     Dir.mktmpdir do |dir|
-      yaml_path = File.join(dir, '.nightshift.yml')
-      File.write(yaml_path, <<~YAML)
-        runner: claude
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
         skills:
           fast-skill:
             scan: "**/*.rb"
