@@ -61,7 +61,7 @@ class RunnerConfigTest < Minitest::Test
             concurrency: 4
         default_backend: local
         skills:
-          test-skill:
+          fast-skill:
             scan: "**/*.rb"
       YAML
 
