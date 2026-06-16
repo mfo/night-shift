@@ -30,7 +30,8 @@ module Nightshift
       yaml_path = File.join(repo_path, '.nightshift.yml')
       abort "nightshift: .nightshift.yml not found in #{repo_path}" unless File.exist?(yaml_path)
       raw = YAML.safe_load_file(yaml_path, symbolize_names: true)
-      @runner = raw[:runner]&.to_s || DEFAULT_RUNNER
+      @backends = parse_backends(raw[:backends] || {})
+      @default_backend_name = (raw[:default_backend] || @backends.keys.first)&.to_s
       @skills = parse_skills(raw.fetch(:skills))
     end
 
