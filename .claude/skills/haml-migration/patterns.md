@@ -43,3 +43,7 @@ Avant d'exécuter une migration, vérifier :
 - Si `config/initializers/dev_auto_login.rb` n'existe pas, **ne pas appeler dev-auto-login** et passer directement à l'étape suivante.
 - Si `WaitForMcpServers` n'est pas disponible (tool inexistant), utiliser `sleep 3` comme fallback ou ignorer l'attente.
 - Si Playwright MCP n'est pas configuré (`claude mcp list` ne liste pas `playwright` ou le fichier de conf MCP est absent), **ignorer la validation visuelle** et se baser uniquement sur le diff texte ERB/HAML. Ne pas bloquer la migration sur l'absence de Playwright.
+
+### AL-4 (2026-06-16 14:04)
+
+Ajouter dans patterns.md une vérification préalable de l'existence du fichier HAML avant toute édition, et déclarer mcp__playwright__browser_run_code_unsafe dans les outils autorisés du SKILL.md pour la phase de validation visuelle.
