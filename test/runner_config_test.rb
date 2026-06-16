@@ -81,7 +81,7 @@ class RunnerConfigTest < Minitest::Test
     skip 'preconditions not met in test environment'
   end
 
-  def test_per_skill_runner_override_in_yaml
+  def test_config_without_backends_uses_default
     Dir.mktmpdir do |dir|
       yaml_path = File.join(dir, '.nightshift.yml')
       File.write(yaml_path, <<~YAML)
