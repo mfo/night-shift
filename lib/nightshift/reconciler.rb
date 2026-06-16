@@ -39,7 +39,7 @@ module Nightshift
 
         @renderer.update_window(pr)
       end
-      reconcile_skills(active_prs)
+      reconcile_skills(prs)
     end
 
     sig { params(prs: T::Array[Core::PR]).void }
@@ -52,18 +52,19 @@ module Nightshift
         when BacklogStatus::PrOpen
           pr = pr_by_branch[backlog_item.branch]
           handle_done(backlog_item) if pr&.github_state == 'MERGED'
+          handle_closed(backlog_item) if pr&.github_state == 'CLOSED'
         when BacklogStatus::Running
-          if backlog_item.branch && !active_branches.include?(backlog_item.branch)
-            retry_count = backlog_item.retry_count.to_i
-            if retry_count < CI::Judge::MAX_RETRIES
-              @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
-                                           branch: nil, failure_reason: nil)
-              @store.db[:backlog_items].where(id: backlog_item.id)
-                    .update(retry_count: Sequel.expr(:retry_count) + 1)
-            else
-              @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
-                                           failure_reason: FailureReason::ZombieExhausted)
-            end
+          next unless backlog_item.branch
+
+          is_zombie = if !active_branches.include?(backlog_item.branch)
+                        true
+                      else
+                        wt_path = Integrations::Worktree.path_for_branch(backlog_item.branch)
+                        wt_path && zombie_process?(wt_path)
+                      end
+
+          if is_zombie
+            recover_zombie(backlog_item)
           end
         end
       end
@@ -82,6 +83,53 @@ module Nightshift
       maybe_reprioritize(backlog_item.skill)
     end
 
+    sig { params(backlog_item: Core::BacklogItem).void }
+    def handle_closed(backlog_item)
+      @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
+                                   failure_reason: FailureReason::ManualClose, branch: nil)
+      Integrations::Worktree.cleanup(backlog_item.branch)
+      @renderer.close_worktree(backlog_item.branch)
+      Log.info "PR closed without merge — skipped #{backlog_item.item}"
+    end
+
+    def zombie_process?(worktree_path)
+      pid_path = File.join(worktree_path, 'tmp', 'nightshift.pid')
+      return true unless File.exist?(pid_path)
+
+      pid = File.read(pid_path).strip.to_i
+      return true if pid.zero?
+
+      !process_alive?(pid)
+    end
+
+    def process_alive?(pid)
+      Process.kill(0, pid)
+      true
+    rescue Errno::ESRCH
+      false
+    rescue Errno::EPERM
+      true
+    end
+
+    def recover_zombie(backlog_item)
+      retry_count = backlog_item.retry_count.to_i
+      if retry_count < CI::Judge::MAX_RETRIES
+        Log.info "zombie detected: #{backlog_item.item} — resetting to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES})"
+        Integrations::Worktree.cleanup(backlog_item.branch)
+        @renderer.close_worktree(backlog_item.branch)
+        @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
+                                     branch: nil, failure_reason: nil)
+        @store.db[:backlog_items].where(id: backlog_item.id)
+              .update(retry_count: Sequel.expr(:retry_count) + 1)
+      else
+        Log.info "zombie exhausted: #{backlog_item.item} — skipping"
+        Integrations::Worktree.cleanup(backlog_item.branch)
+        @renderer.close_worktree(backlog_item.branch)
+        @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
+                                     failure_reason: FailureReason::ZombieExhausted)
+      end
+    end
+
     sig { params(skill_name: String).void }
     def maybe_reprioritize(skill_name)
       config = Nightshift.skills[skill_name]
@@ -98,8 +146,22 @@ module Nightshift
     sig { void }
     def pick_next_items
       repo_path = Nightshift.repo_path
+
+      # Count actually-running items per backend (PrOpen doesn't consume compute)
+      active_by_backend = Hash.new(0)
+      @store.all_backlog.each do |bi|
+        next unless bi.status == BacklogStatus::Running
+
+        backend = Nightshift.backend_for(bi.skill)
+        active_by_backend[backend.harness] += 1
+      end
+
       Nightshift.skills.each do |skill_name, skill_config|
+        next if skill_config[:meta]
         next if @store.active_for_skill?(skill_name)
+
+        backend = Nightshift.backend_for(skill_name)
+        next if active_by_backend[backend.harness] >= backend.concurrency
 
         batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
 
@@ -114,6 +176,7 @@ module Nightshift
           next if valid.empty?
 
           launch_batch(skill_name, valid)
+          active_by_backend[backend.harness] += 1
         else
           backlog_item = @store.claim_next(skill_name)
           next unless backlog_item
@@ -124,6 +187,7 @@ module Nightshift
           end
 
           launch_skill(skill_name, backlog_item)
+          active_by_backend[backend.harness] += 1
         end
       end
     end
@@ -229,7 +293,7 @@ module Nightshift
         @renderer.propose_merge(pr)
       in [PRState::CiRed, PRState::CiGreen]
         @renderer.notify_fixed(pr)
-      in [_, PRState::Merged | PRState::Deployed]
+      in [_, PRState::Merged | PRState::Deployed | PRState::Closed]
         @renderer.propose_cleanup(pr)
       else
         # noop
