@@ -17,7 +17,7 @@ module Nightshift
       'n1_scanner' => ->(repo_path, store) { Integrations::N1Scanner.scan(repo_path, store) }
     }.freeze
 
-    DEFAULT_RUNNER = 'claude'
+    DEFAULT_BACKEND = Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 1).freeze
 
     attr_reader :repo_path, :skills, :runner
 
