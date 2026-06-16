@@ -85,7 +85,7 @@ class RunnerConfigTest < Minitest::Test
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
         skills:
-          fast-skill:
+          test-skill:
             scan: "**/*.rb"
             runner: claude-ds4
           slow-skill:
