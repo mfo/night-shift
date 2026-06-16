@@ -19,17 +19,9 @@ class RunnerConfigTest < Minitest::Test
     assert_equal 'claude', Nightshift.runner_for('haml-migration')
   end
 
-  def test_runner_for_skill_returns_per_skill_override
-    config = Nightshift::Config.allocate.tap do |c|
-      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
-      c.instance_variable_set(:@runner, 'claude')
-      c.instance_variable_set(:@skills, {
-        'i18n-hardcoded' => { runner: 'claude-ds4', batch_size: 5 }
-      })
-    end
-    Nightshift.config = config
-
-    assert_equal 'claude-ds4', Nightshift.runner_for('i18n-hardcoded')
+  def test_backend_for_returns_llm_backend_struct
+    backend = Nightshift.backend_for('haml-migration')
+    assert_instance_of Nightshift::Core::LLMBackend, backend
   end
 
   def test_runner_for_skill_falls_back_to_global
