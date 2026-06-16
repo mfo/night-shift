@@ -87,9 +87,6 @@ class RunnerConfigTest < Minitest::Test
         skills:
           test-skill:
             scan: "**/*.rb"
-            runner: claude-ds4
-          slow-skill:
-            scan: "**/*.haml"
       YAML
 
       config = Nightshift::Config.allocate
