@@ -54,7 +54,10 @@ module Nightshift
           handle_done(backlog_item) if pr&.github_state == 'MERGED'
           handle_closed(backlog_item) if pr&.github_state == 'CLOSED'
         when BacklogStatus::Running
-          next unless backlog_item.branch
+          if backlog_item.branch.nil? || backlog_item.branch.empty?
+            recover_zombie(backlog_item)
+            next
+          end
 
           is_zombie = if !active_branches.include?(backlog_item.branch)
                         true
@@ -69,10 +72,34 @@ module Nightshift
         end
       end
 
+      cleanup_orphan_worktrees(active_branches)
       pick_next_items
     end
 
     private
+
+    def cleanup_orphan_worktrees(active_branches)
+      running_branches = Set.new(
+        @store.all_backlog
+              .select { |bi| bi.status == BacklogStatus::Running && bi.branch }
+              .map(&:branch)
+      )
+      pr_open_branches = Set.new(
+        @store.all_backlog
+              .select { |bi| bi.status == BacklogStatus::PrOpen && bi.branch }
+              .map(&:branch)
+      )
+
+      active_branches.each do |branch|
+        next unless branch.start_with?('auto/')
+        next if running_branches.include?(branch)
+        next if pr_open_branches.include?(branch)
+
+        Log.info "orphan worktree detected: #{branch} — cleaning up"
+        Integrations::Worktree.cleanup(branch)
+        @renderer.close_worktree(branch)
+      end
+    end
 
     sig { params(backlog_item: Core::BacklogItem).void }
     def handle_done(backlog_item)
@@ -113,18 +140,21 @@ module Nightshift
 
     def recover_zombie(backlog_item)
       retry_count = backlog_item.retry_count.to_i
+      branch = backlog_item.branch
+
+      if branch && !branch.empty?
+        Integrations::Worktree.cleanup(branch)
+        @renderer.close_worktree(branch)
+      end
+
       if retry_count < CI::Judge::MAX_RETRIES
         Log.info "zombie detected: #{backlog_item.item} — resetting to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES})"
-        Integrations::Worktree.cleanup(backlog_item.branch)
-        @renderer.close_worktree(backlog_item.branch)
         @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
                                      branch: nil, failure_reason: nil)
         @store.db[:backlog_items].where(id: backlog_item.id)
               .update(retry_count: Sequel.expr(:retry_count) + 1)
       else
         Log.info "zombie exhausted: #{backlog_item.item} — skipping"
-        Integrations::Worktree.cleanup(backlog_item.branch)
-        @renderer.close_worktree(backlog_item.branch)
         @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
                                      failure_reason: FailureReason::ZombieExhausted)
       end

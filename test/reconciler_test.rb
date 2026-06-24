@@ -47,8 +47,7 @@ class ReconcilerTest < Minitest::Test
     @renderer = FakeRenderer.new
     # Pass all test branches so worktree-centric filter doesn't block
     @all_branches = Set.new(%w[fix/bug fix/a fix/b fix/bug-1 fix/bug-2
-                               auto/haml-migration/views-foo auto/haml-migration/views-bar
-                               auto/haml-migration/a fix/unrelated])
+                               fix/unrelated])
     @reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                              worktree_branches: @all_branches)
   end
@@ -320,17 +319,20 @@ class ReconcilerTest < Minitest::Test
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/views-foo')
 
-    # Worktree exists — should NOT recover
-    @reconciler.reconcile([])
+    branches = Set.new(%w[auto/haml-migration/views-foo])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+    reconciler.define_singleton_method(:zombie_process?) { |_| false }
+
+    reconciler.reconcile([])
 
     updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'running', updated[:status]
   end
 
-  def test_zombie_recovery_skips_items_without_branch
+  def test_zombie_recovery_recovers_items_without_branch
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
     backlog_item = @store.claim_next('haml-migration')
-    # Running but no branch assigned yet (edge case: claimed but not launched)
     assert_nil backlog_item.branch
 
     branches = Set.new(%w[fix/bug])
@@ -339,7 +341,8 @@ class ReconcilerTest < Minitest::Test
     reconciler.reconcile([])
 
     updated = @db[:backlog_items].where(id: backlog_item.id).first
-    assert_equal 'running', updated[:status], 'should not touch running items with nil branch'
+    refute_equal 'running', updated[:status], 'running items with nil branch should be recovered as zombies'
+    assert updated[:retry_count] >= 1, 'retry_count should be incremented'
   end
 
   # --- handle_done tests ---
@@ -502,15 +505,24 @@ class ReconcilerTest < Minitest::Test
     end
     Nightshift.config = config
 
-    # haml-migration has a running item
+    # haml-migration has a running item with a real branch
     @store.add_backlog('haml-migration', 'a.haml')
-    @store.claim_next('haml-migration')
+    bi = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::Running, branch: 'auto/haml-migration/a')
 
     # test-optimization has a pending item
     @store.add_backlog('test-optimization', 'b_spec.rb')
 
+    # Inject the branch into worktree_branches so it's not detected as zombie
+    branches = Set.new(%w[auto/haml-migration/a])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+
+    # Stub zombie_process? to return false (process is alive)
+    reconciler.define_singleton_method(:zombie_process?) { |_| false }
+
     # reconcile_skills should NOT launch test-optimization (concurrency=1, 1 already running)
-    @reconciler.reconcile_skills([])
+    reconciler.reconcile_skills([])
 
     item = @db[:backlog_items].where(skill: 'test-optimization').first
     assert_equal 'pending', item[:status]
