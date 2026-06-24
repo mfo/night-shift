@@ -24,105 +24,136 @@ allowed-tools:
   - Bash(bundle install)
   - Bash(bundle check)
   - Bash(cat coverage/:*)
+  - Bash(grep:*)
   - Agent
   - Write(pr-description.md)
   - Skill(pr-description)
 ---
 
-# Test Optimization
+# Test Optimization (Coordinator)
 
 **Input :** chemin vers un fichier spec — `$ARGUMENTS` (ex: `spec/models/dossier_spec.rb`)
 **Output :** commits granulaires + pr-description.md
 
+**Architecture :** cet agent est un **coordinateur léger**. Il profile, détecte les signaux, puis délègue chaque technique à un **sous-agent isolé** qui reçoit uniquement ce dont il a besoin. Cela évite de saturer le contexte sur les gros fichiers.
+
 ---
 
-## Prérequis
+## Étape 0 : Setup
 
-- Worktree isolé avec DB dédiée (hook post-checkout)
-- Catalogue de techniques communes (lecture seule) : `.claude/skills/test-optimization/patterns.md`
-- Catalogue de techniques system specs (lecture seule) : `.claude/skills/test-optimization/patterns-system.md` — **à consulter en plus** quand le fichier cible est dans `spec/system/`
+```bash
+bundle exec spring start
+```
+
 ---
 
-## Workflow
-
-### Étape 0 : Setup
-
-**Si on est dans le repo principal** (pas un worktree) :
-Suivre `quickstart.md` Phase 1 : créer le worktree, afficher la commande `cd + claude` à l'utilisateur, puis **STOP**. Ne pas continuer.
-
-**Si on est dans un worktree** :
-Suivre `quickstart.md` Phase 2 (spring start uniquement — le hook post-checkout a déjà fait bundle/DB), puis enchaîner sur l'étape 1.
-
-### Étape 1 : Profiler (baseline locale)
-
-Voir `quickstart.md` pour les commandes exactes (runs, coverage, extraction %).
+## Étape 1 : Profiler (baseline)
 
 1. **Temps** : 1 warm-up + 3 runs (médiane) — **SANS** `COVERAGE=true`
-2. **Coverage** : 1 run `COVERAGE=true` puis extraire le % depuis `coverage/.resultset.json`.
-
-C'est la baseline (temps + coverage). Les temps CI sont indicatifs, le local fait foi.
-
-**Si un run de baseline est rouge** → marquer le fichier comme `flaky` et s'arrêter.
-
-### Étape 2 : Lire et comprendre
-
-1. Lire le fichier spec entier
-2. Lire le code source testé (modèles, services, controllers appelés)
-3. Identifier les causes de lenteur :
-   - Factories lourdes (trop de `create`)
-   - N+1 queries
-   - Appels API non stubés
-   - Setup inutile
-   - Sleep/wait
-   - Assertions/tests dupliqués
-   - Code source lent (root cause)
-
-### Étape 3 : Explorer, vérifier, décider
-
-Pour chaque technique du catalogue (communes + system si `spec/system/`) :
-
-1. **Appliquer** la technique
-2. **Vérifier tests** (un seul run) :
    ```bash
-   bundle exec spring rspec spec/path/to/file_spec.rb
+   bundle exec spring rspec $SPEC_FILE
    ```
-   - Si un test casse → rollback et passer à la technique suivante.
-   - **Vérifier la coverage si :** du code source (`app/`) a été modifié, OU des `it`/`describe` ont été supprimés/fusionnés (risque de perdre un cas couvert). **Skip le run coverage** pour les refactors setup-only (let_it_be, let! → let, before_all, aggregate_failures…) qui ne changent pas les cas testés.
+2. **Coverage** : 1 run via le script dédié
    ```bash
-   .claude/skills/test-optimization/coverage.sh spec/path/to/file_spec.rb
+   .claude/skills/test-optimization/coverage.sh $SPEC_FILE
    ```
-   - Comparer la coverage avec la baseline courante (initiale à l'étape 1, puis mise à jour après chaque commit). **Toute baisse = rollback immédiat.**
-3. **Mesurer le gain** (1 warm-up + 3 runs, médiane, **SANS** `COVERAGE=true` — l'overhead fausserait les temps) :
-   ```bash
-   bundle exec spring rspec spec/path/to/file_spec.rb
-   ```
-   - **>= 5% ET >= 0.5s** → commit (étape 4), puis nouvelle baseline = cette mesure
-   - **< seuil** → rollback, noter comme tentative échouée
-4. **Passer à la technique suivante** sur la nouvelle baseline
-5. **Quand toutes les techniques sont essayées** → description PR (étape 5), mettre à jour l'inventaire (étape 6), et stop
 
-Tu es libre d'explorer au-delà du catalogue : modifier le code source, supprimer des `it`/`describe` dupliqués, réorganiser le setup. Documenter ce qui est tenté, **même les échecs**.
+C'est la baseline. Si un run est rouge → marquer `flaky` et s'arrêter.
 
-**Si tu modifies du code source** (pas seulement le fichier spec) : lancer aussi les specs directement liées (ex: si tu modifies `app/models/dossier.rb`, lancer `bundle exec rspec spec/models/dossier_spec.rb`). La CI rattrapera le reste.
+---
 
-**Kill switch** : 20min max par fichier. Si dépassé → terminer la technique en cours, rollback si non commitée, et s'arrêter.
+## Étape 2 : Détecter les signaux (scan léger)
 
-### Étape 4 : Commit (granulaire)
+**NE PAS lire le fichier spec entier.** Scanner les signaux par grep :
 
-1 commit par technique appliquée. Format :
-
-```
-perf(tests): [technique] — fichier_spec.rb
-
-- Temps avant : Xs → après : Ys (gain Z%)
-- [explication de ce qui a été changé et pourquoi]
+```bash
+grep -c 'create(' $SPEC_FILE                    # T01, T04
+grep -c 'let!' $SPEC_FILE                       # T10
+grep -c 'let(:' $SPEC_FILE                      # T08 (let_it_be candidates)
+grep -c 'sleep' $SPEC_FILE                      # S01
+wc -l < $SPEC_FILE                              # T12 (split si > 1000)
+grep -c 'aggregate_failures' $SPEC_FILE         # T09 déjà appliqué ?
 ```
 
-### Étape 5 : Description PR
+Construire la liste des techniques à tenter (celles dont le signal est positif).
 
-Ecrire `pr-description.md` a la racine du worktree.
+**Ordre recommandé :** T08 (let_it_be) → T10 (let!→let) → T04 (setup inutile) → T01 (create→build) → T09 (aggregate) → T06 (dupliqués) → T11 (factory_default) → T12 (split). Pour system specs, ajouter : S01 → S02 → S03.
 
-**Template :**
+---
+
+## Étape 3 : Déléguer technique par technique
+
+Pour chaque technique détectée, lancer un **sous-agent** via `Agent`. Le sous-agent reçoit un prompt auto-suffisant avec :
+
+1. La technique (ID + description + signal + risque)
+2. Le chemin du fichier spec
+3. La baseline courante (temps + coverage)
+4. Les règles et commandes
+
+**Template prompt sous-agent :**
+
+```
+Tu es un agent d'optimisation de tests RSpec. Tu appliques UNE technique.
+
+## Technique : [ID] — [nom]
+[Description complète de la technique depuis patterns.md]
+Signal de détection : [signal]
+Risque : [risque]
+Gain typique : [gain]
+
+## Fichier cible
+`[chemin spec]`
+
+## Baseline courante
+- Temps : [X]s (médiane 3 runs)
+- Coverage : [Y]%
+
+## Travail à faire
+
+1. Lire le fichier spec (et le code source testé si nécessaire)
+2. Appliquer la technique
+3. Vérifier tests verts :
+   ```
+   bundle exec spring rspec [chemin]
+   ```
+4. Si du code source (app/) a été modifié OU des it/describe supprimés/fusionnés → vérifier coverage :
+   ```
+   .claude/skills/test-optimization/coverage.sh [chemin]
+   ```
+   Toute baisse = rollback immédiat.
+5. Mesurer le gain (1 warm-up + 3 runs, médiane, SANS COVERAGE=true)
+6. Si gain >= 5% ET >= 0.5s → commit :
+   ```
+   perf(tests): [technique] — [fichier_spec]
+
+   - Temps avant : Xs → après : Ys (gain Z%)
+   - [explication]
+   ```
+7. Si gain < seuil → rollback toutes les modifications
+
+## Règles dures
+- Ne jamais skip un test
+- Ne jamais push
+- Pas de perte de couverture
+- Tests verts pour commit
+
+## Répondre avec
+- `applied` ou `skipped` ou `failed`
+- Temps après (si applied)
+- Coverage après (si applied)
+- Ce qui a été changé (1-2 phrases)
+```
+
+**Après chaque sous-agent :**
+- Si `applied` → mettre à jour la baseline (temps + coverage)
+- Passer à la technique suivante avec la nouvelle baseline
+
+---
+
+## Étape 4 : Description PR
+
+Quand toutes les techniques sont épuisées, écrire `pr-description.md` :
+
 ```markdown
 ---
 title: "Tech: optimiser les tests de <fichier_spec>"
@@ -143,6 +174,12 @@ Skill [`/test-optimization`](https://github.com/mfo/night-shift/blob/main/.claud
 | <technique1> | Xs | Ys | -Z% |
 | <technique2> | Ys | Ws | -Z% |
 
+### Techniques tentees sans succes
+
+| Technique | Raison |
+|-----------|--------|
+| ... | ... |
+
 **Resultat final : Xs → Ys (gain total Z%)**
 
 Coverage : X% → Y% (maintenue)
@@ -154,24 +191,11 @@ Generated with [Claude Code](https://claude.com/claude-code)
 
 ## Règles dures
 
-- ❌ **Permission refusée** : si une commande est refusée, ne JAMAIS réessayer la même commande. Chercher une alternative ou abandonner.
 - ❌ Ne jamais skip un test
 - ❌ Ne jamais push
-- ❌ **Pas de perte de couverture** : supprimer du code dupliqué qui teste le même comportement = OK. Supprimer du code qui couvre un cas unique = interdit.
-- ✅ Tests verts pour commit (si tests rouges → pas de commit)
-- ⏱️ **20min max par fichier** (kill switch)
-
-## Guidelines (indicatives — tu es un explorateur et un collaborateur)
-
-- Peut modifier le code source si c'est la root cause de la lenteur
-- Peut supprimer des assertions, des `it`/`describe` dupliqués
-- Peut réorganiser le setup
-- Peut appliquer n'importe quelle technique, même hors catalogue
-- `patterns.md` est en **lecture seule**
-- **Autonome** dans le périmètre des permissions — tu fonces
-- **Choix du fichier** : pas de priorisation par lenteur. Prendre les fichiers et techniques de manière aléatoire pour maximiser la découverte de nouvelles approches
-- **Collaboratif** : si tu as besoin de quelque chose, demande une fois
-- **Mesure** : toujours 1 warm-up + 3 runs, médiane
+- ❌ Pas de perte de couverture
+- ✅ Tests verts pour commit
+- ⏱️ 20min max par fichier (kill switch)
 
 ## Pièges connus (retours kaizen)
 
@@ -179,33 +203,24 @@ Generated with [Claude Code](https://claude.com/claude-code)
 
 `let_it_be` est utilisable mais avec 3 contraintes :
 
-1. **Modifiers indisponibles.** `reload:` et `refind:` ne fonctionnent pas — le `require 'test_prof/recipes/rspec/let_it_be'` est chargé avant Rails (`spec_helper.rb:25`). Donc `let_it_be` ne s'applique qu'aux blocs **read-only** (scopes, queries, méthodes pures). Les blocs qui mutent les objets (`accepter!`, `update`, etc.) → pollution inter-tests.
+1. **Modifiers indisponibles.** `reload:` et `refind:` ne fonctionnent pas — le `require 'test_prof/recipes/rspec/let_it_be'` est chargé avant Rails (`spec_helper.rb:25`). Donc `let_it_be` ne s'applique qu'aux blocs **read-only** (scopes, queries, méthodes pures). Les blocs qui mutent les objets → pollution inter-tests.
 
-2. **Ordre de déclaration.** L'insertion est séquentielle : déclarer les dépendances avant les dépendants (ex: `expert` avant `experts_procedure`).
+2. **Ordre de déclaration.** L'insertion est séquentielle : déclarer les dépendances avant les dépendants.
 
-3. **FK validation Rails 7.2.** `check_all_foreign_keys_valid!` valide toutes les FK de la DB après chaque insertion. Si l'objet `let_it_be` persiste mais que ses dépendances sont nettoyées par le rollback par-test → FK orpheline détectée. Fonctionne pour les objets sans FK sensibles, échoue sinon.
-
-**Piste à explorer :** utiliser des fixtures pour les dépendances stables (administrateur, etc.) afin que `let_it_be` puisse référencer des FK qui persistent.
+3. **FK validation Rails 7.2.** `check_all_foreign_keys_valid!` valide toutes les FK après chaque insertion. Si l'objet `let_it_be` persiste mais ses dépendances sont nettoyées → FK orpheline.
 
 ### etablissement requis par DossierOperationLog
 
-Les transitions d'état (`accepter!`, `passer_en_construction!`, etc.) créent un `DossierOperationLog` dont `serialize_subject` appelle `SerializerService.dossier` qui accède à `etablissement`. Si `etablissement` est nil → erreur.
+Les transitions d'état créent un `DossierOperationLog` dont `serialize_subject` accède à `etablissement`. Si nil → erreur. Vérifier avant de supprimer un `let(:etablissement)`.
 
-**Conséquence :** quand on supprime un `let(:etablissement)` inutilisé (T04), vérifier que le contexte ne fait pas de transition d'état. Pistes à explorer : désactiver les `DossierOperationLog` en test, ou stuber `serialize_subject`, pour alléger le setup des transitions d'état.
+### aggregate_failures : efficacité liée au coût du setup
 
-### aggregate_failures (T09) : efficacité liée au coût du setup
+Gain marginal si setup léger. Gain majeur si setup avec transitions d'état (~1s chacune). Prioriser T09 quand le `before` fait des transitions.
 
-Testé sur dossier_spec (setup léger) — gain marginal. Mais sur tags_substitution_concern_spec (setup avec transitions d'état dossier ~1s chacune) — **gain majeur** (4→1 = ~3s économisées).
+### Smart quotes
 
-**Règle :** prioriser T09 quand le `before`/setup fait des transitions d'état (`accepter!`, `passer_en_instruction!`, `passer_en_construction!`) ou des opérations lourdes. Déprioritiser si le setup est léger (<0.3s).
-
-### Smart quotes de l'outil Edit
-
-L'outil Edit de Claude remplace parfois les apostrophes ASCII (`'`) par des smart quotes unicode (U+2018 `'` / U+2019 `'`). Casse les assertions de texte et les strings Ruby.
-
-**Détection :** test rouge avec diff invisible (le texte "semble" identique).
-**Fix :** utiliser des double quotes `"` dans le code édité, ou passer par un script Ruby/Bash via l'outil Bash au lieu de Edit.
+L'outil Edit remplace parfois `'` par `'`/`'`. Utiliser `"` ou passer par Bash.
 
 ## Convention de nommage
 
-- **Branche :** `perf/<nom-fichier-spec>` (ex: `perf/dossier-spec`)
+- **Branche :** `perf/<nom-fichier-spec>`
