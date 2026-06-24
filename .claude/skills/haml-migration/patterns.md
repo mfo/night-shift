@@ -47,3 +47,13 @@ Avant d'exécuter une migration, vérifier :
 ### AL-4 (2026-06-16 14:04)
 
 Ajouter dans patterns.md une vérification préalable de l'existence du fichier HAML avant toute édition, et déclarer mcp__playwright__browser_run_code_unsafe dans les outils autorisés du SKILL.md pour la phase de validation visuelle.
+
+### AL-5 (2026-06-24 11:18)
+
+## Composants de layout / navigation
+
+Certains composants (sidemenu, header, footer, sidebar) sont des composants de layout rendus dans plusieurs pages via les layouts. Pour les vérifier :
+
+1. **Si `config/initializers/dev_auto_login.rb` n'existe pas** : utiliser `grep -r "nom_composant" app/views/ app/components/ --include="*.html.*"` pour trouver où le composant est utilisé dans un template connu
+2. **Trouver une route publique** : si le composant est utilisé sur une page publique (ex: `/`, `/login`, `/contact`), naviguer là directement sans authentification
+3. **Fallback sans screenshot** : si aucune URL accessible ne peut être trouvée, ignorer la vérification visuelle et se baser uniquement sur la correction syntaxique + lint. Marquer le fichier comme "vérifié syntaxiquement seulement" dans le commit.
