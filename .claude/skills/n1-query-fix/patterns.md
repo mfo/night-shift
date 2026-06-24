@@ -205,3 +205,24 @@ end
 ### AL-4 (2026-05-20)
 
 Consolidé : les patterns AL-4 et AL-5 (enrichissement des fixtures, analyse statique quand Prosopite = 0 N+1) sont maintenant intégrés dans le SKILL.md étape 2b. Voir aussi AL-3.
+
+### AL-5 (2026-05-22 08:23)
+
+## Skip handling
+
+When investigation concludes there is no N+1 to fix (empty Prosopite log, no collection actions, eager loading already in place), the skill MUST:
+1. Write a `skip.json` file at the worktree root with `{"status": "skip", "reason": "..."}` so the orchestrator recognizes this as a valid outcome, not a failure.
+2. Do NOT classify 'no N+1 found after thorough investigation' as an error — it is a legitimate result.
+
+## Backlog triage
+
+Before adding a controller to the backlog, pre-filter with these heuristics:
+- Controllers with only single-resource actions (show/edit/update/destroy, no index) are low-priority — N+1 requires collection iteration.
+- Controllers where all accessed models have `default_scope { eager_load(...) }` on the hot path are likely already covered.
+- Zero RPM in Skylight = no production traffic = skip unless explicitly requested.
+
+## Setup robustness
+
+- Do NOT assume `config/initializers/prosopite.rb` exists — check before referencing it, and create it from the skill template if missing.
+- Do NOT patch `Gemfile.lock` directly — run `bundle install` instead to let Bundler resolve lock conflicts.
+- Always `Read` a file before `Write` to avoid the 'file not read yet' guard error.

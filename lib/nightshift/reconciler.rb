@@ -1,62 +1,70 @@
-require "open3"
-require "set"
+# frozen_string_literal: true
+# typed: false
+
+require 'open3'
 
 module Nightshift
+  #
+  # Reconciler — Main watch loop
+  #
+  # Runs every N seconds: fetches PRs, diffs against stored state,
+  # fires transition handlers (autofix on red, merge on approved,
+  # cleanup on merged), and picks next backlog items to launch.
+  # Only reconciles PRs matching a local worktree branch.
+  #
   class Reconciler
+    extend T::Sig
+
+    sig { params(store: Core::Store, renderer: UI::Renderer, worktree_branches: T.nilable(T::Set[String])).void }
     def initialize(store:, renderer:, worktree_branches: nil)
       @store = store
       @renderer = renderer
       @worktree_branches = worktree_branches
     end
 
-    SKILLS = Nightshift::SKILLS
 
+    sig { params(prs: T::Array[Core::PR]).void }
     def reconcile(prs)
-      # Worktree-centric: only reconcile PRs that match a local worktree
       branches = @worktree_branches || list_worktree_branches
       active_prs = prs.select { |pr| branches.include?(pr.branch) }
 
       active_prs.each do |pr|
         result = @store.reconcile_pr(pr)
 
-        # 1. Comments FIRST — show if new comments detected
-        if result[:comment_delta] > 0
-          @renderer.show_comments(pr)
-        end
+        @renderer.show_comments(pr) if result[:comment_delta].positive?
 
-        # 2. State transitions SECOND
-        if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].to_s)
+        if result[:changed] && !@store.locked?(pr.number, kind: result[:new_state].serialize)
           on_transition(pr, result[:old_state], result[:new_state])
         end
 
-        # 3. Window update LAST
         @renderer.update_window(pr)
       end
-      reconcile_skills(active_prs)
+      reconcile_skills(prs)
     end
 
+    sig { params(prs: T::Array[Core::PR]).void }
     def reconcile_skills(prs)
       pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
       active_branches = @worktree_branches || list_worktree_branches
 
-      @store.all_backlog.each do |item|
-        case item[:status]
-        when "pr_open"
-          pr = pr_by_branch[item[:branch]]
-          handle_done(item) if pr&.github_state == "MERGED"
-        when "running"
-          # Zombie recovery: running item but worktree gone
-          if item[:branch] && !active_branches.include?(item[:branch])
-            retry_count = item[:retry_count].to_i
-            if retry_count < Judge::MAX_RETRIES
-              @store.update_backlog_status(item[:id], "pending",
-                                           branch: nil, failure_reason: nil)
-              @store.db[:backlog_items].where(id: item[:id])
-                .update(retry_count: Sequel.expr(:retry_count) + 1)
-            else
-              @store.update_backlog_status(item[:id], "skipped",
-                                           failure_reason: "zombie_exhausted")
-            end
+      @store.all_backlog.each do |backlog_item|
+        case backlog_item.status
+        when BacklogStatus::PrOpen
+          pr = pr_by_branch[backlog_item.branch]
+          handle_done(backlog_item) if pr&.github_state == 'MERGED'
+          handle_closed(backlog_item) if pr&.github_state == 'CLOSED'
+        when BacklogStatus::Running
+          next unless backlog_item.branch
+
+          is_zombie = if !active_branches.include?(backlog_item.branch)
+                        true
+                      else
+                        wt_path = Integrations::Worktree.path_for_branch(backlog_item.branch)
+                        wt_path && zombie_process?(wt_path)
+                      end
+
+          if is_zombie
+            recover_zombie(backlog_item)
           end
         end
       end
@@ -66,127 +74,226 @@ module Nightshift
 
     private
 
-    def handle_done(item)
-      @store.update_backlog_status(item[:id], "done")
-      Worktree.cleanup(item[:branch])
-      @renderer.close_worktree(item[:branch])
+    sig { params(backlog_item: Core::BacklogItem).void }
+    def handle_done(backlog_item)
+      @store.update_backlog_status(backlog_item, BacklogStatus::Done)
+      Integrations::Worktree.cleanup(backlog_item.branch)
+      @renderer.close_worktree(backlog_item.branch)
 
-      maybe_reprioritize(item[:skill])
+      maybe_reprioritize(backlog_item.skill)
     end
 
-    def maybe_reprioritize(skill_name)
-      config = SKILLS[skill_name]
-      return unless config&.dig(:scan_proc) # only for skills with dynamic scan
-
-      completed = @store.db[:backlog_items]
-        .where(skill: skill_name, status: "done").count
-      return unless completed > 0 && (completed % 5).zero?
-
-      puts "nightshift: triggering reprioritize for #{skill_name} (#{completed} completed)"
-      Reprioritizer.run(skill_name, store: @store)
+    sig { params(backlog_item: Core::BacklogItem).void }
+    def handle_closed(backlog_item)
+      @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
+                                   failure_reason: FailureReason::ManualClose, branch: nil)
+      Integrations::Worktree.cleanup(backlog_item.branch)
+      @renderer.close_worktree(backlog_item.branch)
+      Log.info "PR closed without merge — skipped #{backlog_item.item}"
     end
 
-    def pick_next_items
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      SKILLS.each_key do |skill_name|
-        next if @store.active_for_skill?(skill_name)
-        item = @store.claim_next(skill_name)
-        next unless item
+    def zombie_process?(worktree_path)
+      pid_path = File.join(worktree_path, 'tmp', 'nightshift.pid')
+      return true unless File.exist?(pid_path)
 
-        # Guard: skip if the target file no longer exists on main
-        unless system("git", "-C", repo_path, "cat-file", "-e", "HEAD:#{item[:item]}", err: File::NULL)
-          @store.update_backlog_status(item[:id], "skipped", failure_reason: "file_not_found")
-          next
-        end
+      pid = File.read(pid_path).strip.to_i
+      return true if pid.zero?
 
-        launch_skill(skill_name, item)
+      !process_alive?(pid)
+    end
+
+    def process_alive?(pid)
+      Process.kill(0, pid)
+      true
+    rescue Errno::ESRCH
+      false
+    rescue Errno::EPERM
+      true
+    end
+
+    def recover_zombie(backlog_item)
+      retry_count = backlog_item.retry_count.to_i
+      if retry_count < CI::Judge::MAX_RETRIES
+        Log.info "zombie detected: #{backlog_item.item} — resetting to pending (retry #{retry_count + 1}/#{CI::Judge::MAX_RETRIES})"
+        Integrations::Worktree.cleanup(backlog_item.branch)
+        @renderer.close_worktree(backlog_item.branch)
+        @store.update_backlog_status(backlog_item, BacklogStatus::Pending,
+                                     branch: nil, failure_reason: nil)
+        @store.db[:backlog_items].where(id: backlog_item.id)
+              .update(retry_count: Sequel.expr(:retry_count) + 1)
+      else
+        Log.info "zombie exhausted: #{backlog_item.item} — skipping"
+        Integrations::Worktree.cleanup(backlog_item.branch)
+        @renderer.close_worktree(backlog_item.branch)
+        @store.update_backlog_status(backlog_item, BacklogStatus::Skipped,
+                                     failure_reason: FailureReason::ZombieExhausted)
       end
     end
 
-    def launch_skill(skill_name, item)
-      require "shellwords"
-      repo_path = ENV.fetch("NIGHTSHIFT_REPO")
-      slug = short_slug(item[:item], skill_name: skill_name)
+    sig { params(skill_name: String).void }
+    def maybe_reprioritize(skill_name)
+      config = Nightshift.skills[skill_name]
+      return unless config&.dig(:scan_proc)
+
+      completed = @store.db[:backlog_items]
+                        .where(skill: skill_name, status: Core::Store::DONE_S).count
+      return unless completed.positive? && (completed % 5).zero?
+
+      Log.info "triggering reprioritize for #{skill_name} (#{completed} completed)"
+      CI::Reprioritizer.run(skill_name, store: @store)
+    end
+
+    sig { void }
+    def pick_next_items
+      repo_path = Nightshift.repo_path
+
+      # Count actually-running items per backend (PrOpen doesn't consume compute)
+      active_by_backend = Hash.new(0)
+      @store.all_backlog.each do |bi|
+        next unless bi.status == BacklogStatus::Running
+
+        backend = Nightshift.backend_for(bi.skill)
+        active_by_backend[backend.harness] += 1
+      end
+
+      Nightshift.skills.each do |skill_name, skill_config|
+        next if skill_config[:meta]
+        next if @store.active_for_skill?(skill_name)
+
+        backend = Nightshift.backend_for(skill_name)
+        next if active_by_backend[backend.harness] >= backend.concurrency
+
+        batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
+
+        if batch_size > 1
+          items = @store.claim_batch(skill_name, batch_size)
+          next if items.empty?
+
+          valid, stale = items.partition do |bi|
+            system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{bi.item}", err: File::NULL)
+          end
+          stale.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound) }
+          next if valid.empty?
+
+          launch_batch(skill_name, valid)
+          active_by_backend[backend.harness] += 1
+        else
+          backlog_item = @store.claim_next(skill_name)
+          next unless backlog_item
+
+          unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
+            @store.update_backlog_status(backlog_item, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound)
+            next
+          end
+
+          launch_skill(skill_name, backlog_item)
+          active_by_backend[backend.harness] += 1
+        end
+      end
+    end
+
+    sig { params(skill_name: String, backlog_item: Core::BacklogItem).void }
+    def launch_skill(skill_name, backlog_item)
+      require 'shellwords'
+      repo_path = Nightshift.repo_path
+      slug = short_slug(backlog_item.item, skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
       wt_path = File.join(File.dirname(repo_path), wt_dir)
 
-      # Clean up stale branch/dir from previous failed attempts
-      Worktree.cleanup(branch)
+      Integrations::Worktree.cleanup(branch)
 
-      unless system("git", "-C", repo_path, "worktree", "add", wt_path, "main", "-b", branch)
-        @store.update_backlog_status(item[:id], "failed", failure_reason: "worktree_error")
+      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
+        @store.update_backlog_status(backlog_item, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError)
         return
       end
-      @store.update_backlog_status(item[:id], "running", branch: branch)
+      @store.update_backlog_status(backlog_item, BacklogStatus::Running, branch: branch)
 
-      # Ensure gitignored dirs exist + clean logs for fresh investigation
       %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
-      Dir.glob(File.join(wt_path, "log", "*.log")).each { |f| File.truncate(f, 0) }
+      Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
 
-      session = ENV.fetch("NIGHTSHIFT_SESSION")
-      skill_config = SKILLS[skill_name] || {}
-
-      # Reuse existing window if one already has this branch (e.g. from attach)
-      win_id = find_window_by_branch(session, branch)
-      unless win_id
-        win_id, = Open3.capture2("tmux", "new-window", "-t", session, "-n", "🤖 #{skill_name}-#{slug}",
-                                 "-c", wt_path, "-P", "-F", '#{window_id}')
-        win_id = win_id.strip
-        system("tmux", "set-option", "-w", "-t", win_id, "@branch", branch)
-      end
-
-      # Launch server in background pane if skill needs it
+      skill_config = Nightshift.skills[skill_name] || {}
       port = skill_config[:port]
-      if skill_config[:needs_server] && port
-        File.write(File.join(wt_path, ".env.development.local"),
+
+      server_cmd = if skill_config[:needs_server] && port
+        File.write(File.join(wt_path, '.env.development.local'),
                    "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
-        system("tmux", "split-window", "-t", win_id, "-v", "-l", "20%",
-               "-c", wt_path)
-        system("tmux", "send-keys", "-t", "#{win_id}.1",
-               "PORT=#{port} overmind start -f Procfile.sidekiq.dev", "Enter")
-        system("tmux", "select-pane", "-t", "#{win_id}.0")
+        "PORT=#{port} overmind start -f Procfile.sidekiq.dev"
       end
 
-      # Send skill-run command
-      binstub = File.expand_path("../../bin/nightshift-rb", __dir__)
-      env_prefix = port ? "PORT=#{port}" : ""
-      skill_cmd = "#{env_prefix} '#{binstub}' skill-run #{skill_name} #{Shellwords.escape(item[:item])}".strip
-      system("tmux", "send-keys", "-t", "#{win_id}.0", skill_cmd, "Enter")
-    end
-
-    def find_window_by_branch(session, branch)
-      return nil unless branch
-      out, _, status = Open3.capture3(
-        "tmux", "list-windows", "-t", session,
-        "-F", '#{window_id} #{@branch}'
+      win_id = @renderer.launch_skill_window(
+        name: "🤖 #{skill_name}-#{slug}",
+        path: wt_path,
+        branch: branch,
+        server_cmd: server_cmd
       )
-      return nil unless status.success?
 
-      out.each_line do |line|
-        win_id, win_branch = line.strip.split(" ", 2)
-        return win_id if win_branch == branch
+      env_prefix = port ? "PORT=#{port}" : ''
+      skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(backlog_item.item)}".strip
+      @renderer.send_keys(target: "#{win_id}.0", command: skill_cmd)
+    end
+
+    sig { params(skill_name: String, backlog_items: T::Array[Core::BacklogItem]).void }
+    def launch_batch(skill_name, backlog_items)
+      require 'shellwords'
+      repo_path = Nightshift.repo_path
+      batch_id = backlog_items.first.batch_id
+      branch = "auto/#{skill_name}/batch-#{batch_id[0, 8]}"
+      wt_dir = "auto-#{skill_name}-batch-#{batch_id[0, 8]}"
+      wt_path = File.join(File.dirname(repo_path), wt_dir)
+
+      Integrations::Worktree.cleanup(branch)
+
+      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
+        backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError) }
+        return
       end
-      nil
+      backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Running, branch: branch) }
+
+      %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
+      Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
+
+      skill_config = Nightshift.skills[skill_name] || {}
+      port = skill_config[:port]
+
+      server_cmd = if skill_config[:needs_server] && port
+        File.write(File.join(wt_path, '.env.development.local'),
+                   "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
+        "PORT=#{port} overmind start -f Procfile.sidekiq.dev"
+      end
+
+      win_id = @renderer.launch_skill_window(
+        name: "🤖 #{skill_name}-batch-#{batch_id[0, 8]}",
+        path: wt_path,
+        branch: branch,
+        server_cmd: server_cmd
+      )
+
+      env_prefix = port ? "PORT=#{port}" : ''
+      skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run-batch #{skill_name} #{batch_id}".strip
+      @renderer.send_keys(target: "#{win_id}.0", command: skill_cmd)
     end
 
+    sig { returns(T::Set[String]) }
     def list_worktree_branches
-      Worktree.branches
+      Integrations::Worktree.branches
     end
 
+    sig { params(path: String, skill_name: T.nilable(String)).returns(String) }
     def short_slug(path, skill_name: nil)
       Nightshift.short_slug(path, skill_name: skill_name)
     end
 
+    sig { params(pr: Core::PR, old_state: T.nilable(PRState), new_state: PRState).void }
     def on_transition(pr, old_state, new_state)
       case [old_state, new_state]
-      in [_, :ci_red]
+      in [_, PRState::CiRed]
         @renderer.autofix(pr)
-      in [_, :approved]
+      in [_, PRState::Approved]
         @renderer.propose_merge(pr)
-      in [:ci_red, :ci_green]
+      in [PRState::CiRed, PRState::CiGreen]
         @renderer.notify_fixed(pr)
-      in [_, :merged | :deployed]
+      in [_, PRState::Merged | PRState::Deployed | PRState::Closed]
         @renderer.propose_cleanup(pr)
       else
         # noop

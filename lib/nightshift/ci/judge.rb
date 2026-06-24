@@ -1,0 +1,220 @@
+# frozen_string_literal: true
+# typed: false
+
+require 'open3'
+require 'json'
+
+module Nightshift
+  module CI
+    #
+    # Judge — LLM verdict after skill failure
+    #
+    # When a skill fails, the Judge analyzes the claude log via an
+    # LLM call and returns a verdict:
+    #   skill_defect  → prompt is missing an instruction (retry + patch patterns.md)
+    #   item_hard     → item is too complex for the skill (skip)
+    #   infra_error   → transient infra issue (retry without patch)
+    #   context_limit → max turns reached without convergence (skip)
+    #
+    # Max 3 retries per item. Each cycle is recorded in DB (autolearn_cycles).
+    #
+    module Judge
+      extend T::Sig
+
+      module_function
+
+      VERDICTS = [VerdictName::SkillDefect, VerdictName::ItemHard,
+                   VerdictName::InfraError, VerdictName::ContextLimit].freeze
+      MAX_RETRIES = 3
+
+      sig { params(skill_name: String, item: String, log_path: String, failure_reason: String).returns(Verdict) }
+      def evaluate(skill_name, item:, log_path:, failure_reason:)
+        return fallback_verdict(VerdictName::LogMissing, "Log file not found: #{log_path}") unless File.exist?(log_path)
+
+        # Inline the log content so the judge doesn't need file read permissions
+        log_digest = extract_digest(log_path)
+        prompt = build_prompt(skill_name, item, failure_reason, log_digest)
+        raw = invoke_claude(prompt)
+        parse_verdict(raw)
+      rescue StandardError => e
+        fallback_verdict(VerdictName::JudgeError, e.message)
+      end
+
+      sig { params(verdict: Verdict, retry_count: Integer).returns(T::Boolean) }
+      def retryable?(verdict, retry_count)
+        return false if retry_count >= MAX_RETRIES
+
+        [VerdictName::SkillDefect, VerdictName::InfraError].include?(verdict.verdict)
+      end
+
+      sig { params(log_path: String, max_bytes: Integer).returns(String) }
+      def extract_digest(log_path, max_bytes: 50_000)
+        errors = []
+        last_events = []
+
+        File.foreach(log_path) do |line|
+          line.strip!
+          next if line.empty?
+
+          event = begin
+            JSON.parse(line)
+          rescue StandardError
+            next
+          end
+
+          # Collect errors
+          if event['type'] == 'user'
+            content = event.dig('message', 'content')
+            if content.is_a?(Array)
+              content.each do |block|
+                errors << block['content'].to_s[0, 500] if block['is_error']
+              end
+            end
+          end
+
+          # Keep last N assistant/result events
+          if %w[assistant result].include?(event['type'])
+            text = extract_event_text(event)
+            last_events << "[#{event['type']}] #{text}" if text && !text.empty?
+            last_events.shift if last_events.size > 15
+          end
+        end
+
+        parts = []
+        parts << "=== ERRORS (#{errors.size}) ===" << errors.join("\n---\n") if errors.any?
+        parts << "\n=== LAST EVENTS ===" << last_events.join("\n---\n")
+
+        digest = parts.join("\n")
+        digest.bytesize > max_bytes ? digest.byteslice(0, max_bytes) : digest
+      end
+
+      sig { params(event: T::Hash[String, T.untyped]).returns(T.nilable(String)) }
+      def extract_event_text(event)
+        case event['type']
+        when 'assistant'
+          content = event.dig('message', 'content')
+          return nil unless content.is_a?(Array)
+
+          content.filter_map do |b|
+            case b['type']
+            when 'text' then b['text']
+            when 'tool_use' then "tool_use: #{b['name']}(#{b.dig('input',
+                                                                 'command') || b.dig('input', 'pattern') || '...'})"
+            end
+          end.join("\n")[0, 800]
+        when 'result'
+          event['result'].to_s[0, 500]
+        end
+      end
+
+      sig { params(skill_name: String, item: String, failure_reason: String, log_digest: String).returns(String) }
+      def build_prompt(skill_name, item, failure_reason, log_digest)
+        <<~PROMPT
+          Tu es un juge expert en analyse d'echecs de skills autonomes.
+
+          ## Contexte
+
+          Le skill "#{skill_name}" a echoue sur l'item "#{item}".
+          Raison d'echec reportee : #{failure_reason}
+
+          ## Log du run (digest)
+
+          #{log_digest}
+
+          ## Ta mission
+
+          1. Analyse le log ci-dessus
+          2. Identifie la cause racine de l'echec
+          3. Classifie le verdict :
+             - `skill_defect` : le prompt/skill est mal configure, il manque une instruction, un piege non documente.
+               Inclut : tools bloques par "requires approval" (= allowed-tools manquants dans le SKILL.md),
+               boucle sur une commande non autorisee, mauvaise instruction dans le prompt.
+             - `item_hard` : cet item specifique est trop complexe ou a des particularites que le skill ne peut pas gerer
+             - `infra_error` : erreur d'infrastructure EXTERNE au skill (serveur non demarre, DB non disponible, timeout reseau, rate limit API, disque plein)
+             - `context_limit` : le modele a atteint la limite de turns/tokens sans converger
+
+          4. Si le verdict est `skill_defect`, propose un patch concret (texte a ajouter dans patterns.md)
+
+          ## Format de sortie OBLIGATOIRE
+
+          Reponds UNIQUEMENT avec ce JSON, sans texte avant ou apres :
+
+          ```json
+          {
+            "verdict": "skill_defect",
+            "root_cause": "description concise de la cause racine",
+            "fixable_by_skill_update": true,
+            "suggested_patch": "texte a ajouter dans patterns.md ou null",
+            "confidence": 0.8
+          }
+          ```
+        PROMPT
+      end
+
+      sig { params(prompt: String).returns(String) }
+      def invoke_claude(prompt)
+        binary = Nightshift.runner
+        out, status = Open3.capture2(
+          binary, '-p', prompt,
+          '--output-format', 'text',
+          '--max-turns', '5'
+        )
+        unless status.success?
+          return '{"verdict":"infra_error","root_cause":"judge claude process failed","fixable_by_skill_update":false,"suggested_patch":null,"confidence":0.1}'
+        end
+
+        out
+      end
+
+      sig { params(raw: String).returns(Verdict) }
+      def parse_verdict(raw)
+        # Find the outermost JSON object containing "verdict"
+        # Use a balanced brace approach instead of simple regex
+        start_idx = raw.index('{')
+        return fallback_verdict(VerdictName::ParseError, 'No JSON found in judge output') unless start_idx
+
+        depth = 0
+        end_idx = nil
+        (start_idx...raw.length).each do |i|
+          case raw[i]
+          when '{' then depth += 1
+          when '}' then depth -= 1
+                        if depth.zero? then end_idx = i
+                                            break
+                        end
+          end
+        end
+        return fallback_verdict(VerdictName::ParseError, 'Unbalanced JSON in judge output') unless end_idx
+
+        json_str = raw[start_idx..end_idx]
+        data = JSON.parse(json_str)
+        verdict_str = data['verdict']
+        begin
+          verdict = VerdictName.deserialize(verdict_str)
+        rescue KeyError
+          return fallback_verdict(VerdictName::UnknownVerdict, "Judge returned: #{verdict_str}")
+        end
+        return fallback_verdict(VerdictName::UnknownVerdict, "Judge returned: #{verdict_str}") unless VERDICTS.include?(verdict)
+
+        Verdict.new(
+          verdict: verdict,
+          root_cause: data['root_cause'].to_s[0, 500],
+          fixable_by_skill_update: !!data['fixable_by_skill_update'],
+          suggested_patch: data['suggested_patch'],
+          confidence: (data['confidence'] || 0.5).to_f.clamp(0.0, 1.0)
+        )
+      end
+
+      sig { params(verdict_override: VerdictName, reason: String).returns(Verdict) }
+      def fallback_verdict(verdict_override, reason)
+        Verdict.new(
+          verdict: VerdictName::InfraError,
+          root_cause: "#{verdict_override.serialize}: #{reason}",
+          fixable_by_skill_update: false,
+          suggested_patch: nil,
+          confidence: 0.0
+        )
+      end
+    end
+  end
+end

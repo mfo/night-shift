@@ -1,0 +1,141 @@
+# frozen_string_literal: true
+
+require 'open3'
+
+module Nightshift
+  module Monitoring
+    #
+    # Diagnose — CI failure categorization
+    #
+    # Fetches the latest CI run for a PR, lists failed jobs, and
+    # categorizes them (linter, unit, system, codeql). Provides
+    # log extraction and ANSI stripping utilities used by Autofix.
+    #
+    module Diagnose
+      extend T::Sig
+      module_function
+
+      sig { params(pr_number: T.any(Integer, String)).void }
+      def run(pr_number)
+        repo = Integrations::GitHub.gh_repo
+
+        puts "── CI DIAGNOSTIC — PR ##{pr_number} ──────────────────────"
+        puts ''
+
+        # Get latest CI run
+        run_id = extract_run_id(repo, pr_number)
+        unless run_id
+          puts '  no CI run found'
+          return
+        end
+
+        # Get all failed jobs
+        failed_jobs = fetch_failed_jobs(repo, run_id)
+        if failed_jobs.empty?
+          puts '  ✅ no failed jobs'
+          return
+        end
+
+        has_linter_failure = false
+
+        failed_jobs.each do |job_id, job_name|
+          category, action = categorize_job(job_name, job_id)
+          has_linter_failure = true if category == '🧹 LINTER'
+
+          puts "  #{category} — #{job_name}"
+          puts "  → #{action}"
+
+          logs = fetch_logs(repo, job_id)
+          unless logs
+            puts '  ⚠ could not fetch logs'
+            puts ''
+            next
+          end
+
+          print_diagnostics(job_name, logs)
+          puts ''
+        end
+
+        return unless has_linter_failure
+
+        puts '  💡 Linter failures detected — run: nightshift autofix'
+        puts ''
+      end
+
+      sig { params(repo: String, pr_number: T.any(Integer, String)).returns(T.nilable(String)) }
+      def extract_run_id(repo, pr_number)
+        out = Integrations::GitHub.capture('gh', 'pr', 'checks', pr_number.to_s,
+                                           '--repo', repo, '--json', 'link', '--jq', '.[].link')
+        out.each_line do |link|
+          match = link.match(%r{/actions/runs/(\d+)})
+          return match.captures.first if match
+        end
+        nil
+      end
+
+      sig { params(repo: String, run_id: String).returns(T::Array[[String, String]]) }
+      def fetch_failed_jobs(repo, run_id)
+        out = Integrations::GitHub.capture('gh', 'api', "repos/#{repo}/actions/runs/#{run_id}/jobs",
+                                           '--jq', '.jobs[] | select(.conclusion == "failure") | "\(.id)|\(.name)"')
+        out.each_line.filter_map do |line|
+          id, name = line.strip.split('|', 2)
+          [id, name] if id && name
+        end
+      end
+
+      def categorize_job(job_name, job_id)
+        case job_name
+        when /CodeQL|codeql/i
+          ['🔒 SECURITY', 'review manuelle requise']
+        when /System|system/i
+          ['🧪 SYSTEM TEST', "retry recommandé: gh run rerun --job #{job_id}"]
+        when /Unit|unit/i
+          ['🧪 UNIT TEST', 'specs à fixer']
+        when /Lint|lint/i
+          ['🧹 LINTER', 'autofix dispo']
+        else
+          ['❓ OTHER', 'voir logs']
+        end
+      end
+
+      sig { params(repo: String, job_id: String).returns(T.nilable(String)) }
+      def fetch_logs(repo, job_id)
+        out = Integrations::GitHub.capture('gh', 'api', "repos/#{repo}/actions/jobs/#{job_id}/logs")
+        out.empty? ? nil : out
+      end
+
+      def print_diagnostics(job_name, logs)
+        clean = strip_ansi(logs)
+
+        case job_name
+        when /Lint|lint/i
+          offenses = clean.lines.grep(/\.(rb|erb|haml):\d+.*[CWEF]:/).first(10)
+          offenses.each { |l| puts "  #{l.sub(/^.*Z /, '').strip}" }
+          summary = clean.lines.grep(/offenses? detected|autocorrectable/).last
+          puts "  #{summary.sub(/^.*Z /, '').strip}" if summary
+          puts ''
+          puts '  FIX: bundle exec rubocop -a'
+          puts '       bun lint:herb --fix'
+          puts '       bundle exec rake lint:apostrophe:fix'
+          puts '       bundle exec rake lint:yaml_newline:fix'
+
+        when /Unit|unit|System|system/i
+          failures = clean.lines.grep(%r{rspec \./spec/}).first(10)
+          failures.each { |l| puts "  #{l.sub(/^.*rspec /, 'rspec ').strip}" }
+          descriptions = clean.lines.grep(%r{Failure/Error:|expected:.*got:}).first(10)
+          descriptions.each { |l| puts "  #{l.sub(/^.*Z\s*/, '').strip}" }
+          summary = clean.lines.grep(/\d+ examples?, \d+ failures?/).last
+          puts "  #{summary.sub(/^.*Z /, '').strip}" if summary
+
+        when /CodeQL|codeql/i
+          puts '  ⚠ CodeQL findings — check GitHub Security tab'
+        end
+      end
+
+      sig { params(text: String).returns(String) }
+      def strip_ansi(text)
+        text.gsub(/\e\[[0-9;]*m/, '')
+      end
+    end
+  end
+end

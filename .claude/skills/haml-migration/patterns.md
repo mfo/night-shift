@@ -32,3 +32,18 @@ Dans patterns.md ou le prompt du skill haml-migration, ajouter :
 - Si un serveur tourne déjà sur le port cible depuis un AUTRE worktree, choisir un port libre (3100-3999) et configurer .env.development.local avec ce port
 - Le fichier config/initializers/dev_auto_login.rb peut ne pas exister : vérifier son existence avant de grep dedans, et le créer si nécessaire pour le auto-login dev
 - Ajouter `Bash(stat:*)`, `Bash(lsof:*)` dans les allowed-tools pour le diagnostic serveur
+
+### AL-3 (2026-06-16 11:15)
+
+Dans patterns.md, ajouter une section sur les prérequis et fallbacks :
+
+## Prérequis infrastructure
+
+Avant d'exécuter une migration, vérifier :
+- Si `config/initializers/dev_auto_login.rb` n'existe pas, **ne pas appeler dev-auto-login** et passer directement à l'étape suivante.
+- Si `WaitForMcpServers` n'est pas disponible (tool inexistant), utiliser `sleep 3` comme fallback ou ignorer l'attente.
+- Si Playwright MCP n'est pas configuré (`claude mcp list` ne liste pas `playwright` ou le fichier de conf MCP est absent), **ignorer la validation visuelle** et se baser uniquement sur le diff texte ERB/HAML. Ne pas bloquer la migration sur l'absence de Playwright.
+
+### AL-4 (2026-06-16 14:04)
+
+Ajouter dans patterns.md une vérification préalable de l'existence du fichier HAML avant toute édition, et déclarer mcp__playwright__browser_run_code_unsafe dans les outils autorisés du SKILL.md pour la phase de validation visuelle.
