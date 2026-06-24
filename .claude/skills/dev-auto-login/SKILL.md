@@ -34,7 +34,7 @@ Rails.application.config.to_prepare do
 
     def auto_sign_in_dev_user
       return if user_signed_in?
-      raise "[dev_auto_login] ENV['DEV_EMAIL'] non définie — auto-login désactivé" if ENV['DEV_EMAIL'].empty?
+      raise "[dev_auto_login] ENV['DEV_EMAIL'] non définie — auto-login désactivé" if ENV['DEV_EMAIL'].blank?
       user = User.find_by(email: ENV['DEV_EMAIL'])
       sign_in(user, scope: :user)
       current_user.instructeur&.update(bypass_email_login_token: true)

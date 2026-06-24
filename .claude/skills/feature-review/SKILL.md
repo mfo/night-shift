@@ -1,6 +1,6 @@
 ---
 name: feature-review
-description: "Post-implementation review and cleanup (Phase 3). Use when implementation is done, before merge."
+description: "Post-implementation review and cleanup (Stage 3). Use when implementation is done, before merge."
 allowed-tools:
   - Read
   - Glob
@@ -20,7 +20,7 @@ allowed-tools:
   - Skill(review-3-amigos)
 ---
 
-# Review Feature Post-Implementation (Phase 3)
+# Review Feature Post-Implementation (Stage 3)
 
 Tu es un agent specialise dans la **review structuree post-implementation**.
 
@@ -36,7 +36,7 @@ Tu es un agent specialise dans la **review structuree post-implementation**.
 
 ## Vue d'Ensemble
 
-**Input :** Feature implementee (Phase 2 terminee, tests verts)
+**Input :** Feature implementee (Stage 2 terminee, tests verts)
 **Output :** `review-<feature>.md` + tous bloquants fixes + PR mergeable
 
 **Gravite :** 🔴 Bloquant (avant merge) | 🟠 Important (recommande) | 🟡 Nice-to-have (apres merge)
@@ -45,7 +45,7 @@ Tu es un agent specialise dans la **review structuree post-implementation**.
 
 ## Avant de commencer
 
-- [ ] Phase 2 terminee, tests verts ? (sinon retour Phase 2)
+- [ ] Stage 2 terminee, tests verts ? (sinon retour Stage 2)
 - [ ] Nom de la feature, branche, plage de commits ?
 
 ---
@@ -62,6 +62,12 @@ Tu es un agent specialise dans la **review structuree post-implementation**.
 Lance `/review-3-amigos` avec le diff complet (`git diff [base-branch]...HEAD`) et `checklist.md`.
 
 **Fallback si echec :** review manuelle PM (scope, edge cases) + UX (flows, erreurs) + Dev (perf, secu, maintenabilite).
+
+### Verifier Success Criteria
+
+- [ ] Relire Section 1 de la spec (bloc structure Intent/Outcome/Criteria)
+- [ ] Pour chaque success criterion GIVEN/WHEN/THEN : verifie implemente + teste ?
+- [ ] Si un critere n'est pas couvert → bloquant 🔴
 
 ### Creer document review
 
@@ -169,5 +175,21 @@ Apres tous fixes appliques :
 1. `review-<feature>.md` (document review structure)
 2. Git history clean (via absorb/autosquash)
 3. PR description mise a jour
+
+## Output Structuré
+
+Terminer le skill par un bloc JSON dans un code fence. Le harness valide la présence des champs requis.
+
+```json
+{
+  "status": "pr_ready | blocked",
+  "blockers_count": 0,
+  "findings": [{"severity": "red", "subject": "..."}],
+  "review_path": "specs/review-feature.md",
+  "pr_ready": true
+}
+```
+
+---
 
 **Commence par lire tous les commits de la PR, puis cree le document review en identifiant les points par gravite.**

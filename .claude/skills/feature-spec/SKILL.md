@@ -1,6 +1,6 @@
 ---
 name: feature-spec
-description: "Create technical architecture spec (Phase 0). Use when user says 'spec', 'architecture', or needs a technical plan."
+description: "Create technical architecture spec (Stage 0). Use when user says 'spec', 'architecture', or needs a technical plan."
 allowed-tools:
   - Read
   - Glob
@@ -9,9 +9,12 @@ allowed-tools:
   - Edit(specs/*)
   - Agent
   - Skill(review-3-amigos)
+  - Bash(gh issue view:*)
+  - Bash(gh api:*)
+  - Bash(.claude/skills/feature-spec/find-procedure.sh:*)
 ---
 
-# Spécification Technique d'Architecture (Phase 0)
+# Spécification Technique d'Architecture (Stage 0)
 
 Agent spécialisé dans la rédaction de specs techniques d'architecture.
 
@@ -21,11 +24,25 @@ Agent spécialisé dans la rédaction de specs techniques d'architecture.
 
 ---
 
+## Sizing Feature
+
+| Taille | Critère | Workflow |
+|--------|---------|---------|
+| Micro | 1-2 fichiers, pas de migration | Skip spec → plan direct |
+| Small | 3-5 fichiers, pas de breaking change | Sections 1, 3, 8, 12 + user review |
+| Medium | 6-15 fichiers, ou migration, ou breaking change | Spec complète (16 sections) |
+| Large | 16+ fichiers, ou multi-système | Spec complète + 3-amigos + rollout plan |
+
+L'agent propose le sizing, le user valide. En cas de doute → niveau supérieur.
+Le user peut toujours forcer un niveau différent.
+
+---
+
 ## Documents de Référence
 
-1. **`checklist.md`** — Checklist complète, checkpoints, 15 sections obligatoires, pièges
-2. **`template.md`** — Template 15 sections, patterns pré-approuvés
-3. **`.claude/skills/feature-implementation/patterns.md`** — 10 patterns validés
+1. **`checklist.md`** — Checklist complète, checkpoints, 16 sections obligatoires, pièges
+2. **`template.md`** — Template 16 sections, patterns pré-approuvés
+3. **`.claude/skills/feature-implementation/patterns.md`** — Référence unique pour les patterns validés (ne pas dupliquer ici)
 
 ---
 
@@ -34,6 +51,12 @@ Agent spécialisé dans la rédaction de specs techniques d'architecture.
 ### Étape -1 : Interview de clarification (AVANT tout code)
 
 **Ne pas lire le code. Ne pas concevoir. Clarifier.**
+
+**Si l'input est une URL GitHub issue :**
+1. Fetch le contenu : `gh issue view URL --json title,body,labels`
+2. Fetch les commentaires : `gh api repos/OWNER/REPO/issues/NUMBER/comments`
+3. Présenter au user : titre ETQ, besoin, solution proposée, maquettes UX
+4. Enchaîner sur la reformulation ci-dessous normalement
 
 Le user arrive avec une demande. Reformuler ce qu'on a compris et le présenter :
 
@@ -50,6 +73,10 @@ Si la reformulation a des trous, poser UNE question à la fois sur la dimension 
 | **Scope** | "Jusqu'où ça va ? Quels cas sont couverts ?" |
 | **Non-goals** | "Qu'est-ce qui est explicitement hors scope ?" |
 | **Constraints** | "Quelles limites ? (techniques, deadline, backward compat…)" |
+| **Affected roles** | "Quels rôles sont impactés ? (admin, instructeur, usager…)" |
+| **Affected states** | "Quels états/transitions sont touchés ?" |
+| **Failure mode** | "Que se passe-t-il si ça échoue ? Fallback ? Erreur visible ?" |
+| **Test landscape** | "Quels tests existants couvrent ce périmètre ?" |
 | **Success criteria** | "Comment on sait que c'est fini et que ça marche ?" |
 
 **Règles :**
@@ -69,7 +96,12 @@ Outcome : [quoi]
 Scope : [jusqu'où]
 Non-goals : [pas ça]
 Constraints : [limites]
-Success criteria : [comment on vérifie]
+Affected roles : [admin / instructeur / usager / ...]
+Affected states : [transitions impactées — ex: en_construction → en_instruction]
+Failure mode : [que se passe-t-il si ça échoue ? fallback ? erreur visible ?]
+Test landscape : [tests existants sur le périmètre, tests à créer]
+Success criteria :
+- GIVEN [contexte] WHEN [action] THEN [résultat attendu]
 ```
 
 Ce bloc devient la Section 1 "Contexte & Problème" de la spec.
@@ -85,6 +117,7 @@ APRÈS la clarification, prouver les hypothèses par le code.
 1. Tracer le code impliqué — lire les fichiers, suivre les appels
 2. Vérifier les hypothèses en lisant le code source, pas en devinant
 3. Documenter les preuves ("ligne 23 de fichier.rb confirme que...")
+4. Si le changement impacte l'interface, identifier une démarche de test avec les bons types de champs via `find-procedure.sh` (query ActiveRecord libre)
 
 **Pourquoi :** L'itération 2 a montré que 20 min d'investigation code transforme un problème "effort M" en "effort S". Sans cette étape, on sur-engineer par défaut.
 
@@ -109,16 +142,11 @@ APRÈS la clarification, prouver les hypothèses par le code.
 
 **Avant de concevoir :** scanner `pitfalls/` pour les fiches qui matchent le contexte technique.
 
-**Patterns à Détecter Proactivement** (voir `patterns.md`) :
-1. **Logique répétée 3+ fois** → Query Object proposé ?
-2. **N+1 queries** → Trade-off documenté ?
-3. **Breaking changes** → Call-sites listés ?
-4. **Index DB manquants** → Proposition ajout ?
-5. **Nesting > 2 niveaux** → Self-documenting variables ?
+**Patterns à Détecter Proactivement :** voir `../feature-implementation/patterns.md` pour la liste complète. En particulier : logique répétée 3+, N+1 queries, breaking changes, index DB manquants.
 
 ### Étape 3 : Rédaction Spec v1
 
-Rédiger les **15 sections obligatoires** selon `template.md`.
+Rédiger les **16 sections obligatoires** selon `template.md`.
 La Section 1 reprend le bloc structuré de l'Étape -1 (co-écrit avec le user).
 
 ### Étape 4 : Review 3 Amigos
@@ -128,6 +156,7 @@ Lancer `/review-3-amigos` avec la spec v1 + `checklist.md`.
 **Fallback :** Si `/review-3-amigos` échoue, exécuter manuellement : questions PM + UX + Dev/Archi, consolider.
 
 **Après :** Corriger les findings 🔴, créer `specs/YYYY-MM-DD-[nom]-review-v1.md`.
+**Écrire le rapport :** le rapport consolidé est écrit par review-3-amigos dans `specs/`.
 
 ### Étape 5 : User Review + Décisions
 
@@ -148,7 +177,7 @@ La spec doit être précise sur le *quoi*, floue sur le *comment*.
 ## Checklist Spec Validée
 
 Voir `checklist.md` pour la checklist complète. Points critiques :
-- 15 sections complètes (voir template.md)
+- 16 sections complètes (voir template.md)
 - Breaking changes + call-sites
 - Trade-offs + rationale
 - Performance (N+1, index) + Sécurité (validations, authz)
@@ -161,6 +190,24 @@ Voir `checklist.md` pour la checklist complète. Points critiques :
 2. **`specs/YYYY-MM-DD-[nom]-review-v1.md`** (review findings)
 3. **`specs/YYYY-MM-DD-[nom]-review-v2.md`** (validation finale)
 4. **`kaizen/YYYY-MM-DD-[nom]-spec.md`** (kaizen phase spec)
+
+---
+
+## Output Structuré
+
+Terminer le skill par un bloc JSON dans un code fence. Le harness valide la présence des champs requis.
+
+```json
+{
+  "status": "draft_v1 | validated",
+  "issue_source": "https://github.com/... | null",
+  "sizing": "micro | small | medium | large",
+  "sections_completed": 16,
+  "success_criteria": ["GIVEN ... WHEN ... THEN ..."],
+  "affected_roles": ["admin", "instructeur", "usager"],
+  "spec_path": "specs/YYYY-MM-DD-nom-spec.md"
+}
+```
 
 ---
 

@@ -11,15 +11,16 @@
 
 ---
 
-## Structure Obligatoire (15 sections)
+## Structure Obligatoire (16 sections)
 
 ```markdown
 # Spec Technique : [Titre]
 
 **Date :** YYYY-MM-DD
 **Auteur :** [Agent/User]
-**Status :** Draft v1
+**Status :** Draft v1 | Validated
 **Complexité :** [Simple / Moyenne / Complexe]
+**Issue Source :** [URL issue GitHub ou N/A]
 
 ---
 
@@ -61,8 +62,21 @@
 
 ## 3. Architecture Proposée
 
-### Vue d'ensemble
-[Diagramme ASCII ou description]
+### Request Flow
+[route → controller → service → model → DB → view]
+
+### Side Effect Chain
+[event → callback/job → effet externe (email, webhook, log audit)]
+
+### Authorization Surface
+- Qui déclenche l'action ?
+- Quelle policy / before_action ?
+- Élargit-on ou restreint-on l'accès ?
+
+### Failure Modes
+- Écriture DB échoue → [conséquence / fallback]
+- Job échoue → [retry ? dead letter ?]
+- Service externe down → [timeout ? fallback ?]
 
 ### Composants impactés
 1. **Modèle** : [Changements]
@@ -70,6 +84,9 @@
 3. **Jobs** : [Changements]
 4. **Services** : [Changements]
 5. **Views** : [Changements]
+6. **Concerns** : [Changements]
+7. **Mailers / Notifications** : [Changements]
+8. **Policies (Pundit)** : [Changements]
 
 ---
 
@@ -94,6 +111,16 @@
 
 - [ ] Index unique : [colonnes composites]
 - [ ] Index performance : [colonnes fréquemment requêtées]
+
+### Comportements Implicites
+
+Grep sur les modèles touchés — documenter les effets invisibles :
+- Callbacks (`after_/before_/around_`) → quels effets déclenchés ?
+- Concerns inclus → quels callbacks ajoutent-ils ?
+- `dependent: :destroy` → volume de l'association ?
+- Scopes / `default_scope` → impactés par le changement ?
+- Serializers / `as_json` → le modèle est-il exposé en API ?
+- Mailers / Notifications → déclenchés par les callbacks ?
 
 ---
 
@@ -201,11 +228,23 @@ Pour chaque N+1 identifiée, documenter le trade-off :
 
 ## 12. Sécurité
 
-### Validations
-[Format, unicité, présence]
+### Authorization / IDOR
 
-### Authorization
-[Qui peut créer/modifier/voir]
+| Endpoint | Rôles autorisés | Mécanisme |
+|----------|----------------|-----------|
+| [action] | [admin/instructeur/usager] | [policy Pundit / before_action / scope] |
+
+Questions à résoudre :
+- L'accès est-il scopé au bon niveau ? (procédure, groupe instructeur, dossier)
+- Un usager peut-il accéder aux ressources d'un autre ? (IDOR)
+- Élargit-on ou restreint-on les accès existants ?
+
+### RGPD / Données Personnelles
+
+- Données personnelles touchées : [lesquelles]
+- Traçabilité : [audit log existant ? à créer ?]
+- Purge / anonymisation : [impact sur les mécanismes existants]
+- Consentement : [changement de finalité ?]
 
 ---
 
@@ -217,17 +256,63 @@ Pour chaque N+1 identifiée, documenter le trade-off :
 ### Edge cases
 [Solutions pour chaque edge case]
 
+### Accessibilité (RGAA)
+
+- [ ] Navigation clavier complète ?
+- [ ] Labels formulaires explicites ?
+- [ ] Contrastes suffisants (4.5:1 texte, 3:1 éléments UI) ?
+- [ ] aria-live pour contenu dynamique ?
+- [ ] Heading hierarchy respectée ?
+- [ ] Responsive (mobile/tablette) ?
+
 ---
 
-## 14. Rollout Strategy
+## 14. Validation Visuelle
 
-**Phase 1 :** Feature flag
-**Phase 2 :** Scale up
-**Phase 3 :** Cleanup
+_Remplir si le changement a un impact sur l'interface (vue, composant, libellé, layout). Supprimer cette section sinon._
+
+Tout changement visuel doit être documenté dans la PR pour permettre la review.
+
+### Quand capturer
+- Changement de vue/partial/composant
+- Modification de libellé, placeholder, message d'erreur
+- Ajout/suppression d'un élément d'interface
+- Changement de logique d'affichage conditionnel (droits, états)
+
+### Scénario de capture
+- **URL :** [chemin de la page à capturer]
+- **Auth :** administrateur | instructeur | usager (via dev-auto-login)
+- **Setup console :** [commandes Rails pour se donner les droits / trouver une démarche adaptée]
+- **Actions :** [naviguer, cliquer, remplir — ou "aucune" si page statique]
+- **Capturer :** [quel élément/page screenshoter]
+
+Pour trouver une démarche de test adaptée, interroger la DB de dev :
+```bash
+.claude/skills/feature-spec/find-procedure.sh "Procedure.joins(:types_de_champ_public).where(types_de_champ: { type_champ: 'communes' }).limit(5).pluck(:id, :libelle)"
+```
+
+### Variantes à couvrir
+- [ ] État nominal
+- [ ] État vide (liste vide, aucun résultat)
+- [ ] Cas limite (texte long, rôles différents, états variés)
+
+### Dans la PR
+- Section "Aperçu visuel" avec captures avant/après (si modification)
+- Si l'issue source a des maquettes UX : comparaison attendu vs obtenu
+- Captures hébergées via screenshot-gist
 
 ---
 
-## 15. Métriques & Monitoring
+## 15. Rollout Considerations
+
+- [ ] Feature flag nécessaire ? (touche du user-facing multi-rôle → oui)
+- [ ] Déploiement incrémental ? (migration volumineuse → oui)
+- [ ] Backward compat requise ? (API consommée par d'autres → oui)
+- [ ] Backfill avant code ? (colonne NOT NULL → oui)
+
+---
+
+## 16. Métriques & Monitoring
 
 ### Métriques à tracker
 [Liste métriques]
@@ -240,14 +325,14 @@ Pour chaque N+1 identifiée, documenter le trade-off :
 
 ## Checklist Spec Validée
 
-- [ ] 15 sections complètes
+- [ ] 16 sections complètes
 - [ ] Breaking changes + call-sites
 - [ ] Trade-offs + rationale
 - [ ] Tests listés (créer + modifier)
 - [ ] Migration données planifiée
 - [ ] Performance (N+1, index)
 - [ ] Sécurité (validations, authz)
-- [ ] Rollout strategy
+- [ ] Rollout considerations
 - [ ] Métriques
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: feature-plan
-description: "Create atomic commit plan from spec (Phase 1). Use when user has a validated spec and needs an implementation plan."
+description: "Create atomic commit plan from spec (Stage 1). Use when user has a validated spec and needs an implementation plan."
 allowed-tools:
   - Read
   - Glob
@@ -11,7 +11,7 @@ allowed-tools:
   - Skill(review-3-amigos)
 ---
 
-# Plan d'Implémentation Atomique (Phase 1)
+# Plan d'Implémentation Atomique (Stage 1)
 
 Agent spécialisé dans la création de plans d'implémentation à partir de specs techniques validées.
 
@@ -30,8 +30,8 @@ Agent spécialisé dans la création de plans d'implémentation à partir de spe
 ## Avant de commencer
 
 **Vérifie l'input :**
-- Spec technique validée (Phase 0 terminée) ? → Continuer
-- Spec non validée ? → Retour à Phase 0
+- Spec technique validée (Stage 0 terminée) ? → Continuer
+- Spec non validée ? → Retour à Stage 0
 - Feature simple (< 3 fichiers) ? → Implémentation directe
 
 **Demande au user :** chemin spec, contraintes spécifiques.
@@ -42,10 +42,11 @@ Agent spécialisé dans la création de plans d'implémentation à partir de spe
 
 ### Étape 1 : Lecture Spec
 
-1. Lire la spec complète (15 sections)
-2. Lister composants impactés : DB, Models, Controllers, Jobs, Services, Components, Views, Tests
-3. Identifier dépendances (migration DB avant models, backfill avant constraints)
-4. Repérer breaking changes (section 10)
+1. Auto-découvrir la spec : `Glob("specs/*-spec.md")` — prendre la plus récente si plusieurs
+2. Lire la spec complète (16 sections)
+3. Lister composants impactés : DB, Models, Controllers, Jobs, Services, Components, Views, Tests
+4. Identifier dépendances (migration DB avant models, backfill avant constraints)
+5. Repérer breaking changes (section 10)
 
 ### Étape 2 : Découpage en Commits
 
@@ -93,6 +94,31 @@ Présenter au user :
 
 1. **`specs/YYYY-MM-DD-[nom]-implementation-plan.md`**
 2. **`template.md`** (mettre à jour si nouveau pattern découvert)
+
+---
+
+## Handoff Stage 2
+
+Une fois le plan validé par le user :
+1. Marquer le Status comme `Validated` dans le frontmatter du plan
+2. Indiquer au user de lancer `/feature-implementation` (Stage 2)
+3. Si une **Issue Source** est dans la spec → la reporter dans le plan pour le mode adversarial en Stage 3
+
+---
+
+## Output Structuré
+
+Terminer le skill par un bloc JSON dans un code fence. Le harness valide la présence des champs requis.
+
+```json
+{
+  "status": "draft_v1 | validated",
+  "issue_source": "https://github.com/... | null",
+  "commits_count": 12,
+  "breaking_changes": [{"commits": "4-6", "description": "..."}],
+  "plan_path": "specs/YYYY-MM-DD-nom-implementation-plan.md"
+}
+```
 
 ---
 

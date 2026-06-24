@@ -1,6 +1,6 @@
 ---
 name: feature-implementation
-description: "Execute commit-by-commit implementation (Phase 2). Use when user has a validated plan and wants to start coding."
+description: "Execute commit-by-commit implementation (Stage 2). Use when user has a validated plan and wants to start coding."
 allowed-tools:
   - Read
   - Glob
@@ -14,9 +14,16 @@ allowed-tools:
   - Bash(git diff:*)
   - Bash(git log:*)
   - Bash(git status)
+  - Bash(git push:*)
+  - Bash(bin/rails runner:*)
+  - Bash(bundle exec rails runner:*)
+  - Bash(.claude/skills/feature-spec/find-procedure.sh:*)
+  - Skill(dev-auto-login)
+  - Skill(screenshot-gist)
+  - Skill(create-pr)
 ---
 
-# Implémentation Feature Commit par Commit (Phase 2)
+# Implémentation Feature Commit par Commit (Stage 2)
 
 Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** commit par commit.
 
@@ -31,10 +38,11 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 ## Avant de commencer
 
 **Vérifie :**
-- [ ] Plan d'implémentation validé (Phase 1 terminée) ? → sinon retour Phase 1
+- [ ] Plan d'implémentation validé (Stage 1 terminée) ? → sinon retour Stage 1
 - [ ] Tests actuels passent ? → sinon fixer d'abord
 
-**Demande au user :** chemin vers le plan, branche git, contraintes spécifiques.
+**Auto-découverte :** chercher le plan via `Glob("specs/*-implementation-plan.md")` — prendre le plus récent.
+**Demande au user :** confirmer le plan trouvé, branche git, contraintes spécifiques.
 
 ---
 
@@ -108,6 +116,12 @@ Quand tu ajoutes `validates :field, uniqueness: { scope: [...] }` :
 
 Tests passent en SQLite permissive, prod crashe en PostgreSQL strict.
 
+### Sécurité (pré-commit)
+
+- [ ] **Strong params** couvrent tous les champs du formulaire ?
+- [ ] **Inputs sanitizés** ? (champs libres = `sanitize`, pas de `html_safe` sur user input)
+- [ ] **CSRF** token sur les forms / `protect_from_forgery` sur les controllers non-API ?
+
 ---
 
 ## Checkpoint Mi-Phase (Après ~50% commits)
@@ -120,7 +134,27 @@ Tests passent en SQLite permissive, prod crashe en PostgreSQL strict.
 
 ---
 
-## Checklist Fin Phase 2
+## Validation Visuelle (si changement d'interface)
+
+Si la spec contient une section "Validation Visuelle", l'exécuter après le dernier commit.
+
+**Pré-requis Playwright :** vérifier que le serveur MCP Playwright est disponible. Si absent, fallback sur des screenshots manuels via le navigateur (documenter dans la PR que la validation est manuelle).
+
+1. **Trouver une démarche de test adaptée** via `find-procedure.sh` (query ActiveRecord libre)
+2. **Se donner les droits** via `rails runner` (ajouter comme admin/instructeur sur la procédure)
+3. **Lancer `dev-auto-login`** pour l'authentification localhost
+4. **Capturer les screenshots** selon le scénario défini dans la spec (Playwright MCP)
+5. **Comparer avec les maquettes UX** de l'issue source (si disponibles)
+6. **Publier via `screenshot-gist`** pour inclusion dans la PR
+
+### Pièges connus (issus de sessions réelles)
+- **Super-admin** : auth séparée de dev-auto-login, nécessite reset password + login form
+- **Données insuffisantes** : la démarche trouvée peut ne pas avoir de dossiers dans le bon état — utiliser `rails runner` pour transitionner/créer les données manquantes
+- **Apostrophes Unicode** : les textes FR utilisent des apostrophes typographiques ('), pas ASCII (') — matcher les assertions en conséquence
+
+---
+
+## Checklist Fin Stage 2
 
 - [ ] Tous commits exécutés selon plan (comparer plan vs. réels)
 - [ ] Suite complète tests passe (0 failures)
@@ -128,13 +162,40 @@ Tests passent en SQLite permissive, prod crashe en PostgreSQL strict.
 - [ ] Coverage ≥ 80%
 - [ ] Breaking changes en blocs (merge safe)
 - [ ] Feature implémentée complètement (acceptance criteria validées)
-- [ ] Prêt pour Phase 3 (Review & Cleanup) ?
+- [ ] Validation visuelle effectuée (si applicable)
+- [ ] Prêt pour Stage 3 (Review & Cleanup) ?
+
+---
+
+## Handoff Stage 3
+
+Quand la checklist ci-dessus est complète :
+1. **Lancer `/feature-review`** (review-3-amigos) avec le diff de la branche
+2. Si une **Issue Source** est dans la spec → la passer pour activer le **mode adversarial**
+3. Après review validée → **lancer `/create-pr`** avec les screenshots capturés
 
 ---
 
 ## Note : Screenshots ambigus
 
 Si le user demande des "captures" sans préciser → clarifier : screenshots Capybara (specs système) vs screenshots manuels (navigateur) vs screenshots Playwright (MCP).
+
+---
+
+## Output Structuré
+
+Terminer le skill par un bloc JSON dans un code fence. Le harness valide la présence des champs requis.
+
+```json
+{
+  "status": "complete | partial",
+  "commits_executed": 12,
+  "tests_pass": true,
+  "rubocop_clean": true,
+  "screenshots": ["https://gist.github.com/..."],
+  "branch": "feature/nom-feature"
+}
+```
 
 ---
 
