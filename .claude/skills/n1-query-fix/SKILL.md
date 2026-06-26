@@ -1,238 +1,215 @@
 ---
 name: n1-query-fix
-description: "Fix N+1 queries detected by Prosopite and Skylight. Use in autolearn mode with backlog items grouped by model/concern file."
-allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git blame:*), Bash(git apply:*), Bash(grep:*), Bash(find:*), Bash(rm -f tmp/prosopite:*), Bash(bundle install), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(echo:*), Bash(ls:*), Bash(cat:*), Edit(app/*), Edit(config/*), Write(app/*), Write(pr-description.md)
+description: "Fix N+1 queries detected by Prosopite and Skylight. Use in autolearn mode with backlog items grouped by controller file."
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Edit(app/*)
+  - Edit(config/*)
+  - Edit(spec/*)
+  - Write(app/*)
+  - Write(spec/*)
+  - Write(pr-description.md)
+  - Bash(git status)
+  - Bash(git add:*)
+  - Bash(git commit:*)
+  - Bash(git diff:*)
+  - Bash(git log:*)
+  - Bash(git blame:*)
+  - Bash(bash ~/dev/night-shift/.claude/skills/n1-query-fix/prosopite-setup.sh)
+  - Bash(git apply:*)
+  - Bash(grep:*)
+  - Bash(find:*)
+  - Bash(rm -f tmp/prosopite:*)
+  - Bash(bundle install)
+  - Bash(bundle add:*)
+  - Bash(bundle exec rspec:*)
+  - Bash(bundle exec rubocop:*)
+  - Bash(echo:*)
+  - Bash(ls:*)
+  - Bash(cat tmp/prosopite:*)
+  - Bash(wc:*)
+  - Bash(head:*)
+  - Bash(tail:*)
+  - Agent
+  - Skill(pr-description)
 ---
 
-# Fix N+1 queries
+# Fix N+1 queries (Coordinator)
 
-**Contexte :** Corriger les requetes N+1 detectees par Prosopite (tests) et Skylight (production) dans un fichier model/concern Rails.
+**Input :** fichier controller — `$ARGUMENTS` (ex: `app/controllers/administrateurs/attestation_templates_controller.rb`)
+**Output :** commits granulaires + pr-description.md
 
-**Input :**
-- Fichier a traiter : `$ARGUMENTS` (ex: `app/models/dossier.rb` ou `app/models/concerns/dossier_searchable.rb`)
-- Contexte de production : `.skill-context.json` (optionnel, contient les donnees Skylight)
+**Architecture :** cet agent est un **coordinateur leger**. Il setup Prosopite, scanne les N+1, classifie PROD/TEST, puis delegue chaque fix a un **sous-agent isole** qui recoit uniquement le pattern a corriger. Cela evite de saturer le contexte.
 
 **Regles Bash** :
 - Pas de `$()` (command substitution)
 - Pas de `;` ou `&&` pour chainer
 - 1 commande simple = 1 appel Bash
-- Ne JAMAIS utiliser `git -C` — le working directory est deja le repo cible
 
 ---
 
-## Etape 0 : Setup Prosopite (mode log)
+## Etape 0 : Setup Prosopite
 
-Appliquer le patch Prosopite pour activer la detection N+1 dans les tests, en **mode log** (pas raise).
+Lancer le script de setup (idempotent) :
 
-1. **Appliquer le patch** :
+```bash
+bash ~/dev/night-shift/.claude/skills/n1-query-fix/prosopite-setup.sh
+```
+
+Le script : ajoute la gem si absente, `bundle install`, configure test.rb en mode log (pas raise), ajoute les hooks scan/finish dans spec_helper.rb.
+
+**Ne PAS commiter ce setup** — il sera revert avec le worktree.
+
+---
+
+## Etape 1 : Lire le contexte (leger)
+
+1. **Lire `.skill-context.json`** s'il existe — noter les patterns N+1, les endpoints et le `waste_ms`
+2. **Identifier le spec file** :
    ```bash
-   git apply ~/dev/night-shift/.claude/skills/n1-query-fix/prosopite-setup.patch
+   find spec/controllers/ -name "*$(basename $ARGUMENTS .rb)_spec.rb" -type f
    ```
-   Si le patch est deja applique (erreur "patch does not apply"), passer a l'etape suivante.
+   Si absent, chercher dans `spec/requests/` ou `spec/system/`.
 
-2. **Desactiver raise, activer le log fichier** :
-   Editer `config/environments/test.rb` — remplacer le bloc Prosopite par :
-   ```ruby
-   config.after_initialize do
-     Prosopite.rails_logger = true
-     Prosopite.raise = false
-     Prosopite.prosopite_logger = Logger.new("tmp/prosopite-scan.log")
-   end
-   ```
-   Ceci permet aux tests de **passer** meme avec des N+1, tout en capturant les stack traces.
+**NE PAS lire le controller entier.** Le sub-agent le fera.
 
-3. **Installer les gems** :
-   ```bash
-   bundle install
-   ```
+---
 
-4. **Ne PAS commiter ce setup** — il sera revert quand le worktree sera nettoye.
-   Le commit du fix N+1 ne doit contenir que les changements de code applicatif.
-
-## Etape 1 : Lire le contexte
-
-1. **Lire le fichier cible** (`$ARGUMENTS`)
-2. **Lire `.skill-context.json`** s'il existe — il contient :
-   ```json
-   {
-     "source_file": "app/models/dossier.rb",
-     "n1_patterns": [
-       {
-         "table": "etablissements",
-         "sql_pattern": "SELECT etablissements.* FROM etablissements WHERE etablissements.dossier_id = ?",
-         "endpoints": [
-           {
-             "name": "Users::DossiersController#index",
-             "rpm": 1836,
-             "p95_ms": 692,
-             "avg_reps": 50,
-             "waste_ms": 2700
-           }
-         ],
-         "association": "etablissement",
-         "test_files": ["spec/models/dossier_spec.rb"]
-       }
-     ],
-     "total_waste_ms": 5400,
-     "skylight_url": "https://..."
-   }
-   ```
-3. **Prioriser les patterns par `waste_ms` decroissant** — fixer les plus couteux en premier
-
-## Etape 2 : Triage prod vs test
-
-Lancer les specs ciblees avec Prosopite en mode log :
+## Etape 2 : Scanner les N+1 (Prosopite)
 
 ```bash
 rm -f tmp/prosopite-scan.log
-bundle exec rspec spec/controllers/<controller>_spec.rb
+bundle exec rspec <spec_file>
 ```
 
-Puis lire le log Prosopite :
+Puis extraire les patterns via grep — **NE PAS lire le log entier** :
+
 ```bash
-cat tmp/prosopite-scan.log
+grep -c 'N+1 queries detected' tmp/prosopite-scan.log
+grep -A 5 'N+1 queries detected' tmp/prosopite-scan.log
 ```
 
-**Classifier chaque N+1 selon son call stack** :
+**Classifier chaque pattern** par sa call stack :
 
-- **PROD** : le call stack remonte dans `app/` (controller, model, view, service).
-  → C'est un vrai N+1 qui impacte les utilisateurs. **A fixer.**
-- **TEST** : le call stack ne sort pas de `spec/` (factory, `before`, `let`, setup).
-  → C'est du bruit de test. **A ignorer.**
+- **PROD** : au moins une ligne `app/` dans la call stack → vrai N+1 utilisateur
+- **TEST** : toutes les lignes dans `spec/` → bruit de test, ignorer
 
-Pour classifier, lire la stack trace Prosopite :
+---
+
+## Etape 2b : Enrichir les fixtures (si 0 PROD)
+
+Si aucun N+1 PROD detecte, deleguer un **sous-agent enrichissement** :
+
 ```
-N+1 queries detected:
-  SELECT "etablissements".* FROM "etablissements" WHERE ...
-  ↳ app/models/dossier.rb:42:in `etablissement`     ← PROD (app/)
-    app/controllers/users/dossiers_controller.rb:15
-    spec/controllers/users/dossiers_controller_spec.rb:88
+Tu es un agent de detection N+1. Tu enrichis les fixtures d'un spec controller pour declencher des N+1.
+
+## Controller cible
+`<chemin controller>`
+
+## Contexte Skylight (si disponible)
+<endpoints et scores du .skill-context.json>
+
+## Travail
+1. Lire le controller — identifier les actions qui chargent des collections
+2. Lire le spec existant — identifier les fixtures trop maigres (< 3 records)
+3. Ajouter un context 'N+1 detection' avec :
+   - `render_views`
+   - `create_list(:model, 3, ...)` avec les associations suspectees
+4. Lancer le scan :
+   ```
+   rm -f tmp/prosopite-scan.log
+   bundle exec rspec <spec_file>
+   ```
+5. Extraire les patterns PROD :
+   ```
+   grep -A 5 'N+1 queries detected' tmp/prosopite-scan.log
+   ```
+
+## Repondre avec
+- Nombre de patterns PROD trouves
+- Pour chaque : table, association, call stack (1ere ligne app/)
+- Si 0 apres enrichissement : "skip"
 ```
-vs
+
+Si le sous-agent retourne "skip" → ecrire `pr-description.md` skip et terminer :
+```markdown
+---
+title: "Tech: N+1 scan — no production N+1 found in <Controller>"
+---
+Aucun N+1 de production detecte apres enrichissement des fixtures (3+ records).
 ```
-N+1 queries detected:
-  SELECT "groupe_instructeurs".* FROM "groupe_instructeurs" WHERE ...
-  ↳ spec/controllers/instructeurs/procedures_controller_spec.rb:85  ← TEST (spec/)
-    spec/spec_helper.rb:12
+
+---
+
+## Etape 3 : Deleguer fix par fix
+
+Pour chaque pattern PROD, lancer un **sous-agent** via `Agent`. Le sous-agent recoit un prompt auto-suffisant :
+
 ```
+Tu es un agent de fix N+1 queries. Tu corriges UN pattern.
 
-**Regle** : si AUCUN N+1 PROD n'est identifie → **NE PAS abandonner immediatement**. Passer a l'etape 2b.
+## Pattern N+1
+- Table : [table_name]
+- SQL : [pattern SQL depuis Prosopite]
+- Association : [association AR suspectee]
+- Call stack (app/) : [lignes pertinentes]
+- Waste estime : [Xms depuis Skylight, si disponible]
 
-## Etape 2b : Enrichir les fixtures (obligatoire si 0 N+1 PROD)
+## Fichier controller
+`[chemin controller]`
 
-Prosopite ne detecte les N+1 que si N >= 2 records. Les specs existantes utilisent souvent 1 seul record.
+## Strategies de fix (choisir la plus appropriee)
+- `includes(:association)` dans le scope ou controller
+- `preload(:association)` pour polymorphiques ou sans filtre
+- `with_attached_<nom>` pour ActiveStorage
+- Scope nomme : `scope :with_x, -> { includes(:x) }`
+- Ne PAS utiliser default_scope
 
-1. **Lire `.skill-context.json`** : identifier les endpoints avec un score N+1 Skylight eleve
-2. **Analyse statique du controller** : pour chaque action a haut score, chercher :
-   - Les boucles sur collections (`.each`, `.map`, `.find_each`) qui accedent a des associations
-   - Les `render partial: ..., collection:` dans les vues
-   - Les associations non couvertes par les `includes`/`preload` existants
-3. **Ecrire un test temporaire** dans `spec/controllers/` avec des factories enrichies :
-   ```ruby
-   context 'N+1 detection' do
-     render_views
-     let!(:records) { create_list(:dossier, 3, :with_all_champs, procedure: procedure) }
-
-     it 'index' do
-       get :index, params: { procedure_id: procedure.id }
-     end
-   end
+## Travail
+1. Lire le controller et le(s) model(s) concernes
+2. Trouver le call site ou l'association est chargee sans eager loading :
    ```
-   Creer >= 3 records avec les associations suspectees.
-4. **Relancer Prosopite** sur ce test enrichi uniquement
-5. **Re-trier** les resultats : si des N+1 PROD apparaissent → continuer a l'etape 3
-6. **Si toujours 0 N+1 PROD apres enrichissement** → abandonner l'item.
-   Ecrire `pr-description.md` avec la raison :
-   ```markdown
-   ## Skip
-
-   Aucun N+1 de production detecte apres enrichissement des fixtures (3+ records).
-   Analyse statique du controller : aucune association non preloadee identifiee.
-   Prosopite detecte N patterns, tous dans spec/.
+   grep -rn ".<association>" app/models/ app/controllers/ app/views/
    ```
-   Puis ne PAS commiter et terminer.
-
-## Etape 3 : Analyser les N+1 PROD
-
-Pour chaque pattern PROD uniquement :
-
-1. **Trouver l'association ActiveRecord** correspondante dans le model :
-   - Table `etablissements` → `has_one :etablissement` ou `belongs_to :etablissement`
-   - Table `active_storage_attachments` → `has_one_attached` / `has_many_attached`
-   - Table `procedure_revision_types_de_champ` → association via join/through
-
-2. **Trouver les call sites** : ou cette association est chargee sans eager loading
-   ```bash
-   grep -rn "\.etablissement" app/models/ app/controllers/ app/views/ app/graphql/
+3. Appliquer le fix (includes/preload au bon endroit)
+4. Verifier les tests :
    ```
-
-3. **Identifier la strategie de fix** :
-   - **`includes`/`preload`** : dans le scope ou le controller qui charge la collection
-   - **`strict_loading`** : si l'association ne doit jamais etre lazy-loaded
-   - **scope avec `includes`** : ajouter un scope au model (ex: `scope :with_etablissement, -> { includes(:etablissement) }`)
-   - **GraphQL** : utiliser `AssociationLoader` / `BatchLoader` / `dataloader`
-
-## Etape 4 : Appliquer les fixes
-
-Ne fixer que les N+1 PROD. Ne PAS toucher aux tests pour faire taire Prosopite.
-
-1. **Modifier le code applicatif** :
-   - Si c'est un scope existant utilise dans un controller : ajouter `includes(:association)`
-   - Si c'est un GraphQL resolver : utiliser le pattern dataloader/batch
-   - Si c'est une vue qui itere : remonter le `includes` dans le controller
-   - **Ne PAS ajouter `includes` dans le model par defaut** (surcharge toutes les queries)
-
-2. **Privilegier les scopes nommes** :
-   ```ruby
-   # Bon : scope explicite
-   scope :with_etablissement, -> { includes(:etablissement) }
-
-   # Mauvais : default_scope avec includes
-   default_scope { includes(:etablissement) }
+   bundle exec rspec <spec_file>
    ```
-
-3. **Pour les associations polymorphiques ou complexes** :
-   - Utiliser `preload` au lieu de `includes` (evite les LEFT JOIN inutiles)
-   - Pour ActiveStorage : `with_attached_<nom>`
-
-## Etape 5 : Verifier l'absence de regression
-
-1. **Lancer les tests lies** :
-   ```bash
-   bundle exec rspec spec/models/<model>_spec.rb
+5. Rubocop :
    ```
-   Si le contexte mentionne des `test_files`, les lancer aussi :
-   ```bash
-   bundle exec rspec spec/controllers/<controller>_spec.rb
-   ```
-
-2. **Verifier que Prosopite ne detecte plus le N+1 PROD** :
-   - Les tests doivent passer
-   - Les N+1 TEST peuvent encore etre detectes — c'est OK, on ne les fixe pas
-
-3. **Rubocop** :
-   ```bash
    bundle exec rubocop <fichiers_modifies>
    ```
+6. Si tests verts → commit :
+   ```
+   git add <fichiers>
+   git commit --no-gpg-sign -m "perf(<scope>): fix N+1 on <association>"
+   ```
 
-## Etape 6 : Commit
+## Regles dures
+- Ne modifier que du code app/ et config/ — PAS de modifs spec/ pour faire taire Prosopite
+- Ne PAS ajouter includes dans un default_scope
+- Preload pour polymorphiques
+- Ne PAS abandonner le skill
+- Ne PAS push
 
-```bash
-git add <fichiers_modifies>
-git commit --no-gpg-sign -m "perf(<model>): fix N+1 on <association> — <contexte>"
+## Repondre avec
+- `applied` ou `skipped` ou `failed`
+- Fichiers modifies
+- Ce qui a ete change (1-2 phrases)
 ```
 
-Message de commit :
-- Prefixe `perf(<scope>):`
-- Mentionner l'association fixee
-- Si le contexte Skylight existe : mentionner le waste elimine (ex: "saves ~2700ms/req on DossiersController#index")
-- **Ne commiter que des fichiers app/ et config/** (pas de modifs de spec/ pour faire taire Prosopite)
+**Apres chaque sous-agent :**
+- Si `applied` → noter pour le pr-description.md
+- Passer au pattern suivant
 
-Un commit par pattern N+1 fixe (ou grouper si les fixes sont dans le meme fichier/scope).
+---
 
-## Etape 7 : pr-description.md (OBLIGATOIRE)
+## Etape 4 : Description PR
 
-**Toujours ecrire `pr-description.md`** a la racine du worktree, meme si un seul pattern est fixe :
+Quand tous les patterns sont traites, ecrire `pr-description.md` :
 
 ```markdown
 ---
@@ -243,19 +220,13 @@ title: "Tech: fix N+1 sur <association> dans <Controller>"
 
 N+1 detecte par [Prosopite](https://github.com/charkost/prosopite) (scan des tests) et confirme par [Skylight](https://www.skylight.io/) (production).
 
-**Donnees de production** (depuis `.skill-context.json` / [Skylight](<skylight_app_url du context>)) :
+**Donnees de production** (depuis `.skill-context.json`) :
 
-| Endpoint | RPM | P95 | Score |
+| Endpoint | RPM | P95 | Waste |
 |----------|-----|-----|-------|
-| `Controller#action` | X | Yms | Z |
+| `Controller#action` | X | Yms | Zms |
 
-Lien Skylight : utiliser `skylight_app_url` du `.skill-context.json` pour lier vers le dashboard.
-Le reviewer pourra chercher le controller dans la barre de recherche Skylight.
-
-<!-- Si RPM < 1 ou score < 10, expliquer pourquoi le fix vaut quand meme le coup,
-     ou conclure que l'impact est faible et le mentionner honnement. -->
-
-**Triage Prosopite** : N patterns PROD (call stack dans `app/`) / M patterns TEST ignores.
+**Triage Prosopite** : N patterns PROD / M patterns TEST ignores.
 
 # Solution
 
@@ -265,13 +236,19 @@ Skill [`/n1-query-fix`](https://github.com/mfo/night-shift/blob/main/.claude/ski
 
 | Association | Table | Strategy | Call site (app/) |
 |-------------|-------|----------|------------------|
-| `etablissement` | etablissements | `includes` dans scope | `app/controllers/x_controller.rb:42` |
+| ... | ... | ... | ... |
+
+### Patterns ignores (TEST)
+
+| Table | Raison |
+|-------|--------|
+| ... | call stack dans spec/ uniquement |
 
 ### Validation
 
 - [x] Tests passes (rspec)
 - [x] Rubocop OK
-- [x] Seuls des fichiers app/ et config/ sont commites
+- [x] Seuls des fichiers app/ et config/ commites
 
 Generated with [Claude Code](https://claude.com/claude-code)
 ```
@@ -280,12 +257,28 @@ Generated with [Claude Code](https://claude.com/claude-code)
 
 ## Regles critiques
 
-1. **PROD only** : ne fixer que les N+1 dont le call stack passe par `app/`. Les N+1 de test setup (factories, before blocks) ne sont PAS des bugs de perf — les ignorer.
-2. **Ne pas modifier les specs pour faire taire Prosopite** : pas de `Prosopite.pause`, pas de Preloader dans le setup, pas de `update_column` dans les fixtures. Ces changements n'apportent rien en prod.
+1. **PROD only** : ne fixer que les N+1 dont le call stack passe par `app/`. Les N+1 de test (factories, before) ne sont PAS des bugs de perf.
+2. **Ne pas modifier les specs** pour faire taire Prosopite. Pas de `Prosopite.pause`, pas de Preloader dans le setup.
 3. **Abandonner si aucun N+1 PROD** : ecrire un pr-description.md "Skip" et terminer sans commit.
-4. **Ne pas casser les queries existantes** : `includes` change le SQL genere. Verifier que les tests passent.
-5. **Pas de default_scope** : jamais ajouter `includes` dans un `default_scope`.
-6. **Preload vs Includes** : utiliser `preload` pour les associations polymorphiques ou quand on ne filtre pas sur l'association.
-7. **1 fichier source = 1 run** : traiter tous les N+1 du fichier cible, mais ne pas elargir a d'autres fichiers.
-8. **GraphQL = pattern specifique** : les resolvers GraphQL necessitent des batch loaders, pas des `includes` classiques.
-9. **Lire le contexte Skylight** : `.skill-context.json` contient les donnees de production. L'utiliser pour prioriser et documenter.
+4. **Pas de default_scope** avec includes.
+5. **Preload vs Includes** : `preload` pour les polymorphiques ou quand on ne filtre pas sur l'association.
+6. **1 fichier controller = 1 run** : traiter tous les N+1 du controller cible, pas d'autres.
+7. **GraphQL** : utiliser les batch loaders du projet, pas des `includes` classiques.
+
+## Pieges connus (retours kaizen)
+
+### Prosopite setup
+
+L'ancien patch (`prosopite-setup.patch`) ciblait des offsets precis de `Gemfile.lock` et cassait regulierement. Remplace par `prosopite-setup.sh` — script idempotent qui utilise `bundle install` au lieu de patcher le lockfile.
+
+### Faux negatifs Prosopite
+
+Prosopite ne detecte les N+1 que si N >= 2 records. Les specs avec 1 seul record ne declenchent rien. → Enrichir les fixtures avec `create_list(:model, 3, ...)`.
+
+### Commandes avec variables d'environnement
+
+`VAR=value bundle exec rspec ...` peut etre bloque. Utiliser `env VAR=value bundle exec rspec ...` ou exporter separement.
+
+### Skip legitime
+
+Si apres enrichissement aucun N+1 PROD n'est trouve, ecrire un pr-description.md "Skip" avec la raison. C'est un resultat valide, pas un echec.
