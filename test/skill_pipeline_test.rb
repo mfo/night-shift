@@ -311,7 +311,7 @@ class SkillPipelineTest < Minitest::Test
     FileUtils.mkdir_p(File.join(wt, 'tmp'))
 
     # Simulate the skill writing pr-description.md on each run
-    runner_stub = lambda do |_skill, item:, worktree_path:, context: nil|
+    runner_stub = lambda do |_skill, item:, worktree_path:, context: nil, batch_index: nil|
       File.write(File.join(wt, 'pr-description.md'), "---\ntitle: \"batch PR\"\n---\nBody for #{item}")
       success_result
     end
@@ -357,7 +357,7 @@ class SkillPipelineTest < Minitest::Test
     )
 
     call_count = 0
-    runner_stub = lambda do |_skill, item:, worktree_path:, context: nil|
+    runner_stub = lambda do |_skill, item:, worktree_path:, context: nil, batch_index: nil|
       call_count += 1
       if call_count == 1
         File.write(File.join(worktree_path, 'pr-description.md'), "---\ntitle: \"partial batch\"\n---\nBody for #{item}")

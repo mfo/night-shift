@@ -25,10 +25,11 @@ module Nightshift
           skill_name: String,
           item: String,
           worktree_path: String,
-          context: T.nilable(String)
+          context: T.nilable(String),
+          batch_index: T.nilable(Integer)
         ).returns(RunnerResult)
       end
-      def run(skill_name, item:, worktree_path:, context: nil)
+      def run(skill_name, item:, worktree_path:, context: nil, batch_index: nil)
         prompt = "/#{skill_name} #{item}"
 
         # Write context file if provided (consumed by the skill prompt)
@@ -39,7 +40,8 @@ module Nightshift
 
         logdir = File.join(worktree_path, 'tmp')
         FileUtils.mkdir_p(logdir)
-        log_path = File.join(logdir, "claude-#{skill_name}.log")
+        log_suffix = batch_index ? "-#{batch_index}" : ''
+        log_path = File.join(logdir, "claude-#{skill_name}#{log_suffix}.log")
 
         Log.info "── SKILL #{skill_name} — #{item} ──────────────────────"
 

@@ -95,7 +95,7 @@ module Nightshift
           FileUtils.rm_f(desc_path)
 
           result = Runner.run(skill, item: backlog_item.item, worktree_path: worktree_path,
-                                     context: backlog_item.context)
+                                     context: backlog_item.context, batch_index: idx)
 
           if result.success
             # Persist pr-description.md to disk (survives crash, not just RAM)
