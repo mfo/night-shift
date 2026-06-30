@@ -31,6 +31,7 @@ Application Rails, ~30 000 commits, contraintes fortes (RGAA, sécurité, GraphQ
 | 5 | `harden-*` | Sécurité applicative (pentest → audit → fix) |
 | 6 | `i18n-hardcoded` | Extraction strings FR en dur → i18n YAML |
 | 7 | `n1-query-fix` | Fix N+1 queries (Prosopite + Skylight) |
+| 8 | `flaky-test-fix` | Fix specs flaky (merge queue + retry detection) |
 
 ## Utiliser un skill
 
@@ -216,10 +217,17 @@ night-shift/
 │   │   ├── runner_result.rb           # T::Struct — résultat du runner (typé)
 │   │   ├── pipeline.rb                # Pipeline complet : run → PR ou judge → retry
 │   │   └── loader.rb                  # Chargement SKILL.md + parsing frontmatter
+│   ├── backlog_sources.rb              # Registry BacklogSources.for(skill, repo)
+│   ├── backlog_sources/               # Scan, filtre, priorité par skill
+│   │   ├── base.rb                    # Classe abstraite (scan/relevant?/prioritize)
+│   │   ├── haml_migration.rb          # Glob .haml (views + components)
+│   │   ├── i18n_hardcoded.rb          # Glob + filtre Nokogiri (texte FR en dur)
+│   │   ├── test_optimization.rb       # Glob specs + priorité par durée (rspec_profile.json)
+│   │   ├── n1_query_fix.rb            # Prosopite logs + Skylight (waste_ms)
+│   │   └── flaky_test_fix.rb          # GitHub Actions API (merge queue + retry)
 │   ├── integrations/                  # Monde extérieur
 │   │   ├── github.rb                  # API gh (fetch PRs, comments)
-│   │   ├── worktree.rb                # Gestion git worktrees (create, cleanup)
-│   │   └── n1_scanner.rb              # Scan N+1 queries (Prosopite logs)
+│   │   └── worktree.rb                # Gestion git worktrees (create, cleanup)
 │   ├── monitoring/                    # Observabilité
 │   │   ├── autolearn_monitor.rb       # Dashboard et rapport autolearn
 │   │   ├── brief.rb                   # Morning brief (PRs ouvertes)
@@ -240,6 +248,7 @@ night-shift/
 │   ├── harden-fix/                    # POC 5 — Corriger une faille (TDD)
 │   ├── i18n-hardcoded/                # POC 6 — Extraction strings FR → i18n YAML
 │   ├── n1-query-fix/                  # POC 7 — Fix N+1 queries (Prosopite + Skylight)
+│   ├── flaky-test-fix/                # POC 8 — Fix specs flaky (merge queue + retry)
 │   ├── pr-description/                # Transversal — Génère pr-description.md
 │   ├── create-pr/                     # Transversal — Push + gh pr create
 │   ├── kaizen/                        # Transversal — write + synth

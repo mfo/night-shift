@@ -4,14 +4,15 @@ Ce projet est un **méta-projet** : il contient des skills, templates et workflo
 
 ## Architecture
 
-Le harness Ruby (`lib/nightshift/`) est organisé en 6 modules Zeitwerk :
+Le harness Ruby (`lib/nightshift/`) est organisé en 7 modules Zeitwerk :
 
 | Module | Responsabilité |
 |---|---|
 | `Core` | Données et persistance — `Store` (SQLite), `PR`, `BacklogItem`, `AutolearnCycle` |
 | `CI` | Intelligence post-CI — `Judge` (verdict LLM), `Verdict`, `Autofix`, `Reprioritizer` |
 | `Skills` | Exécution des skills — `Runner` (appel `claude -p`), `RunnerResult`, `Pipeline` (run→PR ou judge→retry), `Loader` |
-| `Integrations` | Monde extérieur — `GitHub` (API gh), `Worktree` (git worktrees), `N1Scanner` |
+| `BacklogSources` | Scan, filtre et priorité par skill — `Base`, `HamlMigration`, `I18nHardcoded`, `TestOptimization`, `N1QueryFix`, `FlakyTestFix` |
+| `Integrations` | Monde extérieur — `GitHub` (API gh), `Worktree` (git worktrees) |
 | `Monitoring` | Observabilité — `AutolearnMonitor`, `Brief`, `Diagnose` |
 | `UI` | Affichage tmux — `TmuxRenderer`, `Attach` |
 
