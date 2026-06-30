@@ -3,51 +3,44 @@
 require 'json'
 
 module Nightshift
-  module Integrations
-    #
-    # N1Scanner — Backlog builder from N+1 query logs
-    #
-    # Parses Prosopite detection logs and Skylight endpoint data
-    # to build a deduplicated backlog of N+1 query items grouped
-    # by source file, with priority based on call frequency.
-    #
-    module N1Scanner
+  module BacklogSources
+    class N1QueryFix < Base
       SKYLIGHT_APP_URL = 'https://oss.skylight.io/app/applications/auuzqe8XhJIx/recent/6h/endpoints'
 
-      module_function
-
-      # Scan Prosopite log + Skylight snapshot to build the N+1 backlog.
-      # Groups patterns by source file (model/concern), not by endpoint.
-      #
-      # Expected data files in repo_path/tmp/:
-      #   - prosopite.log : Prosopite N+1 detection output
-      #   - skylight-endpoints.json : Skylight endpoint_highlights snapshot
-      #
-      # Returns an array of {item:, priority:, context:} hashes
-      # for reconcile_backlog.
-      def scan(repo_path)
-        prosopite_path = File.join(repo_path, 'tmp', 'prosopite.log')
-        skylight_path = File.join(repo_path, 'tmp', 'skylight-endpoints.json')
-
-        patterns = parse_prosopite(prosopite_path) if File.exist?(prosopite_path)
-        patterns ||= []
-
-        skylight = load_skylight(skylight_path) if File.exist?(skylight_path)
-        skylight ||= {}
-
-        by_file = group_by_source(patterns, repo_path)
+      sig { override.returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def scan
+        patterns = parse_prosopite
+        skylight = load_skylight
+        by_file = group_by_source(patterns)
 
         by_file.map do |source_file, file_patterns|
           context = build_context(source_file, file_patterns, skylight)
-          priority = calculate_priority(context)
-
-          { item: source_file, priority: priority, context: JSON.generate(context) }
+          { item: source_file, context: JSON.generate(context) }
         end
       end
 
-      # Parse Prosopite log to extract N+1 patterns.
-      # Prosopite format: each N+1 is a block with SQL + call stack
-      def parse_prosopite(path)
+      sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
+      def prioritize(item)
+        context = JSON.parse(item[:context], symbolize_names: true)
+        waste = context[:total_waste_ms] || 0
+        case waste
+        when 10_000.. then 10
+        when 5_000..9_999 then 8
+        when 3_000..4_999 then 7
+        when 1_000..2_999 then 5
+        when 500..999 then 3
+        when 1..499 then 1
+        else 0
+        end
+      end
+
+      private
+
+      sig { returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def parse_prosopite
+        path = File.join(repo_path, 'tmp', 'prosopite.log')
+        return [] unless File.exist?(path)
+
         patterns = []
         current = nil
 
@@ -67,14 +60,17 @@ module Nightshift
         patterns
       end
 
+      sig { params(sql: String).returns(T.nilable(String)) }
       def extract_table(sql)
-        # Extract table name from SQL: SELECT ... FROM table_name ...
         match = sql.match(/\bFROM\s+[`"]?(\w+)[`"]?/i)
         match ? match[1] : nil
       end
 
-      # Load Skylight endpoint_highlights JSON snapshot
-      def load_skylight(path)
+      sig { returns(T::Hash[String, T::Hash[Symbol, T.untyped]]) }
+      def load_skylight
+        path = File.join(repo_path, 'tmp', 'skylight-endpoints.json')
+        return {} unless File.exist?(path)
+
         data = JSON.parse(File.read(path))
         endpoints = data.is_a?(Array) ? data : (data['endpoints'] || data['data'] || [])
 
@@ -90,14 +86,16 @@ module Nightshift
           }
         end
         by_name
+      rescue JSON::ParserError
+        {}
       end
 
-      # Group N+1 patterns by the model/concern file that defines the association
-      def group_by_source(patterns, repo_path)
+      sig { params(patterns: T::Array[T::Hash[Symbol, T.untyped]]).returns(T::Hash[String, T::Array[T::Hash[Symbol, T.untyped]]]) }
+      def group_by_source(patterns)
         by_file = Hash.new { |h, k| h[k] = [] }
 
         patterns.each do |pattern|
-          source = find_source_file(pattern, repo_path)
+          source = find_source_file(pattern)
           next unless source
 
           by_file[source] << pattern
@@ -106,18 +104,15 @@ module Nightshift
         by_file
       end
 
-      # Find the model/concern file that defines the association for this N+1
-      def find_source_file(pattern, repo_path)
+      sig { params(pattern: T::Hash[Symbol, T.untyped]).returns(T.nilable(String)) }
+      def find_source_file(pattern)
         table = pattern[:table]
         return nil unless table
 
-        # Try to find the model for this table
-        # Convention: table "etablissements" → model "app/models/etablissement.rb"
-        singular = table.chomp('s') # naive singularization
+        singular = table.chomp('s')
         model_path = "app/models/#{singular}.rb"
         return model_path if File.exist?(File.join(repo_path, model_path))
 
-        # Check call stack for the first app/models or app/models/concerns file
         pattern[:call_stack]&.each do |frame|
           match = frame.match(%r{(app/models/\S+\.rb)})
           return match[1] if match
@@ -126,10 +121,10 @@ module Nightshift
         nil
       end
 
-      # Build context JSON for a backlog item
+      sig { params(source_file: String, patterns: T::Array[T::Hash[Symbol, T.untyped]], skylight_data: T::Hash[String, T::Hash[Symbol, T.untyped]]).returns(T::Hash[Symbol, T.untyped]) }
       def build_context(source_file, patterns, skylight_data)
         n1_patterns = patterns.map do |p|
-          endpoint_data = find_endpoints_for_table(p[:table], p[:call_stack], skylight_data)
+          endpoint_data = find_endpoints_for_table(p[:call_stack], skylight_data)
           {
             table: p[:table],
             sql_pattern: p[:sql][0, 200],
@@ -150,10 +145,10 @@ module Nightshift
         }
       end
 
-      def find_endpoints_for_table(_table, call_stack, skylight_data)
+      sig { params(call_stack: T.nilable(T::Array[String]), skylight_data: T::Hash[String, T::Hash[Symbol, T.untyped]]).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def find_endpoints_for_table(call_stack, skylight_data)
         return [] if skylight_data.empty?
 
-        # Try to match call stack frames to controllers → endpoints
         controllers = (call_stack || []).filter_map do |frame|
           match = frame.match(%r{app/controllers/(\S+)_controller\.rb.*:in.*['`](\w+)})
           next unless match
@@ -167,35 +162,23 @@ module Nightshift
           next unless ep
 
           name, data = ep
-          rpm = (data[:count].to_f / 6).round # 6h window → per-hour
+          rpm = (data[:count].to_f / 6).round
           {
             name: name,
             rpm: rpm,
             p95_ms: data[:p95_ms],
-            avg_reps: 3, # conservative default, refined by reprioritize
-            waste_ms: rpm * 3 * 1 # placeholder, refined by reprioritize
+            avg_reps: 3,
+            waste_ms: rpm * 3 * 1
           }
         end
       end
 
+      sig { params(call_stack: T.nilable(T::Array[String])).returns(T::Array[String]) }
       def extract_test_files(call_stack)
         (call_stack || []).filter_map do |frame|
           match = frame.match(%r{(spec/\S+_spec\.rb)})
           match ? match[1] : nil
         end.uniq
-      end
-
-      def calculate_priority(context)
-        waste = context[:total_waste_ms]
-        case waste
-        when 10_000.. then 10
-        when 5_000..9_999 then 8
-        when 3_000..4_999 then 7
-        when 1_000..2_999 then 5
-        when 500..999 then 3
-        when 1..499 then 1
-        else 0
-        end
       end
     end
   end

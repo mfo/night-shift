@@ -6,6 +6,7 @@ require 'tmpdir'
 class I18nFilterTest < Minitest::Test
   def setup
     @tmpdir = Dir.mktmpdir
+    @source = Nightshift::BacklogSources::I18nHardcoded.new(@tmpdir)
   end
 
   def teardown
@@ -22,7 +23,7 @@ class I18nFilterTest < Minitest::Test
       </div>
     ERB
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    assert @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_fully_i18nized
@@ -33,7 +34,7 @@ class I18nFilterTest < Minitest::Test
       </div>
     ERB
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    refute @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_with_only_erb_tags
@@ -46,7 +47,7 @@ class I18nFilterTest < Minitest::Test
       </div>
     ERB
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    refute @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_with_mixed_i18n_and_hardcoded
@@ -55,7 +56,7 @@ class I18nFilterTest < Minitest::Test
       <p>Veuillez remplir le formulaire</p>
     ERB
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    assert @source.relevant?('app/views/foo.html.erb')
   end
 
   # --- Ruby ---
@@ -69,7 +70,7 @@ class I18nFilterTest < Minitest::Test
       end
     RUBY
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/components/foo.rb')
+    assert @source.relevant?('app/components/foo.rb')
   end
 
   def test_rb_with_no_french_strings
@@ -85,7 +86,7 @@ class I18nFilterTest < Minitest::Test
       end
     RUBY
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/components/foo.rb')
+    refute @source.relevant?('app/components/foo.rb')
   end
 
   def test_rb_ignores_comments
@@ -98,7 +99,7 @@ class I18nFilterTest < Minitest::Test
       end
     RUBY
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/components/foo.rb')
+    refute @source.relevant?('app/components/foo.rb')
   end
 
   def test_rb_ignores_i18n_keys
@@ -110,7 +111,7 @@ class I18nFilterTest < Minitest::Test
       end
     RUBY
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/components/foo.rb')
+    refute @source.relevant?('app/components/foo.rb')
   end
 
   # --- HAML ---
@@ -122,7 +123,7 @@ class I18nFilterTest < Minitest::Test
         = render 'shared/nav'
     HAML
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.haml')
+    assert @source.relevant?('app/views/foo.html.haml')
   end
 
   def test_haml_fully_i18nized
@@ -132,7 +133,7 @@ class I18nFilterTest < Minitest::Test
         = render 'shared/nav'
     HAML
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.haml')
+    refute @source.relevant?('app/views/foo.html.haml')
   end
 
   # --- ERB attributes ---
@@ -142,7 +143,7 @@ class I18nFilterTest < Minitest::Test
       <input type="text" placeholder="Entrez votre nom" />
     ERB
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    assert @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_hardcoded_title
@@ -150,7 +151,7 @@ class I18nFilterTest < Minitest::Test
       <a href="/" title="Retour au tableau de bord">Home</a>
     ERB
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    assert @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_i18nized_placeholder
@@ -158,7 +159,7 @@ class I18nFilterTest < Minitest::Test
       <input type="text" placeholder="<%= t('.placeholder') %>" />
     ERB
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    refute @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_data_confirm
@@ -166,7 +167,7 @@ class I18nFilterTest < Minitest::Test
       <button data-confirm="Voulez vous vraiment supprimer">Delete</button>
     ERB
 
-    assert Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    assert @source.relevant?('app/views/foo.html.erb')
   end
 
   def test_erb_no_translatable_attrs
@@ -176,23 +177,23 @@ class I18nFilterTest < Minitest::Test
       </div>
     ERB
 
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/foo.html.erb')
+    refute @source.relevant?('app/views/foo.html.erb')
   end
 
   # --- Edge cases ---
 
   def test_missing_file
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'nonexistent.html.erb')
+    refute @source.relevant?('nonexistent.html.erb')
   end
 
   def test_empty_file
     write('app/views/empty.html.erb', '')
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/views/empty.html.erb')
+    refute @source.relevant?('app/views/empty.html.erb')
   end
 
   def test_unsupported_extension
     write('app/assets/foo.js', 'const msg = "Bonjour le monde"')
-    refute Nightshift::Integrations::I18nFilter.hardcoded?(@tmpdir, 'app/assets/foo.js')
+    refute @source.relevant?('app/assets/foo.js')
   end
 
   private

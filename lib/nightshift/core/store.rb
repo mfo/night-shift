@@ -275,7 +275,7 @@ module Nightshift
       def all_backlog(skill: nil)
         ds = db[:backlog_items]
         ds = ds.where(skill: skill) if skill
-        ds.order(:skill, :created_at).all.map { |row| BacklogItem.from_row(row) }
+        ds.order(:skill, Sequel.desc(:priority), :created_at).all.map { |row| BacklogItem.from_row(row) }
       end
 
       sig { params(id: T.any(Integer, String)).returns(T.nilable(BacklogItem)) }

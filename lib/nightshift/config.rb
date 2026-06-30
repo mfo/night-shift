@@ -16,15 +16,6 @@ module Nightshift
   class Config
     extend T::Sig
 
-    SCAN_PROCS = {
-      'n1_scanner' => ->(repo_path) { Integrations::N1Scanner.scan(repo_path) },
-      'flaky_ci_scanner' => ->(repo_path) { Integrations::FlakyCiScanner.scan(repo_path) }
-    }.freeze
-
-    SCAN_FILTERS = {
-      'i18n-hardcoded' => ->(repo_path, item) { Integrations::I18nFilter.hardcoded?(repo_path, item) }
-    }.freeze
-
     DEFAULT_BACKEND = Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 1).freeze
 
     attr_reader :repo_path, :skills, :backends
@@ -89,17 +80,8 @@ module Nightshift
       end
     end
 
-    def normalize(name, cfg)
-      result = cfg.transform_keys(&:to_sym)
-      if result[:priority_map]
-        result[:priority_map] = result[:priority_map].transform_keys { |k| Regexp.new(k.to_s) }
-      end
-      if result[:scan_proc]
-        proc_name = result[:scan_proc].to_s
-        result[:scan_proc] = SCAN_PROCS.fetch(proc_name) { abort "nightshift: unknown scan_proc '#{proc_name}'" }
-      end
-      result[:scan_filter] = SCAN_FILTERS[name]
-      result
+    def normalize(_name, cfg)
+      cfg.transform_keys(&:to_sym)
     end
   end
 end

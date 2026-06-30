@@ -35,18 +35,10 @@ module Nightshift
       desc 'scan SKILL', 'Scan repo for backlog items (idempotent via reconcile)'
       method_option :yes, type: :boolean, aliases: '-y', desc: 'Skip confirmation'
       def scan(skill)
-        config = Nightshift.skills[skill]
-        abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
-        repo_path = Nightshift.repo_path
+        source = BacklogSources.for(skill, Nightshift.repo_path)
+        abort "nightshift: skill '#{skill}' has no backlog source (known: #{BacklogSources::REGISTRY.keys.join(', ')})" unless source
 
-        items = if config[:scan_proc]
-                  scan_with_proc(config[:scan_proc], repo_path)
-                elsif config[:scan]
-                  scan_with_glob(repo_path, config[:scan], config[:priority_map], filter: config[:scan_filter])
-                else
-                  abort "nightshift: skill '#{skill}' has no scan glob or scan_proc"
-                end
-
+        items = source.items
         plan = store.reconcile_backlog(skill, items, dry_run: true)
         stats = plan[:stats]
 
@@ -76,18 +68,33 @@ module Nightshift
                   BacklogStatus::PrOpen => '🔵', BacklogStatus::Done => '✅',
                   BacklogStatus::Failed => '❌', BacklogStatus::Skipped => '⏭' }
 
+        prio_labels = { 5 => 'highest', 4 => 'high', 3 => 'medium', 2 => 'low', 1 => 'lowest', 0 => 'later' }
+
         say ''
-        backlog_items.each do |backlog_item|
-          icon = icons[backlog_item.status] || '?'
-          extra = ''
-          extra = " PR##{backlog_item.pr_number}" if backlog_item.pr_number
-          extra += " (#{backlog_item.failure_reason})" if backlog_item.failure_reason
-          prio = backlog_item.priority.to_i.positive? ? " p:#{backlog_item.priority}" : ''
-          say "  #{icon} ##{backlog_item.id} [#{backlog_item.skill}] #{backlog_item.item}#{extra}#{prio}"
+        by_status = backlog_items.group_by(&:status)
+        status_order = [BacklogStatus::Running, BacklogStatus::PrOpen, BacklogStatus::Pending,
+                        BacklogStatus::Failed, BacklogStatus::Done, BacklogStatus::Skipped]
+
+        status_order.each do |status|
+          group = by_status[status]
+          next unless group&.any?
+
+          icon = icons[status] || '?'
+          say "  #{icon} #{status.serialize} (#{group.size})", :bold
+          group.each do |bi|
+            extra = ''
+            extra = " PR##{bi.pr_number}" if bi.pr_number
+            extra += " (#{bi.failure_reason})" if bi.failure_reason
+            prio = prio_labels[bi.priority.to_i] || "p:#{bi.priority}"
+            say "     ##{bi.id} #{bi.item}  [#{prio}]#{extra}"
+          end
+          say ''
         end
-        say ''
-        counts = backlog_items.group_by(&:status).transform_values(&:size)
-        say "  #{backlog_items.size} items: #{counts.map { |k, v| "#{v} #{k.serialize}" }.join(', ')}"
+
+        counts = by_status.transform_keys { |k| k.serialize }.transform_values(&:size)
+        prio_counts = backlog_items.group_by { |bi| prio_labels[bi.priority.to_i] || "p:#{bi.priority}" }.transform_values(&:size)
+        say "  #{backlog_items.size} items: #{counts.map { |k, v| "#{v} #{k}" }.join(', ')}"
+        say "  by priority: #{prio_counts.map { |k, v| "#{v} #{k}" }.join(', ')}"
         say ''
       end
 
@@ -130,39 +137,6 @@ module Nightshift
         end
       end
 
-      def scan_with_proc(proc, repo_path)
-        if proc.arity == 1 || (proc.arity < 0 && proc.arity.abs - 1 <= 1)
-          proc.call(repo_path)
-        else
-          # Legacy contract: proc(repo_path, store) → count
-          # Wrap as reconcile-compatible by collecting what add_backlog receives
-          items = []
-          collector = Object.new
-          collector.define_singleton_method(:add_backlog) do |_skill, item, priority: 0, context: nil|
-            items << { item: item, priority: priority, context: context }
-          end
-          proc.call(repo_path, collector)
-          items
-        end
-      end
-
-      def scan_with_glob(repo_path, pattern, priority_map, filter: nil)
-        Dir.glob("#{repo_path}/#{pattern}").filter_map do |f|
-          relative = f.sub("#{repo_path}/", '')
-          next if filter && !filter.call(repo_path, relative)
-
-          { item: relative, priority: resolve_priority(relative, priority_map) }
-        end
-      end
-
-      def resolve_priority(path, priority_map)
-        return 0 unless priority_map
-
-        priority_map.each do |pattern, prio|
-          return prio if path.match?(pattern)
-        end
-        1
-      end
     end
   end
 end

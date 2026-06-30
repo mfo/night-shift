@@ -5,24 +5,13 @@ require 'open3'
 require 'set'
 
 module Nightshift
-  module Integrations
-    #
-    # FlakyCiScanner — Backlog builder from GitHub Actions flaky test detection
-    #
-    # Analyzes recent CI failures to identify flaky tests using two signals:
-    #   1. Merge queue failures (gh-readonly-queue/* branches) — code already
-    #      approved, so failures are pure infrastructure/flaky signal
-    #   2. Retry analysis — run_attempt > 1 where retried job passed
-    #
-    # Returns [{item:, priority:, context:}] for reconcile_backlog.
-    #
-    module FlakyCiScanner
-      module_function
-
+  module BacklogSources
+    class FlakyTestFix < Base
       WORKFLOW_NAME = 'Continuous Integration'
 
-      def scan(repo_path)
-        repo = detect_repo(repo_path)
+      sig { override.returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def scan
+        repo = detect_repo
         runs = fetch_failed_runs(repo, limit: 200)
         return [] if runs.empty?
 
@@ -30,24 +19,36 @@ module Nightshift
         return [] if failures.empty?
 
         flaky_specs = extract_flaky_specs(repo, failures)
-        return [] if flaky_specs.empty?
-
         flaky_specs.map do |spec_file, data|
-          {
-            item: spec_file,
-            priority: calculate_priority(data),
-            context: JSON.generate(data)
-          }
+          { item: spec_file, context: JSON.generate(data) }
         end
       end
 
-      def detect_repo(repo_path)
+      sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
+      def prioritize(item)
+        data = JSON.parse(item[:context], symbolize_names: true)
+        score = (data[:merge_queue_count] || 0) * 3 + (data[:retry_count] || 0)
+        case score
+        when 15.. then 10
+        when 10..14 then 8
+        when 6..9 then 6
+        when 3..5 then 4
+        when 1..2 then 2
+        else 0
+        end
+      end
+
+      private
+
+      sig { returns(String) }
+      def detect_repo
         out, _, status = Open3.capture3('gh', 'repo', 'view', '--json', 'nameWithOwner',
                                         '--jq', '.nameWithOwner', chdir: repo_path)
         abort 'nightshift: cannot detect repo (gh repo view failed)' unless status.success?
         out.strip
       end
 
+      sig { params(repo: String, limit: Integer).returns(T::Array[T::Hash[String, T.untyped]]) }
       def fetch_failed_runs(repo, limit:)
         runs = []
         pages = (limit / 100.0).ceil
@@ -64,6 +65,7 @@ module Nightshift
         runs.first(limit)
       end
 
+      sig { params(repo: String, runs: T::Array[T::Hash[String, T.untyped]]).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
       def analyze_runs(repo, runs)
         failures = []
 
@@ -95,6 +97,7 @@ module Nightshift
         failures
       end
 
+      sig { params(repo: String, failures: T::Array[T::Hash[Symbol, T.untyped]]).returns(T::Hash[String, T::Hash[Symbol, T.untyped]]) }
       def extract_flaky_specs(repo, failures)
         by_spec = Hash.new { |h, k| h[k] = { merge_queue_count: 0, retry_count: 0, branches: Set.new, jobs: Set.new } }
 
@@ -119,6 +122,7 @@ module Nightshift
         by_spec.select { |_, data| data[:merge_queue_count] > 0 || data[:retry_count] > 0 }
       end
 
+      sig { params(repo: String, job_id: T.untyped).returns(T::Array[String]) }
       def extract_specs_from_log(repo, job_id)
         out, _, status = Open3.capture3('gh', 'api', "repos/#{repo}/actions/jobs/#{job_id}/logs")
         return [] unless status.success?
@@ -126,6 +130,7 @@ module Nightshift
         out.scan(%r{rspec \./spec/\S+}).map { |s| s.sub(/\e\[[0-9;]*m.*/, '').strip }.uniq
       end
 
+      sig { params(job_name: String).returns(Symbol) }
       def categorize(job_name)
         case job_name
         when /system/i then :system
@@ -135,21 +140,7 @@ module Nightshift
         end
       end
 
-      def calculate_priority(data)
-        mq = data[:merge_queue_count]
-        retries = data[:retry_count]
-        score = mq * 3 + retries
-
-        case score
-        when 15.. then 10
-        when 10..14 then 8
-        when 6..9 then 6
-        when 3..5 then 4
-        when 1..2 then 2
-        else 0
-        end
-      end
-
+      sig { params(path: String).returns(T.nilable(T::Hash[String, T.untyped])) }
       def gh_api(path)
         out, _, status = Open3.capture3('gh', 'api', path)
         return nil unless status.success?

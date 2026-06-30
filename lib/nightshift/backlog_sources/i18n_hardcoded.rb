@@ -3,35 +3,32 @@
 require 'nokogiri'
 
 module Nightshift
-  module Integrations
-    #
-    # I18nFilter — Detect files containing hardcoded text (not i18n-ized)
-    #
-    # Uses Nokogiri to parse ERB/HAML templates after stripping Ruby tags,
-    # then checks text nodes and translatable attributes for hardcoded text.
-    #
-    module I18nFilter
-      module_function
-
+  module BacklogSources
+    class I18nHardcoded < Base
       FRENCH_PATTERN = /[A-ZÀ-Ÿa-zà-ÿ]{2,}\s+[a-zà-ÿ]{2,}/
       ACCENTED = /[À-ÖØ-öø-ÿ]/
       FRENCH_WORDS = /\b(votre|notre|vous|nous|est|sont|les|des|une|pour|dans|sur|avec|pas|qui|que|ont|aux|ses|ces|leur|mais|donc|car|puis|aussi|cette|tout|tous|aucun|chaque|entre|depuis|après|avant|selon|comme|sans|sous|chez|vers|doit|peut|veuillez|merci|bonjour|bienvenue|erreur|formulaire|dossier|compte|espace)\b/i
-      I18N_CALL = /\bt\(|I18n\.t\(/
       TRANSLATABLE_ATTRS = %w[placeholder title alt aria-label data-confirm].freeze
 
-      def hardcoded?(repo_path, item)
-        path = File.join(repo_path, item)
+      sig { override.returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def scan
+        glob('app/{mailers,components}/**/*.{rb,html.erb}')
+      end
+
+      sig { override.params(item_path: String).returns(T::Boolean) }
+      def relevant?(item_path)
+        path = File.join(repo_path, item_path)
         return false unless File.exist?(path)
 
         content = File.read(path, encoding: 'utf-8')
         return false if content.empty?
 
-        if item.end_with?('.html.erb')
-          has_hardcoded_erb?(content)
-        elsif item.end_with?('.rb')
-          has_hardcoded_rb?(content)
-        elsif item.end_with?('.html.haml')
-          has_hardcoded_haml?(content)
+        if item_path.end_with?('.html.erb')
+          hardcoded_erb?(content)
+        elsif item_path.end_with?('.rb')
+          hardcoded_rb?(content)
+        elsif item_path.end_with?('.html.haml')
+          hardcoded_haml?(content)
         else
           false
         end
@@ -39,7 +36,15 @@ module Nightshift
         false
       end
 
-      def has_hardcoded_erb?(content)
+      sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
+      def prioritize(item)
+        prioritize_by_view_path(item[:item])
+      end
+
+      private
+
+      sig { params(content: String).returns(T::Boolean) }
+      def hardcoded_erb?(content)
         stripped = content
           .gsub(/<%=.*?%>/m, ' ')
           .gsub(/<%.*?%>/m, '')
@@ -60,7 +65,8 @@ module Nightshift
         false
       end
 
-      def has_hardcoded_rb?(content)
+      sig { params(content: String).returns(T::Boolean) }
+      def hardcoded_rb?(content)
         lines = content.lines.reject { |l| l.strip.start_with?('#') }
         text = lines.join
         strings = text.scan(/"([^"]*)"/).flatten + text.scan(/'([^']*)'/).flatten
@@ -68,20 +74,20 @@ module Nightshift
         strings.any? { |s| s.match?(FRENCH_PATTERN) && (s.match?(ACCENTED) || s.match?(FRENCH_WORDS)) }
       end
 
-      def has_hardcoded_haml?(content)
+      sig { params(content: String).returns(T::Boolean) }
+      def hardcoded_haml?(content)
+        i18n_call = /\bt\(|I18n\.t\(/
         lines = content.lines
           .reject { |l| l.strip.start_with?('-') }
           .reject { |l| l.strip.match?(/^=\s/) }
-          .reject { |l| l.strip.match?(I18N_CALL) }
+          .reject { |l| l.strip.match?(i18n_call) }
 
         lines.join.match?(FRENCH_PATTERN)
       end
 
+      sig { params(text: String).returns(T::Boolean) }
       def french_text?(text)
-        cleaned = text.strip
-        return false if cleaned.empty?
-
-        cleaned.match?(FRENCH_PATTERN)
+        text.strip.match?(FRENCH_PATTERN)
       end
     end
   end
