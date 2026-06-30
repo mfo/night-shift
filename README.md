@@ -161,7 +161,33 @@ Documentation détaillée : [`docs/autolearn.md`](docs/autolearn.md)
 
 ### Configuration
 
-Le repo cible contient un `.nightshift.yml` (config des skills) et `.nightshift/nightshift.db` (état local, auto-créé). Voir `config/nightshift.yml` pour un exemple.
+Le repo cible contient un `.nightshift.yml` (config des skills) et `.nightshift/nightshift.db` (état local, auto-créé). Voir [`config/nightshift.yml`](config/nightshift.yml) pour un exemple commenté.
+
+```yaml
+# .nightshift.yml — dans le repo cible
+backends:
+  local:
+    harness: claude-ds4    # binary à exécuter
+    concurrency: 1         # max items running en parallèle sur ce backend
+  frontier:
+    harness: claude
+    concurrency: 4
+
+default_backend: local
+
+skills:
+  haml-migration:
+    needs_server: true     # lance overmind avant le skill
+    port: 3210
+    # backend: frontier    # override le backend par défaut
+  test-optimization: {}
+  i18n-hardcoded:
+    batch_size: 5          # traite N items par worktree
+```
+
+**Backends & concurrence :** chaque backend définit un binaire (`harness`) et un plafond de concurrence. Le reconciler compte les items `running` par harness et ne lance de nouveaux items que si `active < concurrency`. Ceci permet de faire cohabiter un modèle local (concurrency: 1) et une API frontier (concurrency: 4). Par défaut, 1 seul item actif par skill (`active_for_skill?`), plus le plafond backend.
+
+**BacklogSources :** la logique de scan, filtrage et priorité est dans le code Ruby (`lib/nightshift/backlog_sources/`), pas dans le YAML. Le YAML ne définit que les propriétés runtime (server, port, batch_size, backend).
 
 ```bash
 # Flag obligatoire

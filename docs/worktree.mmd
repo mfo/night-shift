@@ -1,0 +1,44 @@
+---
+title: Worktree Lifecycle
+---
+flowchart TD
+    create([git worktree add\nauto/skill/slug\nfrom main])
+    server{needs_server?}
+    env([write .env\nPORT + APP_HOST\nport unique par skill\nserveurs paralleles])
+    overmind([overmind start\nProcfile.sidekiq.dev])
+    tmux([tmux new-window\nname + branch tag])
+    skill([skill-run\ndans le worktree])
+    done{PR merged\nPR closed\norphan detected}
+
+    create --> hook --> server
+    server -->|oui| env --> overmind --> tmux
+    server -->|non| tmux
+    tmux --> skill --> done --> cleanup
+
+    subgraph hook ["post-checkout hook"]
+        direction TB
+        h_env([symlink .env\ndepuis repo principal])
+        h_procfile([symlink\nProcfile.sidekiq.dev])
+        h_routes([copie\nroutes-reference.txt])
+        h_envdev([write\n.env.development.local])
+        h_db([createdb\ntps_test_worktree\n+ schema:load])
+        h_envtest([write\n.env.test.local\nDB isolee])
+        h_claude([copie .claude/\nskills depuis night-shift])
+        h_dirs([mkdir log/ tmp/\ntruncate logs])
+    end
+
+    subgraph cleanup ["Worktree.cleanup"]
+        direction TB
+        c_dropdb([dropdb\ntps_test_worktree])
+        c_remove([git worktree remove\n--force])
+        c_rmrf([rm -rf si reste\nfallback si remove echoue])
+        c_branch([git branch -D])
+        c_dropdb --> c_remove --> c_rmrf --> c_branch
+    end
+
+    style create fill:#fff3e0,stroke:#e65100
+    style hook fill:#e3f2fd,stroke:#1565c0
+    style tmux fill:#f3e5f5,stroke:#6a1b9a
+    style skill fill:#e1f5fe,stroke:#0277bd
+    style overmind fill:#fff3e0,stroke:#e65100
+    style cleanup fill:#ffebee,stroke:#c62828

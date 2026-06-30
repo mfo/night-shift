@@ -1,0 +1,50 @@
+---
+title: Item Pipeline — du scan au merge
+---
+flowchart LR
+    scan([backlog scan\nBacklogSources])
+    pending[(⬜ pending\npriority 0→5)]
+    claim([claim_next\npriority DESC])
+    worktree([git worktree\n+ tmux window])
+    skill_run([skill-run\nclaude -p])
+    push([git push\n+ gh pr create])
+    pr_open[(🔵 pr_open\nattend review)]
+    ci([CI\nGitHub Actions])
+    review([Review\néquipe])
+    done[(✅ done\nworktree cleanup)]
+
+    judge([Judge\nautolearn])
+    retry[(⬜ pending\nretry_count++)]
+    skip[(⏭ skipped)]
+
+    scan -->|reconcile_backlog| pending
+    pending --> claim
+    claim -->|Reconciler 120s| worktree
+    worktree --> skill_run
+
+    skill_run -->|succès| push
+    push --> pr_open
+    pr_open --> ci
+    ci --> review
+    review -->|approved + merge| done
+
+    skill_run -->|échec| judge
+    judge -->|retryable| retry
+    retry --> claim
+    judge -->|non retryable| skip
+
+    ci -->|red| pr_open
+
+    style scan fill:#e3f2fd,stroke:#1565c0
+    style pending fill:#f5f5f5,stroke:#9e9e9e
+    style claim fill:#fff3e0,stroke:#e65100
+    style worktree fill:#fff3e0,stroke:#e65100
+    style skill_run fill:#e1f5fe,stroke:#0277bd
+    style push fill:#e8f5e9,stroke:#2e7d32
+    style pr_open fill:#e3f2fd,stroke:#1565c0
+    style ci fill:#fff3e0,stroke:#e65100
+    style review fill:#e3f2fd,stroke:#1565c0
+    style done fill:#e8f5e9,stroke:#1b5e20
+    style judge fill:#fff3e0,stroke:#e65100
+    style retry fill:#f5f5f5,stroke:#9e9e9e
+    style skip fill:#eeeeee,stroke:#757575

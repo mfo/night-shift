@@ -1,73 +1,47 @@
 ---
-title: Reconciler — Transitions & Side Effects
+title: Reconciler — Boucle 120s
 ---
-stateDiagram-v2
-    direction TB
+flowchart TD
+    watch([watch 120s])
+    watch --> pr_recon
+    watch --> health
+    watch --> scheduling
 
-    state "PR Reconciliation" as pr_recon {
-        [*] --> fetch_prs: GitHub.fetch_prs
-        fetch_prs --> filter: worktree-centric filter
-        filter --> reconcile_pr: for each active PR
-        reconcile_pr --> check_transition: state changed?
+    subgraph pr_recon ["PR Reconciliation"]
+        direction LR
+        fetch([fetch PRs]) --> upsert([upsert\ndetect state change]) --> transition([on_transition\nautofix / merge / cleanup])
+    end
 
-        check_transition --> on_transition: yes & not locked
-        check_transition --> update_window: no
-        on_transition --> update_window
+    subgraph health ["Health check (items running + pr_open)"]
+        direction LR
+        pr_open([pr_open\nPR merged? -> done\nPR closed? -> skipped])
+        running([running\nprocess dead? -> retry ou skip])
+        orphans([cleanup orphan worktrees\nauto/ sans item actif])
+        pr_open --> running --> orphans
+    end
 
-        state "on_transition" as on_transition {
-            [*] --> ci_red: → ci_red
-            [*] --> approved: → approved
-            [*] --> has_comments: → has_comments / changes_requested
-            [*] --> ci_green: ci_red → ci_green
-            [*] --> merged: → merged / deployed
+    subgraph scheduling ["Scheduling (par skill)"]
+        direction TB
+        for_skill([pour chaque skill\nordre .nightshift.yml])
+        gate1{active_for_skill?\n1 PR max par skill}
+        gate2{backend.concurrency\nex: local=1 frontier=4}
+        claim([claim_next\npriority DESC])
+        launch([launch_skill\nworktree + tmux + skill-run])
 
-            ci_red --> autofix: renderer.autofix
-            approved --> propose_merge: renderer.propose_merge
-            has_comments --> show_comments: renderer.show_comments
-            ci_green --> notify_fixed: renderer.notify_fixed
-            merged --> propose_cleanup: renderer.propose_cleanup
-        }
-    }
+        for_skill --> gate1
+        gate1 -->|deja actif| wait1([attend merge/close])
+        gate1 -->|libre| gate2
+        gate2 -->|backend plein| wait2([attend prochain cycle])
+        gate2 -->|slot libre| claim --> launch
+    end
 
-    state "Skill Reconciliation" as skill_recon {
-        [*] --> scan_backlog: store.all_backlog
+    scheduling --> watch
 
-        scan_backlog --> check_pr_open: status = pr_open
-        check_pr_open --> handle_done: PR merged on GitHub
-        handle_done --> done_effects
-
-        state "handle_done side effects" as done_effects {
-            [*] --> mark_done: store → done
-            mark_done --> cleanup_wt: Worktree.cleanup(branch)
-            cleanup_wt --> close_window: renderer.close_worktree
-        }
-
-        scan_backlog --> check_running: status = running
-        check_running --> zombie: worktree gone?
-        zombie --> mark_failed: store → failed (zombie_recovered)
-
-        scan_backlog --> pick_next: pick_next_items
-        pick_next --> check_active: active_for_skill?
-        check_active --> skip: yes (1 per skill)
-        check_active --> claim: no → store.claim_next
-        claim --> launch_skill
-    }
-
-    state "launch_skill" as launch {
-        [*] --> cleanup_stale: Worktree.cleanup(branch)
-        cleanup_stale --> git_worktree_add: git worktree add -b
-        git_worktree_add --> worktree_error: fail
-        git_worktree_add --> mark_running: success → store → running
-        worktree_error --> mark_wt_failed: store → failed (worktree_error)
-
-        mark_running --> setup_server: needs_server?
-        setup_server --> tmux_window: tmux new-window
-        mark_running --> tmux_window
-
-        tmux_window --> tag_window: @branch = branch
-        tag_window --> split_pane: server pane (if port)
-        tag_window --> send_skill_run: nightshift skill-run
-        split_pane --> send_skill_run
-    }
-
-    pr_recon --> skill_recon: reconcile_skills(active_prs)
+    style watch fill:#f3e5f5,stroke:#6a1b9a
+    style pr_recon fill:#e3f2fd,stroke:#1565c0
+    style health fill:#fff3e0,stroke:#e65100
+    style scheduling fill:#e8f5e9,stroke:#2e7d32
+    style gate1 fill:#ffebee,stroke:#c62828
+    style gate2 fill:#ffebee,stroke:#c62828
+    style wait1 fill:#eeeeee,stroke:#757575
+    style wait2 fill:#eeeeee,stroke:#757575

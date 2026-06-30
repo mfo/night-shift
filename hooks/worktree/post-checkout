@@ -166,6 +166,11 @@ bun install || {
   echo "⚠️  Erreur lors du bun install."
 }
 
+# Préparer les répertoires pour les logs nightshift et le PID
+mkdir -p "$worktree_path/log" "$worktree_path/tmp"
+find "$worktree_path/log" -name '*.log' -exec truncate -s 0 {} \;
+echo "==> log/ et tmp/ prêts (logs tronqués)"
+
 echo "✓ Configuration worktree terminée!"
 echo "  → Base de données: $db_name"
 echo "  → Config: $env_test_local"

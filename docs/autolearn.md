@@ -77,9 +77,11 @@ Point d'entrée du skill, appelé par le reconciler via `CLI.skill_run`. Gère l
 Pilote le scheduling via `pick_next_items` → `launch_skill`. Gère :
 - Création du worktree + branche
 - Démarrage du serveur (overmind) si `needs_server: true`
-- Allocation de port
+- Allocation de port et batch mode (`batch_size > 1`)
 - Fenêtre tmux
-- Zombie recovery (worktree disparu → reset failed)
+- Zombie recovery (worktree/process disparu → retry pending, ou skipped si exhausted)
+- Concurrence par backend (`active_by_backend[harness] < concurrency`)
+- Cleanup orphan worktrees (branches `auto/` sans item running/pr_open)
 
 ### Dashboards CLI
 
@@ -130,4 +132,4 @@ Quand le juge détecte un `infra_error`, la cause racine est stockée comme sugg
 ## Diagrammes
 
 - Flux principal : [`docs/autolearn.mmd`](autolearn.mmd)
-- Relations DB : [`docs/autolearn-schema.mmd`](autolearn-schema.mmd)
+- Schéma SQLite complet : [`docs/schema.mmd`](schema.mmd)

@@ -44,8 +44,15 @@ module Nightshift
 
     sig { params(prs: T::Array[Core::PR]).void }
     def reconcile_skills(prs)
-      pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
       active_branches = @worktree_branches || list_worktree_branches
+      health_check(prs, active_branches)
+      cleanup_orphan_worktrees(active_branches)
+      pick_next_items
+    end
+
+    sig { params(prs: T::Array[Core::PR], active_branches: T::Set[String]).void }
+    def health_check(prs, active_branches)
+      pr_by_branch = prs.each_with_object({}) { |pr, h| h[pr.branch] = pr }
 
       @store.all_backlog.each do |backlog_item|
         case backlog_item.status
@@ -66,14 +73,9 @@ module Nightshift
                         wt_path && zombie_process?(wt_path)
                       end
 
-          if is_zombie
-            recover_zombie(backlog_item)
-          end
+          recover_zombie(backlog_item) if is_zombie
         end
       end
-
-      cleanup_orphan_worktrees(active_branches)
-      pick_next_items
     end
 
     private
@@ -239,9 +241,6 @@ module Nightshift
       end
       @store.update_backlog_status(backlog_item, BacklogStatus::Running, branch: branch)
 
-      %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
-      Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
-
       skill_config = Nightshift.skills[skill_name] || {}
       port = skill_config[:port]
 
@@ -279,9 +278,6 @@ module Nightshift
         return
       end
       backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Running, branch: branch) }
-
-      %w[log tmp].each { |d| FileUtils.mkdir_p(File.join(wt_path, d)) }
-      Dir.glob(File.join(wt_path, 'log', '*.log')).each { |f| File.truncate(f, 0) }
 
       skill_config = Nightshift.skills[skill_name] || {}
       port = skill_config[:port]

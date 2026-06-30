@@ -1,17 +1,19 @@
 # .nightshift.yml — reference config (copy to target repo root)
 #
 # Each target repo gets its own .nightshift.yml defining which skills
-# to run and how to scan for backlog items.
+# to run and how. DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
 #
-# DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
+# Scanning, filtering, and priority logic live in BacklogSources (Ruby classes),
+# NOT in this config. This file defines runtime properties only.
 
-# Backends define execution profiles: binary + concurrency.
-# Skills reference a backend by name. Concurrency is enforced per backend
-# (e.g. a local model server handles 1 request at a time).
+# Backends define execution profiles: harness binary + concurrency.
+# Skills reference a backend by name. Concurrency is enforced per harness —
+# e.g. a local model server handles 1 request at a time while a frontier API
+# can handle 4 concurrent skill runs.
 backends:
   local:
-    harness: claude-ds4
-    concurrency: 1
+    harness: claude-ds4     # binary name
+    concurrency: 1          # max concurrent running items across all skills using this backend
   frontier:
     harness: claude
     concurrency: 4
@@ -21,24 +23,20 @@ default_backend: local
 
 skills:
   haml-migration:
-    scan: "app/views/**/*.html.haml"
-    needs_server: true
-    port: 3210
-    # backend: frontier   # override to use frontier for this skill
-  test-optimization:
-    scan: "spec/**/*_spec.rb"
-  i18n-hardcoded:
-    scan: "app/{mailers,components}/**/*.{rb,html.erb}"
+    needs_server: true      # launch overmind (Procfile.sidekiq.dev) before skill
+    port: 3210              # port for the dev server in this worktree
+    # backend: frontier     # override to use frontier for this skill
 
+  test-optimization: {}     # no special config needed
+
+  i18n-hardcoded:
     needs_server: true
     port: 3220
-    batch_size: 5
-    priority_map:
-      "/dossiers/|/users/|quotient_familial|notification_mailer|user_mailer|phishing_alert": 3
-      "/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer": 2
-  n1-query-fix:
-    scan_proc: n1_scanner
-  flaky-test-fix:
-    scan_proc: flaky_ci_scanner
+    batch_size: 5           # process N items per worktree (claim_batch)
+
+  n1-query-fix: {}
+
+  flaky-test-fix: {}
+
   reprioritize:
-    meta: true
+    meta: true              # not a real skill — excluded from pick_next_items

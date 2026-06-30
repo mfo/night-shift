@@ -1,0 +1,97 @@
+---
+title: Night Shift — Schema SQLite
+---
+erDiagram
+    prs {
+        int number PK
+        string branch
+        string state "PRState serialized"
+        string github_state "OPEN / MERGED / CLOSED"
+        string ci
+        string review_decision
+        int review_count
+        bool auto_merge
+        bool deployed
+        string reviewer
+        int comment_count
+        string updated_at
+        int synced_at
+    }
+
+    transitions {
+        int id PK
+        int pr_number FK
+        string from_state
+        string to_state
+        int created_at
+    }
+
+    runs {
+        int id PK
+        int pr_number FK
+        string kind "autofix / merge / diagnose"
+        int started_at
+        int finished_at
+        bool success
+        int turns_used
+        int files_changed
+        string output_path
+        int created_at
+    }
+
+    backlog_items {
+        int id PK
+        string skill
+        string item "file path or spec identifier"
+        string status "BacklogStatus serialized"
+        string branch
+        int pr_number FK "nullable — set null on delete"
+        string failure_reason "FailureReason serialized"
+        int priority "0=later to 5=highest"
+        int retry_count "autolearn attempts"
+        string last_verdict "VerdictName serialized"
+        int retry_after "epoch — rate limit cooldown"
+        string context "extra data — JSON text"
+        string batch_id "groups items in batch mode"
+        int created_at
+        int updated_at
+    }
+
+    autolearn_cycles {
+        int id PK
+        int backlog_item_id FK
+        int attempt "1 to N"
+        string verdict "VerdictName serialized"
+        string root_cause
+        string suggested_patch
+        float confidence "0.0 to 1.0"
+        string skill_patch_sha "commit SHA"
+        string outcome "improved / degraded / no_change / skipped"
+        string log_path
+        int turns_used
+        int created_at
+    }
+
+    infra_suggestions {
+        int id PK
+        string skill
+        string source "judge / preflight / manual"
+        string description
+        string target "nightshift module concerned"
+        int backlog_item_id FK
+        int occurrences "dedup counter"
+        string status "pending / accepted / rejected / implemented"
+        int created_at
+        int resolved_at
+    }
+
+    settings {
+        string key PK
+        string value
+    }
+
+    prs ||--o{ transitions : "state history"
+    prs ||--o{ runs : "autofix / merge runs"
+    prs |o--o{ backlog_items : "pr_number FK — set null on delete"
+    backlog_items ||--o{ autolearn_cycles : "judge attempts"
+    backlog_items ||--o{ infra_suggestions : "infra issues"
