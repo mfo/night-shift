@@ -217,6 +217,60 @@ module Nightshift
         row ? BacklogItem.from_row(row) : nil
       end
 
+      # Reconcile a skill's backlog against a fresh scan.
+      # Adds new items, updates priorities on pending items, and prunes
+      # pending items no longer present in the scan (→ ResolvedUpstream).
+      # Running/PrOpen/Done items are never touched.
+      sig do
+        params(
+          skill: String,
+          current_items: T::Array[T::Hash[Symbol, T.untyped]],
+          dry_run: T::Boolean
+        ).returns(T::Hash[Symbol, T.untyped])
+      end
+      def reconcile_backlog(skill, current_items, dry_run: false)
+        current_by_item = current_items.each_with_object({}) { |ci, h| h[ci[:item]] = ci }
+        changes = []
+
+        current_items.each do |ci|
+          existing = db[:backlog_items].where(skill: skill, item: ci[:item]).first
+          if existing.nil?
+            changes << { action: :add, item: ci[:item], priority: ci[:priority] || 0 }
+            add_backlog(skill, ci[:item], priority: ci[:priority] || 0, context: ci[:context]) unless dry_run
+          elsif existing[:status] == PENDING_S
+            updates = {}
+            updates[:priority] = ci[:priority] if ci[:priority] && ci[:priority] != existing[:priority]
+            updates[:context] = ci[:context] if ci[:context] && ci[:context] != existing[:context]
+            if updates.any?
+              changes << { action: :update, item: ci[:item],
+                           old_priority: existing[:priority], new_priority: ci[:priority] || existing[:priority] }
+              unless dry_run
+                updates[:updated_at] = Time.now.to_i
+                db[:backlog_items].where(id: existing[:id]).update(updates)
+              end
+            end
+          end
+        end
+
+        db[:backlog_items].where(skill: skill, status: PENDING_S).each do |row|
+          next if current_by_item.key?(row[:item])
+
+          changes << { action: :prune, item: row[:item], priority: row[:priority] }
+          unless dry_run
+            bi = BacklogItem.from_row(row)
+            update_backlog_status(bi, BacklogStatus::Skipped,
+                                  failure_reason: FailureReason::ResolvedUpstream)
+          end
+        end
+
+        stats = { added: changes.count { |c| c[:action] == :add },
+                  updated: changes.count { |c| c[:action] == :update },
+                  pruned: changes.count { |c| c[:action] == :prune },
+                  total: current_items.size }
+
+        dry_run ? { stats: stats, changes: changes } : stats
+      end
+
       sig { params(skill: T.nilable(String)).returns(T::Array[BacklogItem]) }
       def all_backlog(skill: nil)
         ds = db[:backlog_items]

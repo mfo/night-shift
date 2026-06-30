@@ -20,3 +20,5 @@ group :test do
   gem 'minitest'
   gem 'minitest-mock'
 end
+
+gem "nokogiri", "~> 1.19"

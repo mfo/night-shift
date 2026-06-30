@@ -23,8 +23,9 @@ module Nightshift
       #   - prosopite.log : Prosopite N+1 detection output
       #   - skylight-endpoints.json : Skylight endpoint_highlights snapshot
       #
-      # Returns the number of items added.
-      def scan(repo_path, store)
+      # Returns an array of {item:, priority:, context:} hashes
+      # for reconcile_backlog.
+      def scan(repo_path)
         prosopite_path = File.join(repo_path, 'tmp', 'prosopite.log')
         skylight_path = File.join(repo_path, 'tmp', 'skylight-endpoints.json')
 
@@ -34,22 +35,14 @@ module Nightshift
         skylight = load_skylight(skylight_path) if File.exist?(skylight_path)
         skylight ||= {}
 
-        # Group by source file
         by_file = group_by_source(patterns, repo_path)
 
-        count = 0
-        by_file.each do |source_file, file_patterns|
-          # Build context with Skylight data
+        by_file.map do |source_file, file_patterns|
           context = build_context(source_file, file_patterns, skylight)
           priority = calculate_priority(context)
 
-          store.add_backlog('n1-query-fix', source_file,
-                            priority: priority,
-                            context: JSON.generate(context))
-          count += 1
+          { item: source_file, priority: priority, context: JSON.generate(context) }
         end
-
-        count
       end
 
       # Parse Prosopite log to extract N+1 patterns.

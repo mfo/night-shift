@@ -32,26 +32,40 @@ module Nightshift
         say_status :add, "#{item} to #{skill} backlog", :green
       end
 
-      desc 'scan SKILL', 'Scan repo for backlog items'
+      desc 'scan SKILL', 'Scan repo for backlog items (idempotent via reconcile)'
+      method_option :yes, type: :boolean, aliases: '-y', desc: 'Skip confirmation'
       def scan(skill)
         config = Nightshift.skills[skill]
         abort "nightshift: unknown skill '#{skill}' (known: #{Nightshift.skill_names.join(', ')})" unless config
         repo_path = Nightshift.repo_path
 
-        if config[:scan_proc]
-          count = config[:scan_proc].call(repo_path, store)
-          say_status :scan, "#{count} items added for #{skill}", :green
+        items = if config[:scan_proc]
+                  scan_with_proc(config[:scan_proc], repo_path)
+                elsif config[:scan]
+                  scan_with_glob(repo_path, config[:scan], config[:priority_map], filter: config[:scan_filter])
+                else
+                  abort "nightshift: skill '#{skill}' has no scan glob or scan_proc"
+                end
+
+        plan = store.reconcile_backlog(skill, items, dry_run: true)
+        stats = plan[:stats]
+
+        if stats[:added].zero? && stats[:updated].zero? && stats[:pruned].zero?
+          say_status :scan, "#{skill}: nothing to change (#{stats[:total]} items current)", :green
           return
         end
 
-        priority_map = config[:priority_map]
-        files = Dir.glob("#{repo_path}/#{config[:scan]}")
-        files.each do |f|
-          relative = f.sub("#{repo_path}/", '')
-          priority = resolve_priority(relative, priority_map)
-          store.add_backlog(skill, relative, priority: priority)
+        print_reconcile_diff(plan[:changes])
+        say ''
+        say "  +#{stats[:added]} added, ~#{stats[:updated]} updated, -#{stats[:pruned]} pruned (#{stats[:total]} total)"
+        say ''
+
+        unless options[:yes]
+          return unless yes?('  Apply? [y/N]')
         end
-        say_status :scan, "#{files.size} files for #{skill}", :green
+
+        store.reconcile_backlog(skill, items)
+        say_status :apply, "#{skill} backlog reconciled", :green
       end
 
       desc 'list [SKILL]', 'List backlog items, optionally filtered by skill'
@@ -101,6 +115,45 @@ module Nightshift
       private
 
       def store = CLI.store
+
+      def print_reconcile_diff(changes)
+        say ''
+        changes.sort_by { |c| [{ add: 0, update: 1, prune: 2 }[c[:action]], c[:item]] }.each do |c|
+          case c[:action]
+          when :add
+            say "  + #{c[:item]}", :green
+          when :update
+            say "  ~ #{c[:item]}  (p:#{c[:old_priority]} → #{c[:new_priority]})", :yellow
+          when :prune
+            say "  - #{c[:item]}", :red
+          end
+        end
+      end
+
+      def scan_with_proc(proc, repo_path)
+        if proc.arity == 1 || (proc.arity < 0 && proc.arity.abs - 1 <= 1)
+          proc.call(repo_path)
+        else
+          # Legacy contract: proc(repo_path, store) → count
+          # Wrap as reconcile-compatible by collecting what add_backlog receives
+          items = []
+          collector = Object.new
+          collector.define_singleton_method(:add_backlog) do |_skill, item, priority: 0, context: nil|
+            items << { item: item, priority: priority, context: context }
+          end
+          proc.call(repo_path, collector)
+          items
+        end
+      end
+
+      def scan_with_glob(repo_path, pattern, priority_map, filter: nil)
+        Dir.glob("#{repo_path}/#{pattern}").filter_map do |f|
+          relative = f.sub("#{repo_path}/", '')
+          next if filter && !filter.call(repo_path, relative)
+
+          { item: relative, priority: resolve_priority(relative, priority_map) }
+        end
+      end
 
       def resolve_priority(path, priority_map)
         return 0 unless priority_map

@@ -606,6 +606,232 @@ class StoreTest < Minitest::Test
     assert_equal 1, cycles.size
   end
 
+  # --- reconcile_backlog ---
+
+  def test_reconcile_backlog_adds_new_items
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 1 },
+      { item: 'b.haml', priority: 2 }
+    ])
+
+    assert_equal 2, result[:added]
+    assert_equal 0, result[:pruned]
+    assert_equal 2, result[:total]
+    assert_equal 2, @db[:backlog_items].count
+  end
+
+  def test_reconcile_backlog_prunes_stale_pending_items
+    @store.add_backlog('haml-migration', 'old.haml')
+    @store.add_backlog('haml-migration', 'keep.haml')
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'keep.haml', priority: 0 }
+    ])
+
+    assert_equal 0, result[:added]
+    assert_equal 1, result[:pruned]
+
+    old = @db[:backlog_items].where(item: 'old.haml').first
+    assert_equal 'skipped', old[:status]
+    assert_equal 'resolved_upstream', old[:failure_reason]
+  end
+
+  def test_reconcile_backlog_never_prunes_running
+    @store.add_backlog('haml-migration', 'active.haml')
+    bi = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::Running, branch: 'auto/x')
+
+    result = @store.reconcile_backlog('haml-migration', [])
+
+    assert_equal 0, result[:pruned]
+    row = @db[:backlog_items].where(item: 'active.haml').first
+    assert_equal 'running', row[:status]
+  end
+
+  def test_reconcile_backlog_never_prunes_pr_open
+    @store.add_backlog('haml-migration', 'pr.haml')
+    bi = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
+
+    result = @store.reconcile_backlog('haml-migration', [])
+
+    assert_equal 0, result[:pruned]
+    row = @db[:backlog_items].where(item: 'pr.haml').first
+    assert_equal 'pr_open', row[:status]
+  end
+
+  def test_reconcile_backlog_never_prunes_done
+    @store.add_backlog('haml-migration', 'done.haml')
+    bi = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::Done)
+
+    result = @store.reconcile_backlog('haml-migration', [])
+
+    assert_equal 0, result[:pruned]
+    row = @db[:backlog_items].where(item: 'done.haml').first
+    assert_equal 'done', row[:status]
+  end
+
+  def test_reconcile_backlog_updates_priority_on_pending
+    @store.add_backlog('haml-migration', 'a.haml', priority: 1)
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 10 }
+    ])
+
+    assert_equal 1, result[:updated]
+    row = @db[:backlog_items].where(item: 'a.haml').first
+    assert_equal 10, row[:priority]
+  end
+
+  def test_reconcile_backlog_does_not_update_same_priority
+    @store.add_backlog('haml-migration', 'a.haml', priority: 5)
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 5 }
+    ])
+
+    assert_equal 0, result[:updated]
+  end
+
+  def test_reconcile_backlog_updates_context_on_pending
+    @store.add_backlog('n1', 'model.rb', context: '{"old": true}')
+
+    result = @store.reconcile_backlog('n1', [
+      { item: 'model.rb', priority: 0, context: '{"new": true}' }
+    ])
+
+    assert_equal 1, result[:updated]
+    row = @db[:backlog_items].where(item: 'model.rb').first
+    assert_equal '{"new": true}', row[:context]
+  end
+
+  def test_reconcile_backlog_does_not_touch_other_skills
+    @store.add_backlog('haml-migration', 'keep.haml')
+    @store.add_backlog('test-optimization', 'spec.rb')
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'keep.haml', priority: 0 }
+    ])
+
+    assert_equal 0, result[:pruned]
+    row = @db[:backlog_items].where(item: 'spec.rb').first
+    assert_equal 'pending', row[:status]
+  end
+
+  def test_reconcile_backlog_idempotent
+    @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 1 }
+    ])
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 1 }
+    ])
+
+    assert_equal 0, result[:added]
+    assert_equal 0, result[:pruned]
+    assert_equal 0, result[:updated]
+    assert_equal 1, @db[:backlog_items].count
+  end
+
+  def test_reconcile_backlog_does_not_resurrect_skipped
+    @store.add_backlog('haml-migration', 'skip.haml')
+    bi = @store.claim_next('haml-migration')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::Skipped)
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'skip.haml', priority: 0 }
+    ])
+
+    assert_equal 0, result[:added]
+    row = @db[:backlog_items].where(item: 'skip.haml').first
+    assert_equal 'skipped', row[:status]
+  end
+
+  # --- reconcile_backlog dry_run ---
+
+  def test_reconcile_backlog_dry_run_returns_plan
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 1 },
+      { item: 'b.haml', priority: 2 }
+    ], dry_run: true)
+
+    assert result.key?(:stats)
+    assert result.key?(:changes)
+    assert_equal 2, result[:stats][:added]
+    assert_equal 2, result[:changes].size
+    assert(result[:changes].all? { |c| c[:action] == :add })
+  end
+
+  def test_reconcile_backlog_dry_run_does_not_write
+    @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 1 }
+    ], dry_run: true)
+
+    assert_equal 0, @db[:backlog_items].count
+  end
+
+  def test_reconcile_backlog_dry_run_shows_prune
+    @store.add_backlog('haml-migration', 'old.haml')
+
+    result = @store.reconcile_backlog('haml-migration', [], dry_run: true)
+
+    assert_equal 1, result[:stats][:pruned]
+    prune = result[:changes].find { |c| c[:action] == :prune }
+    assert_equal 'old.haml', prune[:item]
+
+    row = @db[:backlog_items].where(item: 'old.haml').first
+    assert_equal 'pending', row[:status]
+  end
+
+  def test_reconcile_backlog_dry_run_shows_update
+    @store.add_backlog('haml-migration', 'a.haml', priority: 1)
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 5 }
+    ], dry_run: true)
+
+    assert_equal 1, result[:stats][:updated]
+    update = result[:changes].find { |c| c[:action] == :update }
+    assert_equal 'a.haml', update[:item]
+    assert_equal 1, update[:old_priority]
+    assert_equal 5, update[:new_priority]
+
+    row = @db[:backlog_items].where(item: 'a.haml').first
+    assert_equal 1, row[:priority]
+  end
+
+  def test_reconcile_backlog_dry_run_no_changes
+    @store.add_backlog('haml-migration', 'a.haml', priority: 1)
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'a.haml', priority: 1 }
+    ], dry_run: true)
+
+    assert_equal 0, result[:stats][:added]
+    assert_equal 0, result[:stats][:updated]
+    assert_equal 0, result[:stats][:pruned]
+    assert_empty result[:changes]
+  end
+
+  def test_reconcile_backlog_dry_run_mixed_changes
+    @store.add_backlog('haml-migration', 'keep.haml', priority: 1)
+    @store.add_backlog('haml-migration', 'stale.haml')
+
+    result = @store.reconcile_backlog('haml-migration', [
+      { item: 'keep.haml', priority: 5 },
+      { item: 'new.haml', priority: 2 }
+    ], dry_run: true)
+
+    assert_equal 1, result[:stats][:added]
+    assert_equal 1, result[:stats][:updated]
+    assert_equal 1, result[:stats][:pruned]
+    assert_equal 3, result[:changes].size
+
+    assert_equal 0, @db[:backlog_items].where(item: 'new.haml').count
+    assert_equal 'pending', @db[:backlog_items].where(item: 'stale.haml').first[:status]
+    assert_equal 1, @db[:backlog_items].where(item: 'keep.haml').first[:priority]
+  end
+
   private
 
   def seed_pr(number)

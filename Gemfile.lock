@@ -7,13 +7,34 @@ GEM
     drb (2.2.3)
     erubi (1.13.1)
     logger (1.7.0)
+    mini_portile2 (2.8.9)
     minitest (6.0.4)
       drb (~> 2.0)
       prism (~> 1.5)
     minitest-mock (5.27.0)
     netrc (0.11.0)
+    nokogiri (1.19.4)
+      mini_portile2 (~> 2.8.2)
+      racc (~> 1.4)
+    nokogiri (1.19.4-aarch64-linux-gnu)
+      racc (~> 1.4)
+    nokogiri (1.19.4-aarch64-linux-musl)
+      racc (~> 1.4)
+    nokogiri (1.19.4-arm-linux-gnu)
+      racc (~> 1.4)
+    nokogiri (1.19.4-arm-linux-musl)
+      racc (~> 1.4)
+    nokogiri (1.19.4-arm64-darwin)
+      racc (~> 1.4)
+    nokogiri (1.19.4-x86_64-darwin)
+      racc (~> 1.4)
+    nokogiri (1.19.4-x86_64-linux-gnu)
+      racc (~> 1.4)
+    nokogiri (1.19.4-x86_64-linux-musl)
+      racc (~> 1.4)
     parallel (2.1.0)
     prism (1.9.0)
+    racc (1.8.1)
     rake (13.4.2)
     rbi (0.3.13)
       prism (~> 1.0)
@@ -91,6 +112,7 @@ DEPENDENCIES
   logger
   minitest
   minitest-mock
+  nokogiri (~> 1.19)
   rake
   sequel
   sorbet

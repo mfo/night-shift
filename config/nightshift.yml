@@ -29,6 +29,7 @@ skills:
     scan: "spec/**/*_spec.rb"
   i18n-hardcoded:
     scan: "app/{mailers,components}/**/*.{rb,html.erb}"
+
     needs_server: true
     port: 3220
     batch_size: 5
@@ -37,5 +38,7 @@ skills:
       "/instructeurs?/|instructeur_mailer|expert_mailer|avis_mailer|invite_mailer": 2
   n1-query-fix:
     scan_proc: n1_scanner
+  flaky-test-fix:
+    scan_proc: flaky_ci_scanner
   reprioritize:
     meta: true
