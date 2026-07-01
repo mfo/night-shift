@@ -45,3 +45,14 @@ Le skill `test-optimization` est un **agent type**, pas une commande slash. Il d
 Agent(subagent_type='test-optimization', prompt='Optimize spec/path/to/file_spec.rb')
 ```
 Ne JAMAIS utiliser `Skill('test-optimization')` ni taper `/test-optimization` — cela retourne 'Unknown command' car il n'est pas enregistré comme skill invocable mais comme agent type.
+
+### AL-2 (2026-07-01 11:31)
+
+## Invocation
+
+Le skill test-optimization est un **agent type** (subagent_type), PAS un slash command.
+
+- CORRECT : `Agent({ subagent_type: 'test-optimization', prompt: '...' })`
+- INCORRECT : `Skill({ skill: 'test-optimization' })` ou `/test-optimization`
+
+Si l'orchestrateur utilise Skill(), il faut le remplacer par Agent() avec subagent_type='test-optimization'.
