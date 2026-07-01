@@ -30,3 +30,18 @@ L'agent applique ces techniques fichier par fichier pendant l'optimisation.
 ---
 
 > **Techniques globales (one-shot)** : voir `pocs/test-optimization/one-time-optimizations.md` — hors scope agent.
+
+
+## Auto-discovered pitfalls
+
+<!-- Managed by autolearn. Review via kaizen synth. -->
+
+### AL-1 (2026-07-01 11:29)
+
+## Invocation du skill test-optimization
+
+Le skill `test-optimization` est un **agent type**, pas une commande slash. Il doit être invoqué via :
+```
+Agent(subagent_type='test-optimization', prompt='Optimize spec/path/to/file_spec.rb')
+```
+Ne JAMAIS utiliser `Skill('test-optimization')` ni taper `/test-optimization` — cela retourne 'Unknown command' car il n'est pas enregistré comme skill invocable mais comme agent type.
