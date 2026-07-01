@@ -56,3 +56,12 @@ Le skill test-optimization est un **agent type** (subagent_type), PAS un slash c
 - INCORRECT : `Skill({ skill: 'test-optimization' })` ou `/test-optimization`
 
 Si l'orchestrateur utilise Skill(), il faut le remplacer par Agent() avec subagent_type='test-optimization'.
+
+### AL-3 (2026-07-01 11:34)
+
+## Invocation
+
+Le skill test-optimization est un agent type, PAS une commande slash.
+- NE JAMAIS utiliser `Skill({ skill: 'test-optimization' })` ou `/test-optimization`
+- TOUJOURS utiliser `Agent({ subagent_type: 'test-optimization', prompt: '...' })`
+- L'orchestrateur doit invoquer le skill via l'outil Agent avec le paramètre `subagent_type` défini à `test-optimization`
