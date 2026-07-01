@@ -43,7 +43,7 @@ Reconciler.reconcile(prs)
 
 **Serialisation** : `enum.serialize` → String (DB/log), `EnumClass.deserialize(str)` → Enum. La frontière est le Store.
 **Gotcha** : `T::Enum#to_s` retourne `#<ClassName::Member>`, PAS la valeur. Toujours utiliser `.serialize` pour interpolation et DB.
-**Skills** : définis dans `.nightshift.yml` du repo cible, chargés par `Nightshift::Config`. Accès via `Nightshift.skills` (Hash String→Hash).
+**Skills** : auto-découverts via `BacklogSources::REGISTRY` (mapping skill→scanner). Le `.nightshift.yml` du repo cible ne déclare que les overrides runtime (port, server, batch_size, backend). Accès config via `Nightshift.skills[name]` (Hash String→Hash, peut être `{}` si pas d'override).
 
 ### Contrats typés (T::Struct)
 

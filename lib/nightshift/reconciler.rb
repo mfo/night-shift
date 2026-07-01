@@ -164,8 +164,7 @@ module Nightshift
 
     sig { params(skill_name: String).void }
     def maybe_reprioritize(skill_name)
-      config = Nightshift.skills[skill_name]
-      return unless config&.dig(:scan_proc)
+      return unless BacklogSources::REGISTRY.key?(skill_name)
 
       completed = @store.db[:backlog_items]
                         .where(skill: skill_name, status: Core::Store::DONE_S).count
@@ -188,13 +187,13 @@ module Nightshift
         active_by_backend[backend.harness] += 1
       end
 
-      Nightshift.skills.each do |skill_name, skill_config|
-        next if skill_config[:meta]
+      BacklogSources::REGISTRY.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
 
         backend = Nightshift.backend_for(skill_name)
         next if active_by_backend[backend.harness] >= backend.concurrency
 
+        skill_config = Nightshift.skills[skill_name] || {}
         batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
 
         if batch_size > 1
@@ -241,14 +240,7 @@ module Nightshift
       end
       @store.update_backlog_status(backlog_item, BacklogStatus::Running, branch: branch)
 
-      skill_config = Nightshift.skills[skill_name] || {}
-      port = skill_config[:port]
-
-      server_cmd = if skill_config[:needs_server] && port
-        File.write(File.join(wt_path, '.env.development.local'),
-                   "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
-        "PORT=#{port} overmind start -f Procfile.sidekiq.dev"
-      end
+      server_cmd, env_prefix = setup_server(skill_name, wt_path)
 
       win_id = @renderer.launch_skill_window(
         name: "🤖 #{skill_name}-#{slug}",
@@ -257,7 +249,6 @@ module Nightshift
         server_cmd: server_cmd
       )
 
-      env_prefix = port ? "PORT=#{port}" : ''
       skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run #{skill_name} #{Shellwords.escape(backlog_item.item)}".strip
       @renderer.send_keys(target: "#{win_id}.0", command: skill_cmd)
     end
@@ -279,14 +270,7 @@ module Nightshift
       end
       backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Running, branch: branch) }
 
-      skill_config = Nightshift.skills[skill_name] || {}
-      port = skill_config[:port]
-
-      server_cmd = if skill_config[:needs_server] && port
-        File.write(File.join(wt_path, '.env.development.local'),
-                   "PORT=#{port}\nAPP_HOST=\"localhost:#{port}\"\n")
-        "PORT=#{port} overmind start -f Procfile.sidekiq.dev"
-      end
+      server_cmd, env_prefix = setup_server(skill_name, wt_path)
 
       win_id = @renderer.launch_skill_window(
         name: "🤖 #{skill_name}-batch-#{batch_id[0, 8]}",
@@ -295,9 +279,26 @@ module Nightshift
         server_cmd: server_cmd
       )
 
-      env_prefix = port ? "PORT=#{port}" : ''
       skill_cmd = "#{env_prefix} #{Nightshift.binstub_cmd} skill-run-batch #{skill_name} #{batch_id}".strip
       @renderer.send_keys(target: "#{win_id}.0", command: skill_cmd)
+    end
+
+    sig { params(skill_name: String, wt_path: String).returns([T.nilable(String), String]) }
+    def setup_server(skill_name, wt_path)
+      skill_config = Nightshift.skills[skill_name] || {}
+      port = skill_config[:port]
+      return [nil, ''] unless skill_config[:needs_server] && port
+
+      vite_port = skill_config[:vite_port]
+      env_lines = ["PORT=#{port}", "APP_HOST=\"localhost:#{port}\""]
+      env_lines << "VITE_RUBY_PORT=#{vite_port}" if vite_port
+      File.write(File.join(wt_path, '.env.development.local'), env_lines.join("\n") + "\n")
+
+      env_prefix = "PORT=#{port}"
+      env_prefix += " VITE_RUBY_PORT=#{vite_port}" if vite_port
+      server_cmd = "#{env_prefix} overmind start -f Procfile.sidekiq.dev"
+
+      [server_cmd, env_prefix]
     end
 
     sig { returns(T::Set[String]) }

@@ -1,10 +1,8 @@
-# .nightshift.yml — reference config (copy to target repo root)
+# .nightshift.yml — runtime config (copy to target repo root)
 #
-# Each target repo gets its own .nightshift.yml defining which skills
-# to run and how. DB is stored at $REPO/.nightshift/nightshift.db (auto-created).
-#
-# Scanning, filtering, and priority logic live in BacklogSources (Ruby classes),
-# NOT in this config. This file defines runtime properties only.
+# Skills are auto-discovered from BacklogSources::REGISTRY.
+# This file only declares runtime overrides (port, server, batch_size, backend).
+# Skills without overrides don't need an entry here.
 
 # Backends define execution profiles: harness binary + concurrency.
 # Skills reference a backend by name. Concurrency is enforced per harness —
@@ -12,8 +10,8 @@
 # can handle 4 concurrent skill runs.
 backends:
   local:
-    harness: claude-ds4     # binary name
-    concurrency: 1          # max concurrent running items across all skills using this backend
+    harness: claude-ds4
+    concurrency: 1
   frontier:
     harness: claude
     concurrency: 4
@@ -21,22 +19,17 @@ backends:
 # Which backend to use when a skill doesn't specify one.
 default_backend: local
 
+# Only skills needing runtime overrides are listed here.
+# Skills without config (test-optimization, n1-query-fix, flaky-test-fix)
+# are discovered automatically via BacklogSources::REGISTRY.
 skills:
   haml-migration:
-    needs_server: true      # launch overmind (Procfile.sidekiq.dev) before skill
-    port: 3210              # port for the dev server in this worktree
-    # backend: frontier     # override to use frontier for this skill
-
-  test-optimization: {}     # no special config needed
+    needs_server: true
+    port: 3210
+    vite_port: 3211
 
   i18n-hardcoded:
     needs_server: true
     port: 3220
-    batch_size: 5           # process N items per worktree (claim_batch)
-
-  n1-query-fix: {}
-
-  flaky-test-fix: {}
-
-  reprioritize:
-    meta: true              # not a real skill — excluded from pick_next_items
+    vite_port: 3221
+    batch_size: 5

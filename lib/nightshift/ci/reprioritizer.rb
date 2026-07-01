@@ -49,11 +49,11 @@ module Nightshift
         prompt = "/reprioritize #{skill_name}"
         binary = Nightshift.runner
         out, status = Open3.capture2(
+          { 'SKILL_CONTEXT' => ctx_file.path },
           binary, '-p', prompt,
           '--permission-mode', 'acceptEdits',
           '--output-format', 'text',
-          '--max-turns', '30',
-          { 'SKILL_CONTEXT' => ctx_file.path }
+          '--max-turns', '30'
         )
 
         unless status.success?

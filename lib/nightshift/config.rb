@@ -31,11 +31,11 @@ module Nightshift
       raw = YAML.safe_load_file(yaml_path, symbolize_names: true)
       @backends = parse_backends(raw[:backends] || {})
       @default_backend_name = (raw[:default_backend] || @backends.keys.first)&.to_s
-      @skills = parse_skills(raw.fetch(:skills))
+      @skills = parse_skills(raw[:skills] || {})
     end
 
     sig { returns(T::Array[String]) }
-    def skill_names = @skills.keys
+    def skill_names = (BacklogSources::REGISTRY.keys + @skills.keys).uniq
 
     sig { returns(String) }
     def db_path = File.join(@repo_path, '.nightshift', 'nightshift.db')
