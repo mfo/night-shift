@@ -65,3 +65,13 @@ Le skill test-optimization est un agent type, PAS une commande slash.
 - NE JAMAIS utiliser `Skill({ skill: 'test-optimization' })` ou `/test-optimization`
 - TOUJOURS utiliser `Agent({ subagent_type: 'test-optimization', prompt: '...' })`
 - L'orchestrateur doit invoquer le skill via l'outil Agent avec le paramètre `subagent_type` défini à `test-optimization`
+
+### AL-4 (2026-07-01 11:39)
+
+## Invocation du skill
+
+Le skill test-optimization est un agent type, PAS une commande slash.
+- NE PAS utiliser : Skill('test-optimization') ou /test-optimization
+- UTILISER : Agent(subagent_type='test-optimization', prompt='Optimize spec/path/to_spec.rb')
+
+Le dispatcher/orchestrateur qui lance les optimisations en batch doit utiliser l'Agent tool avec subagent_type='test-optimization' et non pas tenter d'invoquer une commande slash.
