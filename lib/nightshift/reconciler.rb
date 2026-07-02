@@ -91,11 +91,15 @@ module Nightshift
               .select { |bi| bi.status == BacklogStatus::PrOpen && bi.branch }
               .map(&:branch)
       )
+      open_pr_branches = Set.new(
+        @store.all_prs(github_state: 'OPEN').map { |pr| pr[:branch] }.compact
+      )
 
       active_branches.each do |branch|
         next unless branch.start_with?('auto/')
         next if running_branches.include?(branch)
         next if pr_open_branches.include?(branch)
+        next if open_pr_branches.include?(branch)
 
         wt_path = Integrations::Worktree.path_for_branch(branch)
         next if wt_path && !zombie_process?(wt_path)

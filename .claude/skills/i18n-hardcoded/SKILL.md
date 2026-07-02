@@ -1,7 +1,7 @@
 ---
 name: i18n-hardcoded
 description: "Extract hardcoded French strings to i18n YAML. Use when user says 'extract i18n', 'translate hardcoded', or provides a .rb/.erb file with French text."
-allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_close
+allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bin/rails runner:*), Bash(curl:*), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_close, mcp__playwright__browser_console_messages, mcp__playwright__browser_tabs
 ---
 
 # Extraction i18n : textes francais hardcodes
@@ -18,6 +18,12 @@ allowed-tools: Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git
 - Pas de pipes complexes
 - 1 commande simple = 1 appel Bash
 - Ne JAMAIS utiliser `git -C` — le working directory est deja le repo cible
+- **INTERDIT** : `kill`, `pkill`, `lsof`, `bin/dev`, `overmind`, `env` — ne JAMAIS tenter de lancer, tuer ou diagnostiquer des processus
+- **Permission refusee** : ne JAMAIS reessayer une commande refusee. Abandonner immediatement.
+
+**Regle Playwright** : si Playwright ne repond pas (erreur, timeout, outil non disponible), **ARRETER**. Ne PAS essayer de l'installer ou le relancer. Ecrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
+
+**Regle serveur** : le serveur est deja lance par nightshift. Verifier avec `curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/` — si pas de reponse, **ARRETER** immediatement.
 
 ---
 

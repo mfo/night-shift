@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: "Migrate HAML to ERB with visual validation. Use when user says 'migrate haml', 'convert to erb', or provides a .haml file."
-allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), Agent, mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, mcp__playwright__browser_console_messages, mcp__playwright__browser_tabs, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(bin/rails runner:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(curl:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
 ---
 
 # Migration HAML → ERB
@@ -12,7 +12,7 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - Fichier à migrer : `$ARGUMENTS` (ex: `app/components/alert/alert_component.html.haml`)
 - Remote git pour push/PR : `origin`
 
-**⚠️ Règle Playwright** : ne JAMAIS naviguer en dehors de `localhost:$PORT`. Toutes les URLs doivent commencer par `http://localhost:$PORT/`.
+**⚠️ Règle URLs** : ne JAMAIS naviguer en dehors de `localhost:$PORT`. Toutes les URLs doivent commencer par `http://localhost:$PORT/`.
 
 **⚠️ Règle Bash** : ne jamais utiliser de commandes qui déclenchent une approbation de sécurité. Concrètement :
 - Pas de `$()` (command substitution) — stocker dans une variable via un appel séparé
@@ -22,7 +22,12 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - **Repo cible** : ne JAMAIS utiliser `git -C` — le working directory est déjà le repo cible, exécuter `git mv`, `git add`, `git commit`, etc. directement.
 - **Remplacement du HAML** : utiliser `git mv fichier.html.haml fichier.html.erb` pour renommer, puis écraser le contenu avec l'ERB généré. Un seul commit propre, pas de suppression séparée.
 - **Rebase** : pour les rebase interactifs : `git rebase --continue`.
-- **Permission refusée** : si une commande est refusée, ne JAMAIS réessayer la même commande. Chercher une alternative ou abandonner.
+- **Permission refusée** : si une commande est refusée, ne JAMAIS réessayer la même commande. Ne PAS chercher d'alternative — abandonner immédiatement.
+- **INTERDIT** : `kill`, `pkill`, `lsof`, `bin/dev`, `overmind`, `env` — ne JAMAIS tenter de lancer, tuer ou diagnostiquer des processus. Le serveur et Playwright sont gérés par le harness nightshift.
+
+**⚠️ Règle Playwright** : si Playwright ne répond pas (erreur, timeout, outil non disponible), **ARRÊTER** immédiatement. Ne PAS essayer de l'installer (`claude mcp add`), le relancer, ou contourner. Écrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
+
+**⚠️ Règle serveur** : le serveur de dev est déjà lancé par nightshift. Vérifier avec `curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/` — si pas de réponse, **ARRÊTER** immédiatement. Ne PAS essayer de lancer le serveur.
 
 ---
 
@@ -39,7 +44,7 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 
 **Serveur de dev** doit tourner dans le repo courant. Vérifier que `.overmind.sock` existe à la racine du repo — sinon le serveur tourne dans un autre workspace et le patch de connexion ne fonctionnera pas.
 
-**Chrome doit être fermé** avant de lancer le skill. Playwright a besoin de lancer Chrome avec son propre profil isolé — si Chrome est déjà ouvert, Playwright échoue silencieusement (`exitCode=0`) sans pouvoir prendre de screenshots.
+**Chrome doit être fermé** avant de lancer le skill. Playwright lance Chrome avec son propre profil isolé — si Chrome est déjà ouvert, Playwright échoue silencieusement.
 
 **Adaptations dev temporaires** — git-ignorées, **NE JAMAIS COMMITER** :
 
@@ -81,7 +86,7 @@ grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 ```
 Si absent → appliquer le skill `/dev-auto-login` (crée l'initializer + redémarre le serveur).
 
-**4. Lancer Playwright** — naviguer sur `localhost:$PORT` pour vérifier que Playwright fonctionne. Si Chrome est déjà ouvert → demander à l'utilisateur : *"Chrome est déjà ouvert, Playwright ne peut pas se lancer. Peux-tu fermer Chrome ?"* — attendre sa confirmation puis retenter.
+**4. Vérifier Playwright** — naviguer sur `localhost:$PORT` pour vérifier que Playwright fonctionne. Si erreur → **ARRÊTER** immédiatement (écrire pr-description.md "screenshots non disponibles" et terminer).
 
 **5. Configurer le viewport** — le viewport Playwright est `null` par défaut, ce qui fait crasher `page.viewportSize()`. Toujours appeler `browser_resize` (1280×800) juste après le premier `browser_navigate`.
 

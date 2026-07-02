@@ -345,6 +345,59 @@ class ReconcilerTest < Minitest::Test
     assert updated[:retry_count] >= 1, 'retry_count should be incremented'
   end
 
+  # --- cleanup_orphan_worktrees tests ---
+
+  def test_orphan_cleanup_spares_branch_with_open_pr
+    branch = 'auto/haml-migration/views-foo'
+    @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed,
+                                 failure_reason: Nightshift::FailureReason::WorktreeError,
+                                 branch: nil)
+
+    pr = Nightshift::Core::PR.new(number: 42, branch: branch,
+                                  github_state: 'OPEN', ci: 'green')
+    @store.reconcile_pr(pr)
+
+    branches = Set.new([branch])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+
+    reconciler.reconcile([pr])
+
+    refute @renderer.calls.any? { |c| c[0] == :close_worktree && c[1] == branch },
+           'should not close worktree when PR is still OPEN'
+  end
+
+  def test_orphan_cleanup_removes_branch_without_open_pr
+    branch = 'auto/haml-migration/views-foo'
+    @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
+    backlog_item = @store.claim_next('haml-migration')
+    @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Failed,
+                                 failure_reason: Nightshift::FailureReason::WorktreeError,
+                                 branch: nil)
+
+    # No PR in prs table for this branch — it's a true orphan
+    branches = Set.new([branch])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+    reconciler.define_singleton_method(:zombie_process?) { |_| true }
+
+    original_cleanup = Nightshift::Integrations::Worktree.method(:cleanup)
+    cleaned = false
+    Nightshift::Integrations::Worktree.define_singleton_method(:cleanup) { |_b, **_| cleaned = true }
+    Nightshift::Integrations::Worktree.define_singleton_method(:path_for_branch) { |_b, *_| '/tmp/fake' }
+
+    begin
+      reconciler.reconcile([])
+    ensure
+      Nightshift::Integrations::Worktree.define_singleton_method(:cleanup, original_cleanup)
+    end
+
+    assert cleaned, 'should cleanup orphan worktree with no open PR'
+    assert @renderer.calls.any? { |c| c[0] == :close_worktree && c[1] == branch }
+  end
+
   # --- handle_done tests ---
 
   def test_handle_done_closes_worktree_via_renderer

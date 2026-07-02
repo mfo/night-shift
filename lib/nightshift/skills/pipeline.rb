@@ -187,6 +187,11 @@ module Nightshift
 
         pr_number = create_gh_pr(branch, title, body, worktree_path)
 
+        # Insert a minimal PR row so the FK constraint on backlog_items.pr_number is satisfied
+        # (the reconciler will enrich it on next fetch from GitHub)
+        pr = Core::PR.new(number: pr_number, branch: branch, github_state: 'OPEN')
+        @store.upsert(pr)
+
         committed.each do |c|
           @store.update_backlog_status(c[:backlog_item], BacklogStatus::PrOpen,
                                        pr_number: pr_number, branch: branch)
