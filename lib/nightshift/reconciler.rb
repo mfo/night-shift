@@ -152,8 +152,21 @@ module Nightshift
       branch = backlog_item.branch
 
       if branch && !branch.empty?
-        Integrations::Worktree.cleanup(branch)
-        @renderer.close_worktree(branch)
+        # If a PR was already created on this branch, promote to pr_open instead of resetting
+        open_pr = @store.all_prs(github_state: 'OPEN').find { |pr| pr[:branch] == branch }
+        if open_pr
+          Log.info "zombie recovered: #{backlog_item.item} — PR ##{open_pr[:number]} already open, promoting to pr_open"
+          @store.update_backlog_status(backlog_item, BacklogStatus::PrOpen,
+                                       pr_number: open_pr[:number], branch: branch)
+          return
+        end
+
+        # Only cleanup worktree if no other items are still using this branch
+        siblings = @store.all_backlog.count { |bi| bi.id != backlog_item.id && bi.branch == branch }
+        if siblings.zero?
+          Integrations::Worktree.cleanup(branch)
+          @renderer.close_worktree(branch)
+        end
       end
 
       if retry_count < CI::Judge::MAX_RETRIES
