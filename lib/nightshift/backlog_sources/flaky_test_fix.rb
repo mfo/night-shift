@@ -99,24 +99,33 @@ module Nightshift
 
       sig { params(repo: String, failures: T::Array[T::Hash[Symbol, T.untyped]]).returns(T::Hash[String, T::Hash[Symbol, T.untyped]]) }
       def extract_flaky_specs(repo, failures)
-        by_spec = Hash.new { |h, k| h[k] = { merge_queue_count: 0, retry_count: 0, branches: Set.new, jobs: Set.new } }
+        by_spec = Hash.new { |h, k| h[k] = { merge_queue_count: 0, retry_count: 0, branches: Set.new, jobs: Set.new, lines: Set.new, test_names: Set.new } }
 
         failures.each do |f|
-          specs = extract_specs_from_log(repo, f[:job_id])
-          next if specs.empty?
+          refs = extract_specs_from_log(repo, f[:job_id])
+          next if refs.empty?
 
-          specs.each do |spec|
-            data = by_spec[spec]
+          refs.each do |ref|
+            file, line = split_spec_ref(ref)
+            data = by_spec[file]
             data[:merge_queue_count] += 1 if f[:merge_queue]
             data[:retry_count] += 1 if f[:attempt] > 1
             data[:branches] << f[:branch]
             data[:jobs] << f[:job_name]
+            if line
+              line_num = line.to_i
+              data[:lines] << line_num
+              name = test_name_at_line(file, line_num)
+              data[:test_names] << name if name
+            end
           end
         end
 
         by_spec.each_value do |data|
           data[:branches] = data[:branches].to_a
           data[:jobs] = data[:jobs].to_a
+          data[:lines] = data[:lines].to_a.sort
+          data[:test_names] = data[:test_names].to_a
         end
 
         by_spec.select { |_, data| data[:merge_queue_count] > 0 || data[:retry_count] > 0 }
@@ -127,7 +136,33 @@ module Nightshift
         out, _, status = Open3.capture3('gh', 'api', "repos/#{repo}/actions/jobs/#{job_id}/logs")
         return [] unless status.success?
 
-        out.scan(%r{rspec \./spec/\S+}).map { |s| s.sub(/\e\[[0-9;]*m.*/, '').strip }.uniq
+        extract_specs_from_log_content(out)
+      end
+
+      sig { params(content: String).returns(T::Array[String]) }
+      def extract_specs_from_log_content(content)
+        content.scan(%r{rspec \./spec/\S+}).map { |s| s.sub(/\e\[[0-9;]*m.*/, '').strip.sub(%r{^rspec \./}, '') }.uniq
+      end
+
+      sig { params(ref: String).returns([String, T.nilable(String)]) }
+      def split_spec_ref(ref)
+        file, line = ref.split(':', 2)
+        [file, line]
+      end
+
+      sig { params(file: String, line: Integer).returns(T.nilable(String)) }
+      def test_name_at_line(file, line)
+        path = File.join(repo_path, file)
+        return nil unless File.exist?(path)
+
+        lines = File.readlines(path)
+        return nil if line < 1 || line > lines.size
+
+        (line - 1).downto(0) do |i|
+          match = lines[i].match(/\b(?:it|scenario|example)\s+['"](.+?)['"]/i)
+          return match[1] if match
+        end
+        nil
       end
 
       sig { params(job_name: String).returns(Symbol) }

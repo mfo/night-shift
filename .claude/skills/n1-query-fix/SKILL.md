@@ -96,11 +96,40 @@ grep -A 5 'N+1 queries detected' tmp/prosopite-scan.log
 - **PROD** : au moins une ligne `app/` dans la call stack → vrai N+1 utilisateur
 - **TEST** : toutes les lignes dans `spec/` → bruit de test, ignorer
 
+### Escalation raise mode (si 0 N+1 detecte en log mode)
+
+Le mode log a un seuil minimum de queries qui rate certains N+1. Activer temporairement le mode raise :
+
+1. `Edit config/environments/test.rb` → changer `Prosopite.raise = false` en `Prosopite.raise = true`
+2. Re-lancer `bundle exec rspec <spec_file>` — les tests qui ont un N+1 echouent avec `Prosopite::NPlusOneQueriesError`
+3. Grep le log : `grep -A 5 'N+1 queries detected' tmp/prosopite-scan.log`
+4. **Revert** `Prosopite.raise = true` → `false` avant de passer aux fixes (sinon la verification post-fix echouera sur les N+1 TEST)
+
+**Important** : ne pas utiliser `env PROSOPITE_RAISE=1` — les commandes avec variables d'env prefixees sont refusees. Toujours modifier le fichier via Edit.
+
+---
+
+## Etape 2a : Lire la vue (si 0 PROD)
+
+Avant d'enrichir les fixtures, lire le controller et ses vues — le N+1 est souvent visible dans le template.
+
+1. Lire le controller cible : identifier les actions qui chargent des collections
+2. Pour chaque action, trouver la vue associee :
+   ```bash
+   find app/views/ -path "*$(basename $ARGUMENTS .rb | sed 's/_controller//')*" -type f
+   ```
+3. Grep les acces `.association` dans les vues :
+   ```bash
+   grep -n '\.\w\+\.\w\+' app/views/<repertoire>/*.html.*
+   ```
+4. Si un pattern est visible (ex: `item.association.name` dans une boucle) → activer raise mode (voir escalation ci-dessus) pour confirmer, puis passer directement au fix (Etape 3)
+5. Si rien de visible → passer a l'enrichissement (Etape 2b)
+
 ---
 
 ## Etape 2b : Enrichir les fixtures (si 0 PROD)
 
-Si aucun N+1 PROD detecte, deleguer un **sous-agent enrichissement** :
+Si aucun N+1 PROD detecte apres lecture de la vue, deleguer un **sous-agent enrichissement** :
 
 ```
 Tu es un agent de detection N+1. Tu enrichis les fixtures d'un spec controller pour declencher des N+1.
@@ -263,7 +292,7 @@ Generated with [Claude Code](https://claude.com/claude-code)
 4. **Pas de default_scope** avec includes.
 5. **Preload vs Includes** : `preload` pour les polymorphiques ou quand on ne filtre pas sur l'association.
 6. **1 fichier controller = 1 run** : traiter tous les N+1 du controller cible, pas d'autres.
-7. **GraphQL** : utiliser les batch loaders du projet, pas des `includes` classiques.
+7. **GraphQL** : avant de proposer un preload (`with_attached_*`, `includes`), vérifier si un `GraphQL::Batch::Loader` ou `Loaders::Association` résout déjà le N+1. Si oui, le preload est redondant et contre-productif (charge les données même quand le client ne demande pas le champ). Vérifier aussi que le type GraphQL expose réellement les champs concernés.
 
 ## Pieges connus (retours kaizen)
 
@@ -271,13 +300,17 @@ Generated with [Claude Code](https://claude.com/claude-code)
 
 L'ancien patch (`prosopite-setup.patch`) ciblait des offsets precis de `Gemfile.lock` et cassait regulierement. Remplace par `prosopite-setup.sh` — script idempotent qui utilise `bundle install` au lieu de patcher le lockfile.
 
+### Faux positifs GraphQL batch loaders
+
+Prosopite detecte des N+1 dans les tests GraphQL, mais en prod les `Loaders::Association` (GraphQL::Batch) resolvent ces N+1 par batching automatique. Le pattern Prosopite est un artefact du contexte de test (pas de batch loader actif). Avant de fixer un N+1 dont la call stack passe par `app/graphql/`, verifier si un loader existe deja pour cette association. Si oui, ne pas ajouter de preload — c'est contre-productif.
+
 ### Faux negatifs Prosopite
 
 Prosopite ne detecte les N+1 que si N >= 2 records. Les specs avec 1 seul record ne declenchent rien. → Enrichir les fixtures avec `create_list(:model, 3, ...)`.
 
 ### Commandes avec variables d'environnement
 
-`VAR=value bundle exec rspec ...` peut etre bloque. Utiliser `env VAR=value bundle exec rspec ...` ou exporter separement.
+`VAR=value bundle exec rspec ...` et `env VAR=value` sont systematiquement refuses. Modifier `config/environments/test.rb` directement via Edit a la place.
 
 ### Skip legitime
 

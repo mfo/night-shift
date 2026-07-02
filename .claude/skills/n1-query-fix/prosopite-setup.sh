@@ -10,6 +10,12 @@ if ! grep -q 'prosopite' Gemfile; then
 " Gemfile
 fi
 
+if ! grep -q 'pg_query' Gemfile; then
+  sed -i '' "/group :development, :test do/a\\
+  gem 'pg_query'
+" Gemfile
+fi
+
 # 2. bundle install (resolves Gemfile.lock automatically)
 bundle install
 

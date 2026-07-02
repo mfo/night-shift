@@ -415,4 +415,117 @@ class FlakyTestFixSourceTest < Minitest::Test
     source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
     assert_equal 0, source.prioritize({ item: 'spec/x_spec.rb', context: ctx })
   end
+
+  def test_extract_specs_strips_rspec_prefix_keeps_line
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    log_output = <<~LOG
+      rspec ./spec/system/users/invite_spec.rb:233
+      rspec ./spec/models/dossier_spec.rb:45
+      rspec ./spec/controllers/admin_controller_spec.rb
+    LOG
+
+    specs = source.send(:extract_specs_from_log_content, log_output)
+    assert_equal %w[
+      spec/system/users/invite_spec.rb:233
+      spec/models/dossier_spec.rb:45
+      spec/controllers/admin_controller_spec.rb
+    ], specs
+  end
+
+  def test_extract_specs_strips_ansi_codes
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    log_output = "rspec ./spec/models/user_spec.rb:10\e[31m some error\e[0m"
+
+    specs = source.send(:extract_specs_from_log_content, log_output)
+    assert_equal ['spec/models/user_spec.rb:10'], specs
+  end
+
+  def test_extract_specs_deduplicates_same_line
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    log_output = <<~LOG
+      rspec ./spec/models/user_spec.rb:10
+      rspec ./spec/models/user_spec.rb:10
+    LOG
+
+    specs = source.send(:extract_specs_from_log_content, log_output)
+    assert_equal ['spec/models/user_spec.rb:10'], specs
+  end
+
+  def test_extract_specs_keeps_different_lines_from_same_file
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    log_output = <<~LOG
+      rspec ./spec/models/user_spec.rb:10
+      rspec ./spec/models/user_spec.rb:25
+    LOG
+
+    specs = source.send(:extract_specs_from_log_content, log_output)
+    assert_equal ['spec/models/user_spec.rb:10', 'spec/models/user_spec.rb:25'], specs
+  end
+
+  def test_extract_specs_returns_empty_for_no_matches
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    specs = source.send(:extract_specs_from_log_content, 'no specs here')
+    assert_empty specs
+  end
+
+  def test_split_spec_ref_with_line
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    file, line = source.send(:split_spec_ref, 'spec/models/user_spec.rb:42')
+    assert_equal 'spec/models/user_spec.rb', file
+    assert_equal '42', line
+  end
+
+  def test_split_spec_ref_without_line
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    file, line = source.send(:split_spec_ref, 'spec/models/user_spec.rb')
+    assert_equal 'spec/models/user_spec.rb', file
+    assert_nil line
+  end
+
+  def test_test_name_at_line_finds_it_block
+    tmpdir = Dir.mktmpdir
+    source = Nightshift::BacklogSources::FlakyTestFix.new(tmpdir)
+    spec = <<~RUBY
+      describe User do
+        context 'when active' do
+          it 'returns true for active?' do
+            expect(user.active?).to be true
+          end
+        end
+      end
+    RUBY
+    path = File.join(tmpdir, 'spec/models/user_spec.rb')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, spec)
+
+    assert_equal 'returns true for active?', source.send(:test_name_at_line, 'spec/models/user_spec.rb', 4)
+    assert_equal 'returns true for active?', source.send(:test_name_at_line, 'spec/models/user_spec.rb', 3)
+    assert_nil source.send(:test_name_at_line, 'spec/models/user_spec.rb', 2)
+  ensure
+    FileUtils.remove_entry(tmpdir)
+  end
+
+  def test_test_name_at_line_finds_scenario
+    tmpdir = Dir.mktmpdir
+    source = Nightshift::BacklogSources::FlakyTestFix.new(tmpdir)
+    spec = <<~RUBY
+      feature 'Login' do
+        scenario 'user logs in successfully' do
+          visit login_path
+        end
+      end
+    RUBY
+    path = File.join(tmpdir, 'spec/system/login_spec.rb')
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, spec)
+
+    assert_equal 'user logs in successfully', source.send(:test_name_at_line, 'spec/system/login_spec.rb', 3)
+  ensure
+    FileUtils.remove_entry(tmpdir)
+  end
+
+  def test_test_name_at_line_returns_nil_for_missing_file
+    source = Nightshift::BacklogSources::FlakyTestFix.new('/tmp')
+    assert_nil source.send(:test_name_at_line, 'spec/nonexistent_spec.rb', 1)
+  end
 end

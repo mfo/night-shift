@@ -145,14 +145,13 @@ Dossier.includes(:etablissement, :individual, :traitement, :avis,
 
 ## Commandes avec variables d'environnement préfixées
 
-Les commandes de type `VAR=value bundle exec rspec ...` peuvent être bloquées par le système d'approbation car elles sont détectées comme opérations composites.
+Les commandes de type `VAR=value bundle exec rspec ...` et `env VAR=value bundle exec rspec ...` sont systématiquement refusées par le système de permissions.
 
-**Solution** : utiliser `env VAR=value bundle exec rspec ...` ou exporter la variable séparément :
-```bash
-export PROSOPITE_DEBUG=1 && bundle exec rspec ...
-```
+**Solution** : modifier le fichier de config directement via Edit. Exemples :
+- `Prosopite.raise = true` → `Edit config/environments/test.rb`
+- `PROSOPITE_DEBUG=1` → ajouter `Prosopite.verbose = true` dans `config/environments/test.rb`
 
-Ne JAMAIS abandonner la détection Prosopite si la commande est refusée. Reformuler la commande et réessayer.
+Ne JAMAIS tenter `env`, `export`, ni variables d'environnement préfixées — passer directement par Edit du fichier de config.
 
 ## Faux négatifs Prosopite
 

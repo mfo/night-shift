@@ -8,6 +8,15 @@ Le worktree, la DB et les dépendances sont déjà prêts (hook post-checkout). 
 bundle exec spring start
 ```
 
+Si Spring crash (`NSCharacterSet initialize`, exit code 6, ou temps > 2x attendu), ne pas diagnostiquer — basculer directement :
+
+```bash
+spring stop
+DISABLE_SPRING=1 bundle exec rspec $SPEC_FILE
+```
+
+Utiliser `DISABLE_SPRING=1 bundle exec rspec` pour tous les runs suivants dans cette session.
+
 Puis enchaîner sur l'étape 1 du workflow (profiling baseline).
 
 ---

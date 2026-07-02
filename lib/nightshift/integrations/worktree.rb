@@ -57,6 +57,13 @@ module Nightshift
       sig { params(branch: String, repo_path: String).void }
       def cleanup(branch, repo_path: Nightshift.repo_path)
         wt_path = path_for_branch(branch, repo_path)
+        main = main_path(repo_path)
+
+        # Never touch the main working tree
+        if wt_path && File.expand_path(wt_path) == File.expand_path(main)
+          Log.warn "cleanup refused: #{branch} points to main working tree #{main}"
+          return
+        end
 
         # Drop test database (mirrors post-checkout naming convention)
         if wt_path

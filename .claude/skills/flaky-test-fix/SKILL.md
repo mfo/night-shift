@@ -35,6 +35,8 @@ You are fixing a flaky RSpec test. The test passes sometimes and fails sometimes
 The backlog item is a spec file path (e.g., `spec/system/admin_spec.rb`).
 The context JSON contains flaky evidence:
 
+- `test_names` — names of the flaky `it`/`scenario` blocks (stable across commits, use these to locate the tests)
+- `lines` — line numbers where failures were observed (may drift between commits, prefer `test_names`)
 - `merge_queue_count` — failures in merge queue branches (strongest flaky signal: no code change involved)
 - `retry_count` — failures that passed on retry
 - `branches` — which branches saw the failure
@@ -43,6 +45,8 @@ The context JSON contains flaky evidence:
 ## Process
 
 ### 1. Understand the flaky test
+
+Use `test_names` from the context to locate the specific flaky examples in the spec file. If `test_names` is empty, fall back to `lines` to find them.
 
 Read the spec file. Identify which examples are likely flaky based on:
 - Shared mutable state (instance variables, class variables, global state)
