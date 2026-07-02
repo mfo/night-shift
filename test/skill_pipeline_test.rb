@@ -156,9 +156,7 @@ class SkillPipelineTest < Minitest::Test
     )
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
-      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        @pipeline.handle_failure(backlog_item, result)
-      end
+      @pipeline.handle_failure(backlog_item, result)
     end
 
     updated = @db[:backlog_items].where(id: backlog_item.id).first
@@ -167,7 +165,7 @@ class SkillPipelineTest < Minitest::Test
     assert_equal 'skill_defect', updated[:last_verdict]
   end
 
-  def test_handle_failure_non_retryable_skips_and_cleans_worktree
+  def test_handle_failure_non_retryable_skips
     backlog_item = add_backlog_item('haml-migration', 'a.haml', status: 'running')
     result = Nightshift::Skills::RunnerResult.new(
       success: false, failure_reason: 'claude_error',
@@ -179,12 +177,9 @@ class SkillPipelineTest < Minitest::Test
       fixable_by_skill_update: false, suggested_patch: nil, confidence: 0.9
     )
 
-    cleaned_branch = nil
     Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
-      Nightshift::Integrations::Worktree.stub(:cleanup, ->(b) { cleaned_branch = b }) do
-        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
-          @pipeline.handle_failure(backlog_item, result)
-        end
+      Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
@@ -192,7 +187,6 @@ class SkillPipelineTest < Minitest::Test
     assert_equal 'skipped', updated[:status]
     assert_equal 'item_hard', updated[:failure_reason]
     assert_nil updated[:branch], 'branch should be cleared on skip'
-    assert_equal 'auto/haml-migration/test', cleaned_branch, 'worktree should be cleaned up'
   end
 
   def test_handle_failure_exhausted_retries_skips
@@ -212,10 +206,8 @@ class SkillPipelineTest < Minitest::Test
     )
 
     Nightshift::CI::Judge.stub(:evaluate, retryable_verdict) do
-      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
-          @pipeline.handle_failure(backlog_item, result)
-        end
+      Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
@@ -237,10 +229,8 @@ class SkillPipelineTest < Minitest::Test
     )
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
-      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
-          @pipeline.handle_failure(backlog_item, result)
-        end
+      Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
@@ -257,9 +247,7 @@ class SkillPipelineTest < Minitest::Test
       log_path: '/tmp/test.log', turns_used: 2, files_changed: 0
     )
 
-    Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-      @pipeline.handle_failure(backlog_item, result)
-    end
+    @pipeline.handle_failure(backlog_item, result)
 
     updated = @db[:backlog_items].where(id: backlog_item.id).first
     assert_equal 'pending', updated[:status]
@@ -284,10 +272,8 @@ class SkillPipelineTest < Minitest::Test
     )
 
     Nightshift::CI::Judge.stub(:evaluate, verdict) do
-      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        Nightshift::Skills::Runner.stub(:analyze_run, nil) do
-          @pipeline.handle_failure(backlog_item, result)
-        end
+      Nightshift::Skills::Runner.stub(:analyze_run, nil) do
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 
@@ -379,11 +365,9 @@ class SkillPipelineTest < Minitest::Test
       Nightshift::Skills::Runner.stub(:run, runner_stub) do
         Nightshift::Skills::Runner.stub(:analyze_run, nil) do
           Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
-            Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-              @pipeline.stub(:system, true) do
-                Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
-                  @pipeline.execute_batch([bi1, bi2])
-                end
+            @pipeline.stub(:system, true) do
+              Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
+                @pipeline.execute_batch([bi1, bi2])
               end
             end
           end
@@ -430,9 +414,7 @@ class SkillPipelineTest < Minitest::Test
       Nightshift::Skills::Runner.stub(:run, fail_result) do
         Nightshift::Skills::Runner.stub(:analyze_run, nil) do
           Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
-            Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-              @pipeline.execute_batch([bi1])
-            end
+            @pipeline.execute_batch([bi1])
           end
         end
       end
@@ -459,10 +441,8 @@ class SkillPipelineTest < Minitest::Test
 
     patch_called = false
     Nightshift::CI::Judge.stub(:evaluate, low_conf_verdict) do
-      Nightshift::Integrations::Worktree.stub(:cleanup, nil) do
-        @pipeline.stub(:apply_patch, ->(*) { patch_called = true; 'abc123' }) do
-          @pipeline.handle_failure(backlog_item, result)
-        end
+      @pipeline.stub(:apply_patch, ->(*) { patch_called = true; 'abc123' }) do
+        @pipeline.handle_failure(backlog_item, result)
       end
     end
 

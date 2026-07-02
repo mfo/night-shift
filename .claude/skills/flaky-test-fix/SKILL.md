@@ -29,7 +29,7 @@ allowed-tools:
 
 # Fix Flaky Test
 
-You are fixing a flaky RSpec test. The test passes sometimes and fails sometimes with the same code — this is not a logic bug but a test isolation or timing issue.
+You are fixing a flaky RSpec test. The test passes sometimes and fails sometimes with the same code. The root cause can be in the test (isolation, timing) or in the app code (race condition, async flow).
 
 ## Input
 
@@ -57,6 +57,19 @@ Read the spec file. Identify which examples are likely flaky based on:
 - External service dependencies (API calls, file system, network)
 - Random ordering sensitivity (`before(:all)` vs `before(:each)`)
 
+### 1b. Classify the root cause
+
+Determine if the flakiness is:
+- **Test-side** : shared state, missing cleanup, bad ordering → fix in spec only
+- **App-side** : race condition in JS controller, async flow bug → fix in app code
+
+For system specs involving Turbo Stream or Stimulus interactions:
+1. Identify which Stimulus controller handles the form/interaction
+2. Read the controller source (`app/javascript/controllers/<name>_controller.ts`)
+3. Look for: abort patterns, concurrent fetches, morph timing assumptions
+
+If the root cause is app-side, the fix belongs in the app code — adding waits in the test only masks the bug.
+
 ### 2. Reproduce if possible
 
 Run the spec in isolation:
@@ -82,6 +95,15 @@ Common fixes by category:
 - Replace `sleep` with proper Capybara matchers (`have_content`, `have_selector`)
 - Use `using_wait_time(N)` for slow operations
 - Wait for specific conditions instead of arbitrary delays
+
+**Turbo Stream / Stimulus race conditions (system specs):**
+- Distinguish server commit from DOM morph — `have_content('Saved')` proves the server
+  committed, NOT that the morph landed. Wait for a DOM element specific to the new state
+  (e.g., `have_field('Cadastres')` after switching to carte type)
+- Serialize interactions: wait for each step to persist before the next change event
+  (fill → wait DB persisted → check → wait DB persisted), don't overlap
+- If the race is in the JS controller (e.g., aborting in-flight re-renders),
+  fix the controller — adding waits in the test only masks the bug
 
 **Time-dependent:**
 - Wrap in `travel_to` / `freeze_time` blocks
@@ -130,10 +152,10 @@ Skill [`/flaky-test-fix`](https://github.com/mfo/night-shift/blob/main/.claude/s
 
 ### Causes identifiees et fixes
 
-| Cause | Fix | Tests concernes |
-|-------|-----|-----------------|
-| <root cause 1> | <fix applied> | <test names> |
-| <root cause 2> | <fix applied> | <test names> |
+| Cause | Scope | Fix | Tests concernes |
+|-------|-------|-----|-----------------|
+| <root cause 1> | test / app | <fix applied> | <test names> |
+| <root cause 2> | test / app | <fix applied> | <test names> |
 
 ### Verification
 
@@ -142,9 +164,9 @@ Skill [`/flaky-test-fix`](https://github.com/mfo/night-shift/blob/main/.claude/s
 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-## Constraints
+## Contraintes
 
-- Do NOT change test behavior — only fix isolation/timing issues
-- Do NOT skip or quarantine the test — fix it
-- Do NOT add `retry` mechanisms — fix the root cause
-- Keep changes minimal — only touch the flaky spec and directly related helpers
+- Privilegier le fix dans le test. Mais si la root cause est une race condition app (controller JS, flux async), fixer le code app — ajouter des waits dans le test ne fait que masquer le vrai bug
+- Ne PAS skip ou quarantine le test — le fixer
+- Ne PAS ajouter de mecanisme `retry` — fixer la root cause
+- Changements minimaux — ne toucher que le spec flaky et le code directement responsable de la race condition

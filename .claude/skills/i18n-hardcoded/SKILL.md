@@ -200,6 +200,21 @@ Nommage : `before-1.png`, `before-2.png`, etc.
 3. **Si une cle identique existe avec une valeur differente** → ne PAS ecraser, choisir un nom de cle different (suffixe `_v2` ou plus descriptif)
 4. **Si le fichier YAML n'existe pas** : le creer avec la bonne structure
 
+### Etape 4b : Chercher les traductions existantes reutilisables
+
+**AVANT de creer une nouvelle cle**, verifier si une traduction equivalente existe deja dans le projet.
+
+Pour chaque texte francais a extraire :
+
+1. **Chercher la valeur exacte** dans les fichiers de traductions partages avec le tool Grep :
+   - Pattern : `"Votre dossier"` dans les fichiers `config/locales/fr.yml`, `config/locales/en.yml`, `config/locales/shared.fr.yml`, `config/locales/shared.en.yml`
+
+2. **Si une cle existante correspond** (meme valeur ou valeur equivalente) :
+   - Reutiliser la cle existante avec son scope complet : `I18n.t("shared.dossier.votre_dossier")` au lieu de creer une nouvelle cle
+   - Ne PAS dupliquer la traduction dans un nouveau fichier YAML
+
+3. **Si aucune cle existante ne correspond** → creer la nouvelle cle normalement (Etape 5)
+
 ### Etape 5 : Extraction
 
 Pour chaque texte hardcode identifie :
@@ -342,7 +357,7 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
 
 1. **Jamais de "translation missing" en prod** : chaque `t()` DOIT avoir sa cle YAML. Verifier AVANT le commit.
 2. **Respecter la structure existante** : ne pas creer une nouvelle hierarchie YAML si une existe deja. S'inserer dedans.
-3. **Idempotence** : si une cle existe deja avec la meme valeur, skip. Ne pas dupliquer.
+3. **Pas de duplication** : avant de creer une cle, chercher la valeur dans `config/locales/fr.yml`, `config/locales/shared.fr.yml`. Si une cle existante porte la meme traduction → reutiliser (cf. Etape 4b). Ne jamais dupliquer.
 4. **1 fichier = 1 run** : traiter un seul fichier par execution. Ne pas elargir le scope.
 5. **Toujours les deux locales** : chaque cle extraite doit exister en FR et EN. Ne jamais creer un `fr.yml` sans son `en.yml` correspondant (ou section `en:` pour les sidecar ViewComponent).
 6. **Pas de texte technique** : ne pas extraire les constantes, chemins, formats techniques.

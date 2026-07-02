@@ -97,6 +97,9 @@ module Nightshift
         next if running_branches.include?(branch)
         next if pr_open_branches.include?(branch)
 
+        wt_path = Integrations::Worktree.path_for_branch(branch)
+        next if wt_path && !zombie_process?(wt_path)
+
         Log.info "orphan worktree detected: #{branch} — cleaning up"
         Integrations::Worktree.cleanup(branch)
         @renderer.close_worktree(branch)
