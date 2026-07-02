@@ -105,9 +105,38 @@ All 10 runs must pass.
 
 ### 5. Deliver
 
-- Commit with `--no-gpg-sign`
-- Write `pr-description.md` via the pr-description skill
-- PR title: `fix(flaky): stabilize <spec_file>`
+Commit with `--no-gpg-sign`, then write `pr-description.md` :
+
+```markdown
+---
+title: "Tech: stabiliser les tests flaky de <spec_file>"
+---
+
+# Probleme
+
+Le fichier `<spec_file>` echoue de maniere intermittente en CI (<merge_queue_count> echecs merge queue, <retry_count> retries).
+
+Tests concernes :
+- `<test_name_1>`
+- `<test_name_2>`
+
+# Solution
+
+Skill [`/flaky-test-fix`](https://github.com/mfo/night-shift/blob/main/.claude/skills/flaky-test-fix/SKILL.md)
+
+### Causes identifiees et fixes
+
+| Cause | Fix | Tests concernes |
+|-------|-----|-----------------|
+| <root cause 1> | <fix applied> | <test names> |
+| <root cause 2> | <fix applied> | <test names> |
+
+### Verification
+
+Spec lance 10x en ordre aleatoire — 10/10 passes.
+
+Generated with [Claude Code](https://claude.com/claude-code)
+```
 
 ## Constraints
 
