@@ -21,7 +21,11 @@ allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git commit:*), B
 - **INTERDIT** : `kill`, `pkill`, `lsof`, `bin/dev`, `overmind`, `env` — ne JAMAIS tenter de lancer, tuer ou diagnostiquer des processus
 - **Permission refusee** : ne JAMAIS reessayer une commande refusee. Abandonner immediatement.
 
-**Regle Playwright** : si Playwright ne repond pas (erreur, timeout, outil non disponible), **ARRETER**. Ne PAS essayer de l'installer ou le relancer. Ecrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
+**Regle screenshots** : **TOUJOURS** deleguer les captures Playwright a l'agent `visual-verify`. Ne JAMAIS appeler les outils `mcp__playwright__*` directement — ils polluent le contexte avec du base64. Utiliser :
+```
+Agent(subagent_type: "visual-verify", prompt: "port: <PORT>, urls: ['/path'], selector: 'body', output_dir: 'tmp/<nom>/', prefix: 'before'")
+```
+Si l'agent retourne `{"status": "playwright_unavailable"}` → ecrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
 
 **Regle serveur** : le serveur est deja lance par nightshift. Verifier avec `curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/` — si pas de reponse, **ARRETER** immediatement.
 
@@ -37,9 +41,11 @@ grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 ```
 Si absent → appliquer le skill `/dev-auto-login`.
 
-**3. Playwright** — naviguer sur `localhost:$PORT` pour verifier que Playwright fonctionne. Si Chrome est deja ouvert → demander a l'utilisateur de le fermer.
-
-**4. Viewport** — toujours appeler `browser_resize` (1280x800) juste apres le premier `browser_navigate`.
+**3. Playwright** — tester via visual-verify :
+```
+Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/'], selector: 'body', output_dir: 'tmp/test/', prefix: 'check'")
+```
+Si retour `playwright_unavailable` → noter et continuer sans screenshots. Sinon supprimer `tmp/test/`.
 
 **5. Gist** — lancer le skill `/screenshot-gist <NomFichier>` pour creer le gist et cloner dans `tmp/<nom>/`.
 
@@ -82,42 +88,13 @@ Capturer le rendu actuel AVANT toute modification.
 
 - **Vue ERB** (`app/views/`) : page reelle via `data/routes-reference.txt`
 
-**Capturer avec Playwright** (jusqu'a 3 points d'entree) :
+**Capturer via visual-verify** (jusqu'a 3 points d'entree) :
 
-Pour les mailers, capturer le body de l'email :
-```javascript
-async (page) => {
-  // Les mail previews Rails affichent le mail dans un iframe ou directement
-  const body = await page.$('body');
-  if (body) {
-    await page.screenshot({ path: `tmp/<nom>/before-1.png`, fullPage: true });
-  }
-}
+```
+Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/rails/mailers/...', '/path2'], selector: 'body', output_dir: 'tmp/<nom>/', prefix: 'before'")
 ```
 
-Pour les composants, cibler le selecteur CSS :
-```javascript
-async (page) => {
-  const elements = await page.$$('.component-selector');
-  const padding = 50;
-  const vp = page.viewportSize() || { width: 1280, height: 800 };
-  for (let i = 0; i < elements.length; i++) {
-    if (await elements[i].isVisible()) {
-      const box = await elements[i].boundingBox();
-      if (!box) continue;
-      const clip = {
-        x: Math.max(0, box.x - padding),
-        y: Math.max(0, box.y - padding),
-        width: Math.min(box.width + padding * 2, vp.width - Math.max(0, box.x - padding)),
-        height: box.height + padding * 2
-      };
-      await page.screenshot({ path: `tmp/<nom>/before-${i+1}.png`, clip });
-    }
-  }
-}
-```
-
-Nommage : `before-1.png`, `before-2.png`, etc.
+L'agent gere le viewport, la navigation et les captures. Il retourne la liste des fichiers crees (`before-1.png`, `before-2.png`, etc.).
 
 ### Etape 3 : Determiner la structure i18n cible
 
@@ -283,7 +260,10 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
 ### Etape 8 : Screenshot APRES + comparaison
 
 1. **Reprendre les memes pages** que l'etape 2 (memes URLs, meme ordre)
-2. **Capturer les screenshots APRES** : memes scripts Playwright, path `tmp/<nom>/after-1.png`, `after-2.png`, etc.
+2. **Capturer via visual-verify** avec prefix `after` :
+   ```
+   Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/memes/urls'], selector: 'body', output_dir: 'tmp/<nom>/', prefix: 'after'")
+   ```
 3. **Comparer avant/apres** :
    - `stat -f%z` sur chaque paire before/after (1 appel Bash par fichier)
    - Identique au byte = le rendu n'a pas change (preuve forte)
@@ -355,7 +335,7 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
    Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-**3. Fermer Playwright** : appeler `mcp__playwright__browser_close`
+**3. Fermer Playwright** : appeler `mcp__playwright__browser_close` (libere Chrome)
 
 ---
 

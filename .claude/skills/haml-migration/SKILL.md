@@ -25,7 +25,11 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 - **Permission refusée** : si une commande est refusée, ne JAMAIS réessayer la même commande. Ne PAS chercher d'alternative — abandonner immédiatement.
 - **INTERDIT** : `kill`, `pkill`, `lsof`, `bin/dev`, `overmind`, `env` — ne JAMAIS tenter de lancer, tuer ou diagnostiquer des processus. Le serveur et Playwright sont gérés par le harness nightshift.
 
-**⚠️ Règle Playwright** : si Playwright ne répond pas (erreur, timeout, outil non disponible), **ARRÊTER** immédiatement. Ne PAS essayer de l'installer (`claude mcp add`), le relancer, ou contourner. Écrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
+**⚠️ Règle screenshots** : **TOUJOURS** déléguer les captures Playwright à l'agent `visual-verify`. Ne JAMAIS appeler les outils `mcp__playwright__*` directement — ils polluent le contexte avec du base64. Utiliser :
+```
+Agent(subagent_type: "visual-verify", prompt: "port: <PORT>, urls: ['/path1', '/path2'], selector: 'body', output_dir: 'tmp/<nom>/', prefix: 'haml'")
+```
+Si l'agent retourne `{"status": "playwright_unavailable"}` → écrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
 
 **⚠️ Règle serveur** : le serveur de dev est déjà lancé par nightshift. Vérifier avec `curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/` — si pas de réponse, **ARRÊTER** immédiatement. Ne PAS essayer de lancer le serveur.
 
@@ -86,9 +90,11 @@ grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 ```
 Si absent → appliquer le skill `/dev-auto-login` (crée l'initializer + redémarre le serveur).
 
-**4. Vérifier Playwright** — naviguer sur `localhost:$PORT` pour vérifier que Playwright fonctionne. Si erreur → **ARRÊTER** immédiatement (écrire pr-description.md "screenshots non disponibles" et terminer).
-
-**5. Configurer le viewport** — le viewport Playwright est `null` par défaut, ce qui fait crasher `page.viewportSize()`. Toujours appeler `browser_resize` (1280×800) juste après le premier `browser_navigate`.
+**4. Vérifier Playwright** — lancer un test rapide via l'agent visual-verify :
+```
+Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/'], selector: 'body', output_dir: 'tmp/test/', prefix: 'check'")
+```
+Si retour `playwright_unavailable` → **ARRÊTER** (écrire pr-description.md "screenshots non disponibles" et terminer). Sinon supprimer `tmp/test/`.
 
 Lancer le skill `/screenshot-gist NomDuComposant` pour créer le gist et cloner dans `tmp/<nom-composant>/`. Les screenshots sont stockés à plat dedans (ex: `usage1-component-1.png`).
 
@@ -151,30 +157,13 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
    3. Page de test créée ad hoc
    Si les 3 échouent → skip le screenshot, documenter les 3 tentatives dans la PR
 
-**4. Capturer avec MCP Playwright** (pour chaque point d'entrée sélectionné) :
+**4. Capturer via visual-verify** (pour chaque point d'entrée sélectionné) :
 
-   ⚠️ **Toujours utiliser `browser_run_code`** avec un sélecteur CSS pour capturer les screenshots. Ne PAS utiliser `browser_take_screenshot` avec une ref Playwright — les refs peuvent pointer sur le mauvais élément (ex: header au lieu du composant dans un dropdown).
-
-   ```javascript
-   async (page) => {
-     const elements = await page.$$('.component-selector');
-     const padding = 50;
-     const vp = page.viewportSize() || { width: 1280, height: 800 };
-     for (let i = 0; i < elements.length; i++) {
-       if (await elements[i].isVisible()) {
-         const box = await elements[i].boundingBox();
-         if (!box) continue;
-         const clip = {
-           x: Math.max(0, box.x - padding),
-           y: Math.max(0, box.y - padding),
-           width: Math.min(box.width + padding * 2, vp.width - Math.max(0, box.x - padding)),
-           height: box.height + padding * 2
-         };
-         await page.screenshot({ path: `tmp/<nom-composant>/usage1-component-${i+1}.png`, clip });
-       }
-     }
-   }
    ```
+   Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/path/usage1', '/path/usage2'], selector: '.component-selector', output_dir: 'tmp/<nom-composant>/', prefix: 'haml'")
+   ```
+
+   L'agent gère le viewport, la navigation et les captures. Il retourne la liste des fichiers créés.
 
 **5. Noter les utilisations non couvertes** — pour l'Étape 6, on les listera dans la PR.
 
@@ -285,9 +274,10 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 
 ### Étape 4 : Screenshot ERB (local uniquement — PAS de commit)
 
-1. **Naviguer sur les mêmes pages que l'étape 2** avec MCP Playwright (mêmes points d'entrée, même ordre)
-
-2. **Capturer les screenshots ERB** avec le même script, path `tmp/<nom-composant>/erb-usage1-component-${i+1}.png` (même convention de nommage que les screenshots HAML)
+Capturer les mêmes pages que l'étape 2 via visual-verify avec le prefix `erb` :
+```
+Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/path/usage1', '/path/usage2'], selector: '.component-selector', output_dir: 'tmp/<nom-composant>/', prefix: 'erb'")
+```
 
 ### Étape 5 : Comparaison
 
@@ -371,8 +361,7 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
    Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-4. **Fermer Playwright** (libère Chrome pour ne pas bloquer un autre skill) :
-   Appeler `mcp__playwright__browser_close`
+4. **Fermer Playwright** : appeler `mcp__playwright__browser_close` (libère Chrome)
 
 ---
 
