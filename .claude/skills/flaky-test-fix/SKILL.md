@@ -20,6 +20,7 @@ allowed-tools:
   - Bash(find:*)
   - Bash(bundle exec rspec:*)
   - Bash(bundle exec rubocop:*)
+  - Bash(bash ~/dev/night-shift/.claude/skills/flaky-test-fix/verify-flaky.sh:*)
   - Bash(ls:*)
   - Bash(wc:*)
   - Agent
@@ -60,12 +61,12 @@ Read the spec file. Identify which examples are likely flaky based on:
 
 Run the spec in isolation:
 ```bash
-bundle exec rspec <spec_file> --order random --seed <random>
+bundle exec rspec <spec_file> --order random
 ```
 
-Run it multiple times to try triggering the flakiness:
+If the context contains failing CI seeds, replay them to confirm the flake:
 ```bash
-for i in $(seq 1 5); do bundle exec rspec <spec_file> --order random 2>&1 | tail -1; done
+bundle exec rspec <spec_file> --seed <seed_from_ci>
 ```
 
 ### 3. Fix the root cause
@@ -96,12 +97,15 @@ Common fixes by category:
 
 ### 4. Verify the fix
 
-Run the spec multiple times to confirm stability:
+Run the stress test script. **Target specific examples by line** to avoid running the entire file (critical for system specs) :
+
 ```bash
-for i in $(seq 1 10); do bundle exec rspec <spec_file> --order random 2>&1 | tail -1; done
+bash ~/dev/night-shift/.claude/skills/flaky-test-fix/verify-flaky.sh <spec_file>:<line>
 ```
 
-All 10 runs must pass.
+The script adapts iterations (20 for system specs, 50 for unit) and captures seeds. It must exit 0 (STABLE). If it exits 1 (FLAKY), use the printed seed to replay and investigate further.
+
+If multiple examples were fixed, run the script once per example.
 
 ### 5. Deliver
 
@@ -133,7 +137,7 @@ Skill [`/flaky-test-fix`](https://github.com/mfo/night-shift/blob/main/.claude/s
 
 ### Verification
 
-Spec lance 10x en ordre aleatoire — 10/10 passes.
+`verify-flaky.sh` : <passed>/<runs> passes (system: 20 runs, unit: 50 runs).
 
 Generated with [Claude Code](https://claude.com/claude-code)
 ```
