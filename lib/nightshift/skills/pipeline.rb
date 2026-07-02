@@ -19,6 +19,8 @@ module Nightshift
     class Pipeline
       extend T::Sig
 
+      DRAFT_SKILLS = Set.new(%w[n1-query-fix flaky-test-fix]).freeze
+
       sig { params(store: Core::Store).void }
       def initialize(store:)
         @store = store
@@ -96,7 +98,7 @@ module Nightshift
           return
         end
 
-        push_and_create_pr(committed, worktree_path, branch)
+        push_and_create_pr(committed, worktree_path, branch, skill)
       ensure
         remove_pid_file(worktree_path) if worktree_path
       end
@@ -171,7 +173,7 @@ module Nightshift
         end
       end
 
-      def push_and_create_pr(committed, worktree_path, branch)
+      def push_and_create_pr(committed, worktree_path, branch, skill)
         title, body = combine_descriptions(worktree_path)
 
         remove_pr_description(worktree_path)
@@ -185,7 +187,9 @@ module Nightshift
           return
         end
 
-        pr_number = create_gh_pr(branch, title, body, worktree_path)
+        draft = DRAFT_SKILLS.include?(skill)
+        title = "WIP - #{title}" if draft && title && !title.start_with?('WIP')
+        pr_number = create_gh_pr(branch, title, body, worktree_path, draft: draft)
 
         # Insert a minimal PR row so the FK constraint on backlog_items.pr_number is satisfied
         # (the reconciler will enrich it on next fetch from GitHub)
@@ -229,13 +233,14 @@ module Nightshift
         end
       end
 
-      def create_gh_pr(branch, title, body, worktree_path)
+      def create_gh_pr(branch, title, body, worktree_path, draft: false)
         pr_args = ['gh', 'pr', 'create', '--head', branch, '--body', body]
         if title
           pr_args.push('--title', title)
         else
           pr_args.push('--fill')
         end
+        pr_args.push('--draft') if draft
         pr_url, = Open3.capture2(*pr_args, chdir: worktree_path)
         pr_url.strip.split('/').last.to_i
       end
