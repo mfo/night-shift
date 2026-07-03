@@ -182,26 +182,36 @@ class TestOptimizationSourceTest < Minitest::Test
     write_profile({ 'spec/models/user_spec.rb' => 45.2 })
 
     item = { item: 'spec/models/user_spec.rb' }
-    assert_equal 8, @source.prioritize(item)
+    assert_equal Nightshift::BacklogSources::Base::HIGH, @source.prioritize(item)
   end
 
   def test_prioritize_without_profile
     item = { item: 'spec/models/user_spec.rb' }
-    assert_equal 0, @source.prioritize(item)
+    assert_equal Nightshift::BacklogSources::Base::LOWEST, @source.prioritize(item)
   end
 
   def test_prioritize_tiers
     write_profile({
-      'spec/fast_spec.rb' => 0.5,
-      'spec/medium_spec.rb' => 3,
+      'spec/moderate_spec.rb' => 7,
       'spec/slow_spec.rb' => 20,
+      'spec/heavy_spec.rb' => 45,
       'spec/very_slow_spec.rb' => 65
     })
 
-    assert_equal 2, @source.prioritize({ item: 'spec/fast_spec.rb' })
-    assert_equal 2, @source.prioritize({ item: 'spec/medium_spec.rb' })
-    assert_equal 6, @source.prioritize({ item: 'spec/slow_spec.rb' })
-    assert_equal 10, @source.prioritize({ item: 'spec/very_slow_spec.rb' })
+    assert_equal Nightshift::BacklogSources::Base::LOW, @source.prioritize({ item: 'spec/moderate_spec.rb' })
+    assert_equal Nightshift::BacklogSources::Base::MEDIUM, @source.prioritize({ item: 'spec/slow_spec.rb' })
+    assert_equal Nightshift::BacklogSources::Base::HIGH, @source.prioritize({ item: 'spec/heavy_spec.rb' })
+    assert_equal Nightshift::BacklogSources::Base::HIGHEST, @source.prioritize({ item: 'spec/very_slow_spec.rb' })
+  end
+
+  def test_relevant_filters_fast_specs
+    write_profile({
+      'spec/fast_spec.rb' => 2.0,
+      'spec/slow_spec.rb' => 10.0
+    })
+
+    refute @source.relevant?('spec/fast_spec.rb')
+    assert @source.relevant?('spec/slow_spec.rb')
   end
 
   def test_items_integrates_scan_and_prioritize
@@ -210,18 +220,15 @@ class TestOptimizationSourceTest < Minitest::Test
     write_profile({ 'spec/system/login_spec.rb' => 90.0 })
 
     items = @source.items
-    assert_equal 2, items.size
+    assert_equal 1, items.size
 
     login = items.find { |i| i[:item] == 'spec/system/login_spec.rb' }
-    user = items.find { |i| i[:item] == 'spec/models/user_spec.rb' }
-
-    assert_equal 10, login[:priority]
-    assert_equal 0, user[:priority]
+    assert_equal Nightshift::BacklogSources::Base::HIGHEST, login[:priority]
   end
 
   def test_corrupted_profile_json
     write_raw('tmp/rspec_profile.json', 'not json{{{')
-    assert_equal 0, @source.prioritize({ item: 'spec/any_spec.rb' })
+    assert_equal Nightshift::BacklogSources::Base::LOWEST, @source.prioritize({ item: 'spec/any_spec.rb' })
   end
 
   private

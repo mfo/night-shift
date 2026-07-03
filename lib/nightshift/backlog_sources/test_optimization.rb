@@ -12,16 +12,22 @@ module Nightshift
         glob('spec/**/*_spec.rb')
       end
 
+      MIN_DURATION_SECONDS = 5
+
+      sig { override.params(item_path: String).returns(T::Boolean) }
+      def relevant?(item_path)
+        spec_duration(item_path) >= MIN_DURATION_SECONDS
+      end
+
       sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
       def prioritize(item)
         duration = spec_duration(item[:item])
         case duration
-        when 60.. then 10
-        when 30..59 then 8
-        when 15..29 then 6
-        when 5..14 then 4
-        when 1..4 then 2
-        else 0
+        when 60.. then HIGHEST
+        when 30..59 then HIGH
+        when 15..29 then MEDIUM
+        when 5..14 then LOW
+        else LOWEST
         end
       end
 
