@@ -24,8 +24,8 @@ echo ""
 
 for i in $(seq 1 "$runs"); do
   output=$(bundle exec rspec "$spec" --order random --format progress 2>&1) || true
-  seed=$(echo "$output" | grep -o 'Randomized with seed [0-9]*' | grep -o '[0-9]*' || echo "?")
-  summary=$(echo "$output" | tail -1)
+  seed=$(echo "$output" | tr -d '\r' | grep -o 'Randomized with seed [0-9]*' | grep -o '[0-9]*' || echo "?")
+  summary=$(echo "$output" | grep -E '[0-9]+ examples?, [0-9]+ failures?' | tail -1)
 
   if echo "$summary" | grep -q '0 failures'; then
     passed=$((passed + 1))
