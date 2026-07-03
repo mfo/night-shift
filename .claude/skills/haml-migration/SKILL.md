@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: "Migrate HAML to ERB with visual validation. Use when user says 'migrate haml', 'convert to erb', or provides a .haml file."
-allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), Agent, mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_close, mcp__playwright__browser_click, mcp__playwright__browser_snapshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_wait_for, mcp__playwright__browser_resize, mcp__playwright__browser_console_messages, mcp__playwright__browser_tabs, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(bin/rails runner:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(curl:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), Agent, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(bin/rails runner:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(curl:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
 ---
 
 # Migration HAML → ERB
@@ -372,7 +372,10 @@ Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/path/usage1
    Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-4. **Fermer Playwright** : appeler `mcp__playwright__browser_close` (libère Chrome)
+4. **Fermer Playwright** : déléguer à visual-verify :
+   ```
+   Agent(subagent_type: "visual-verify", prompt: "close the browser")
+   ```
 
 ---
 

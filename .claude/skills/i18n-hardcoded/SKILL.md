@@ -1,7 +1,7 @@
 ---
 name: i18n-hardcoded
 description: "Extract hardcoded French strings to i18n YAML. Use when user says 'extract i18n', 'translate hardcoded', or provides a .rb/.erb file with French text."
-allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bin/rails runner:*), Bash(curl:*), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md), mcp__playwright__browser_navigate, mcp__playwright__browser_run_code, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_resize, mcp__playwright__browser_close, mcp__playwright__browser_console_messages, mcp__playwright__browser_tabs
+allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bin/rails runner:*), Bash(curl:*), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md)
 ---
 
 # Extraction i18n : textes francais hardcodes
@@ -335,7 +335,10 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
    Generated with [Claude Code](https://claude.com/claude-code)
    ```
 
-**3. Fermer Playwright** : appeler `mcp__playwright__browser_close` (libere Chrome)
+**3. Fermer Playwright** : deleguer a visual-verify :
+   ```
+   Agent(subagent_type: "visual-verify", prompt: "close the browser")
+   ```
 
 ---
 
