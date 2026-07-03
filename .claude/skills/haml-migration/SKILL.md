@@ -197,27 +197,37 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 5. **String interpolation avec helpers HTML** :
    - ❌ `<%= "#{link_to('text', url)}." %>` (échappe le HTML)
    - ✅ `<%= link_to('text', url) %>.` (sortir le texte de l'interpolation)
-6. **Extraction i18n obligatoire** : tout texte français en dur dans le HAML doit être extrait en clé i18n dans l'ERB. Ne PAS recopier les textes tels quels.
+6. **Extraction i18n obligatoire** : tout texte français en dur dans le HAML doit être extrait en clé i18n dans l'ERB. Ne PAS recopier les textes tels quels. **Toujours les deux locales** : chaque clé extraite doit exister en FR et EN. Traduire le texte français en anglais naturel (pas du mot-à-mot).
 
-   **Pour un ViewComponent** (`app/components/`) : utiliser le fichier de traduction du composant (le créer si besoin) :
+   **Pour un ViewComponent** (`app/components/`) : utiliser le fichier de traduction sidecar du composant (le créer si besoin). Ce fichier contient **les deux locales** (`fr:` et `en:`) :
    ```yaml
    # app/components/export_dropdown/export_dropdown_component.yml
    fr:
      standard: "Standard"
      cancel: "Annuler"
+   en:
+     standard: "Standard"
+     cancel: "Cancel"
    ```
    ```erb
    <%= t(".standard") %>
    <%= t(".cancel") %>
    ```
 
-   **Pour une vue classique** (`app/views/`) : utiliser le namespace Rails standard correspondant au chemin du fichier :
+   **Pour une vue classique** (`app/views/`) : utiliser le namespace Rails standard correspondant au chemin du fichier. Créer les fichiers FR **et** EN :
    ```yaml
    # config/locales/views/dossiers/show.fr.yml
    fr:
      dossiers:
        show:
          submit_button: "Envoyer le dossier"
+   ```
+   ```yaml
+   # config/locales/views/dossiers/show.en.yml
+   en:
+     dossiers:
+       show:
+         submit_button: "Submit the file"
    ```
    ```erb
    <%= t(".submit_button") %>
@@ -266,9 +276,10 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
    ```
    (Uniquement pour les composants ViewComponent, pas pour les vues classiques)
 
-3. **Commit** (inclure les fichiers i18n si créés) :
+3. **Commit** (inclure les fichiers i18n FR + EN si créés) :
    ```bash
    git add <fichier.html.erb>
+   git add <fichiers_i18n_fr_et_en>
    git commit -m "refactor(haml): migrate NomDuComposant to ERB"
    ```
 
@@ -376,7 +387,7 @@ Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/path/usage1
 - [ ] Fichier HAML + fichier Ruby lus (vérifier types de retour)
 - [ ] Screenshot HAML capturé dans `tmp/<nom-composant>/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
-- [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB)
+- [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB) avec traductions EN
 - [ ] Formatter herb passé
 - [ ] Linter apostrophes passé
 - [ ] Tests passés (si identifiés)
