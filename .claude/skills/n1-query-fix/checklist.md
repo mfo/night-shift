@@ -15,7 +15,8 @@
 - [ ] Seul du code applicatif modifie (app/, config/) — PAS de modifs spec/ pour faire taire Prosopite
 - [ ] Eager loading ajoute au bon endroit (scope/controller, pas default_scope)
 - [ ] Pas de surcharge inutile (includes cible, pas global)
-- [ ] GraphQL : batch loader si applicable
+- [ ] GraphQL : `dataloader.with(Sources::Association, ...)` si applicable
+- [ ] GraphQL : verifier `inverse_of` avant preload nested (ex: `labels: :procedure` → `:labels` si inverse_of existe)
 
 ## Validation
 - [ ] Tests passes (rspec) — les N+1 TEST peuvent encore echouer, c'est OK

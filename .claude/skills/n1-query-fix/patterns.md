@@ -44,17 +44,44 @@ Dossier.preload(:etablissement)  # 2 queries: SELECT dossiers + SELECT etablisse
 # - On veut eviter les LEFT JOIN couteux
 ```
 
-### GraphQL batch loading
+### GraphQL dataloader (Sources::Association)
 ```ruby
 # Avant : N+1 dans un resolver
 def etablissement
   object.etablissement  # 1 query par dossier
 end
 
-# Apres : utiliser le dataloader du projet
+# Apres : utiliser le dataloader du projet avec Sources::Association
 def etablissement
-  dataloader.with(Sources::ActiveRecord, Etablissement, :dossier_id).load(object.id)
+  dataloader.with(Sources::Association, :etablissement).load(object)
 end
+
+# Avec preload nested (ex: charger les champs et leur type_de_champ)
+def champs
+  dataloader.with(Sources::Association, champs: :type_de_champ).load(object)
+end
+```
+
+### Piege inverse_of : preload nested redondant
+```ruby
+# Si le model parent declare inverse_of :
+#   has_many :labels, inverse_of: :procedure
+# Et le model enfant :
+#   belongs_to :procedure
+
+# MAUVAIS : preload nested redondant — ActiveRecord remplit label.procedure automatiquement
+def labels
+  dataloader.with(Sources::Association, labels: :procedure).load(object)
+end
+
+# BON : inverse_of suffit, pas besoin de recharger le parent
+def labels
+  dataloader.with(Sources::Association, :labels).load(object)
+end
+
+# Verification : grep 'inverse_of' dans le model parent avant de decider
+# Si inverse_of est declare → utiliser le symbole simple
+# Si inverse_of est absent et que l'enfant a besoin du parent → preload nested
 ```
 
 ### update_column pour eviter les callbacks N+1
