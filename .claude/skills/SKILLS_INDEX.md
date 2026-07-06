@@ -10,7 +10,7 @@
 | dev-auto-login | utility | Setup dev auto-login | — | SKILL.md |
 | feature-spec | pipeline | Architecture spec (Phase 0) | review-3-amigos | SKILL.md, checklist.md, template.md, pitfalls/*.md |
 | feature-plan | pipeline | Commit plan (Phase 1) | review-3-amigos | SKILL.md, checklist.md, template.md |
-| feature-implementation | pipeline | Execute plan (Phase 2) | — | SKILL.md, checklist.md, patterns.md |
+| feature-implementation | pipeline | Execute plan (Phase 2) | visual-verify, visual-compare | SKILL.md, checklist.md, patterns.md |
 | feature-review | pipeline | Post-impl review (Phase 3) | review-3-amigos | SKILL.md, checklist.md, template.md |
 | haml-migration | workflow | HAML→ERB migration | dev-auto-login, rails-routes, screenshot-gist | SKILL.md |
 | harden-audit | pipeline | Qualify vulnerability (DREAD) | — | SKILL.md, checklist.md, contract.md, patterns.md |
@@ -35,6 +35,8 @@ Wrappers agents pour les skills qui bénéficient de champs natifs (model, isola
 | rails-routes | rails-routes | — | haiku |
 | screenshot-gist | screenshot-gist | — | haiku |
 | kaizen | kaizen | `memory: project` | sonnet |
+| visual-verify | — | capture Playwright → fichier PNG | haiku |
+| visual-compare | — | compare baseline UX vs capture → rapport d'écarts | sonnet |
 
 **Invocation :** `/skill-name` (inline) ou `@agent-name` (isolé avec champs natifs).
 

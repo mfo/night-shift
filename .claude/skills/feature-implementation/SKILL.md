@@ -18,9 +18,11 @@ allowed-tools:
   - Bash(bin/rails runner:*)
   - Bash(bundle exec rails runner:*)
   - Bash(.claude/skills/feature-spec/find-procedure.sh:*)
+  - Bash(ls:*)
   - Skill(dev-auto-login)
   - Skill(screenshot-gist)
   - Skill(create-pr)
+  - Agent
 ---
 
 # Implémentation Feature Commit par Commit (Stage 2)
@@ -136,21 +138,97 @@ Tests passent en SQLite permissive, prod crashe en PostgreSQL strict.
 
 ## Validation Visuelle (si changement d'interface)
 
-Si la spec contient une section "Validation Visuelle", l'exécuter après le dernier commit.
+Exécuter la validation visuelle **à chaque checkpoint** défini dans le plan (pas seulement en fin d'implémentation). Les checkpoints sont dans `visual_validation.checkpoints` du JSON du plan.
 
 **Pré-requis Playwright :** vérifier que le serveur MCP Playwright est disponible. Si absent, fallback sur des screenshots manuels via le navigateur (documenter dans la PR que la validation est manuelle).
 
-1. **Trouver une démarche de test adaptée** via `find-procedure.sh` (query ActiveRecord libre)
-2. **Se donner les droits** via `rails runner` (ajouter comme admin/instructeur sur la procédure)
-3. **Lancer `dev-auto-login`** pour l'authentification localhost
-4. **Capturer les screenshots** selon le scénario défini dans la spec (Playwright MCP)
-5. **Comparer avec les maquettes UX** de l'issue source (si disponibles)
-6. **Publier via `screenshot-gist`** pour inclusion dans la PR
+### Convention de nommage
+
+**Baselines** (maquettes UX de référence) dans `specs/assets/YYYY-MM-DD-[nom]/` :
+```
+ux-scenario-N-description.png
+```
+
+**Captures** Playwright dans `specs/assets/YYYY-MM-DD-[nom]/captures/` :
+```
+capture-scenario-N-description.png
+```
+
+Le **`scenario-N`** est le lien entre baseline et capture.
+
+### Pipeline : visual-verify → visual-compare → correction
+
+La validation visuelle utilise deux agents en séquence :
+
+#### Étape 1 : Préparation (une seule fois)
+
+1. **Charger les baselines** : `ls specs/assets/YYYY-MM-DD-[nom]/ux-scenario-*.png`
+2. **Trouver une démarche de test adaptée** via `find-procedure.sh` (query ActiveRecord libre)
+3. **Se donner les droits** via `rails runner` (ajouter comme admin/instructeur sur la procédure)
+4. **Lancer `dev-auto-login`** pour l'authentification localhost
+
+#### Étape 2 : Capture (agent `visual-verify`)
+
+Déléguer la capture à l'agent `visual-verify` — ne JAMAIS appeler `mcp__playwright__*` directement (base64 pollue le contexte).
+
+```
+Agent(subagent_type: "visual-verify", prompt: "
+  port: $PORT,
+  urls: ['/instructeurs/procedures/X/dossiers/Y/suivi-et-decision'],
+  selector: 'body',
+  output_dir: 'specs/assets/YYYY-MM-DD-nom/captures/',
+  prefix: 'capture-scenario-N'
+")
+```
+
+#### Étape 3 : Comparaison (agent `visual-compare`)
+
+Pour CHAQUE paire baseline/capture, lancer l'agent `visual-compare` :
+
+```
+Agent(subagent_type: "visual-compare", prompt: "
+  baseline: specs/assets/YYYY-MM-DD-nom/ux-scenario-N-description.png
+  capture: specs/assets/YYYY-MM-DD-nom/captures/capture-scenario-N-description.png
+  context: description de ce qu'on compare
+")
+```
+
+L'agent compare sur 6 axes systématiques :
+1. **Éléments en trop** — texte/titre/bloc présent dans la capture mais absent de la maquette
+2. **Contenu manquant** — texte/donnée présent dans la maquette mais absent de la capture
+3. **Layout / dimensions** — largeur des blocs, débordements, containers
+4. **Alignement** — éléments inline vs empilés, position relative
+5. **Typographie / couleur** — couleur du texte, gras/normal, taille
+6. **Espacement** — marges et padding entre sections
+
+Il retourne un JSON structuré :
+```json
+{
+  "status": "pass | fail",
+  "findings": [{"axis": "...", "severity": "bloquant | important | mineur", "element": "...", "recommendation": "..."}],
+  "summary": "N bloquants, N importants, N mineurs"
+}
+```
+
+#### Étape 4 : Correction (boucle)
+
+- **Si `status: "pass"`** → validation terminée, passer à la suite
+- **Si `status: "fail"`** → pour chaque finding bloquant ou important :
+  1. Corriger le code (vue, CSS, contrôleur, partial)
+  2. Vérifier que les tests passent toujours
+  3. Committer le fix : `fix(visual): description du problème`
+  4. **Relancer le cycle** (Étape 2 → Étape 3) pour vérifier que le fix résout l'écart
+  5. Maximum 3 itérations — au-delà, signaler au user pour arbitrage UX
+
+**⚠️ RÈGLE CRITIQUE :** Ne JAMAIS conclure "ça match" sans avoir lancé `visual-compare`. La comparaison humaine à l'oeil est biaisée — l'agent compare systématiquement sur 6 axes et détecte les écarts subtils (container trop étroit, sous-titre redondant, couleur de texte).
 
 ### Pièges connus (issus de sessions réelles)
 - **Super-admin** : auth séparée de dev-auto-login, nécessite reset password + login form
 - **Données insuffisantes** : la démarche trouvée peut ne pas avoir de dossiers dans le bon état — utiliser `rails runner` pour transitionner/créer les données manquantes
 - **Apostrophes Unicode** : les textes FR utilisent des apostrophes typographiques ('), pas ASCII (') — matcher les assertions en conséquence
+- **Container CSS** : `container` (Bootstrap) ≠ `fr-container` (DSFR) — vérifier que le wrapper correspond au design system utilisé par le reste de la page
+- **Sous-titres redondants** : quand du contenu existant (partials) est intégré dans un accordéon, les `.tab-title` deviennent redondants avec le titre de l'accordéon — les supprimer ou les rendre conditionnels
+- **Données partielles** : un partial peut filtrer (ex: `manual` assignments seulement) alors que la maquette montre toutes les données (auto + manual) — vérifier le scope des queries
 
 ---
 
@@ -192,10 +270,19 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "commits_executed": 12,
   "tests_pass": true,
   "rubocop_clean": true,
-  "screenshots": ["https://gist.github.com/..."],
+  "visual_validation": {
+    "baseline_path": "specs/assets/YYYY-MM-DD-nom/",
+    "captures_path": "specs/assets/YYYY-MM-DD-nom/captures/",
+    "screenshots": ["https://gist.github.com/..."],
+    "comparison": "pass | fail | partial"
+  },
   "branch": "feature/nom-feature"
 }
 ```
+
+- `visual_validation.baseline_path` : repris du JSON de feature-plan. Contient les maquettes UX de référence.
+- `visual_validation.captures_path` : screenshots capturés pendant l'implémentation, nommés pour correspondre aux scénarios de la spec.
+- `visual_validation.comparison` : résultat de la comparaison visuelle baseline vs captures.
 
 ---
 

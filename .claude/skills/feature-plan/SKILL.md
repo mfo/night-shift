@@ -47,6 +47,7 @@ Agent spécialisé dans la création de plans d'implémentation à partir de spe
 3. Lister composants impactés : DB, Models, Controllers, Jobs, Services, Components, Views, Tests
 4. Identifier dépendances (migration DB avant models, backfill avant constraints)
 5. Repérer breaking changes (section 10)
+6. Vérifier si des assets visuels existent dans `specs/assets/YYYY-MM-DD-[nom]/` (maquettes UX sauvées en Stage 0). Si oui, les référencer dans la section "Validation Visuelle" du plan pour que Stage 2 les utilise comme baseline de comparaison.
 
 ### Étape 2 : Découpage en Commits
 
@@ -81,12 +82,25 @@ Présenter au user :
 
 ---
 
+## Validation Visuelle dans le Plan
+
+Si la spec a une section 14 (Validation Visuelle) et un `visual_assets_path` non null :
+
+1. **Mapper scénarios → commits** : pour chaque scénario de la spec, identifier le commit à partir duquel il est vérifiable
+2. **Ajouter des checkpoints visuels** dans le plan : à la fin du commit concerné, noter `📸 Vérifier scenario-N: [description]`
+3. **Référencer les baselines** : le plan doit indiquer le chemin `specs/assets/YYYY-MM-DD-[nom]/ux-scenario-N-*.png` pour que Stage 2 sache quoi comparer
+
+Le mapping scénario → commit est porté dans le JSON de sortie (`visual_validation.checkpoints`).
+
+---
+
 ## Checklist Plan Validé
 
 - Commits < 20, phases logiques, breaking changes isolés
 - Tests exécutables après chaque commit
 - Chaque commit : Objectif / Fichiers / Actions / Tests / Notes
 - Tableau récapitulatif créé
+- Si changement d'interface : checkpoints visuels mappés aux commits
 
 ---
 
@@ -116,9 +130,18 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "issue_source": "https://github.com/... | null",
   "commits_count": 12,
   "breaking_changes": [{"commits": "4-6", "description": "..."}],
-  "plan_path": "specs/YYYY-MM-DD-nom-implementation-plan.md"
+  "plan_path": "specs/YYYY-MM-DD-nom-implementation-plan.md",
+  "visual_validation": {
+    "assets_path": "specs/assets/YYYY-MM-DD-nom/ | null",
+    "scenarios": ["scenario 1 description", "scenario 2 description"],
+    "checkpoints": ["commit N: vérifier X", "commit M: vérifier Y"]
+  }
 }
 ```
+
+- `visual_validation.assets_path` : repris de `visual_assets_path` du JSON de feature-spec. `null` si pas de changement d'interface.
+- `visual_validation.scenarios` : liste des scénarios de capture définis dans la spec (section 14).
+- `visual_validation.checkpoints` : à quels commits la validation visuelle doit être exécutée (pas seulement en fin d'implémentation). Ce champ est lu par feature-implementation (Stage 2).
 
 ---
 

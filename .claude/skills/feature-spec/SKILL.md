@@ -7,6 +7,9 @@ allowed-tools:
   - Grep
   - Write(specs/*)
   - Edit(specs/*)
+  - Bash(mkdir:*)
+  - Bash(cp:*)
+  - Bash(ls:*)
   - Agent
   - Skill(review-3-amigos)
   - Bash(gh issue view:*)
@@ -57,6 +60,18 @@ Le user peut toujours forcer un niveau différent.
 2. Fetch les commentaires : `gh api repos/OWNER/REPO/issues/NUMBER/comments`
 3. Présenter au user : titre ETQ, besoin, solution proposée, maquettes UX
 4. Enchaîner sur la reformulation ci-dessous normalement
+
+**Si l'input contient des images (maquettes UX, screenshots, mockups) :**
+Les sauvegarder IMMÉDIATEMENT dans `specs/assets/YYYY-MM-DD-[nom]/` avant toute autre action.
+Le cache d'images de session est éphémère et sera nettoyé — les fichiers sources (Downloads, etc.) peuvent aussi disparaître.
+1. `mkdir -p specs/assets/YYYY-MM-DD-[nom]/`
+2. `cp` chaque image en suivant la convention : `ux-scenario-N-description.png`
+   - Le `N` correspond au numéro de scénario de validation visuelle (section 14 de la spec)
+   - La `description` est un slug court (ex: `tab-bar-routing`, `demande-depot`, `suivi-decision-full`)
+   - Exemples : `ux-scenario-1-tab-bar-routing.png`, `ux-scenario-3-demande-depot.png`
+3. Référencer les images dans la spec (section 14) : chaque scénario pointe vers son fichier baseline
+
+**Pourquoi :** Les images fournies en début de session sont la baseline de comparaison visuelle. Sans sauvegarde immédiate, elles sont perdues. Le préfixe `scenario-N` permet à feature-implementation (Stage 2) de savoir automatiquement quelle capture comparer à quelle maquette.
 
 Le user arrive avec une demande. Reformuler ce qu'on a compris et le présenter :
 
@@ -205,9 +220,12 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "sections_completed": 16,
   "success_criteria": ["GIVEN ... WHEN ... THEN ..."],
   "affected_roles": ["admin", "instructeur", "usager"],
-  "spec_path": "specs/YYYY-MM-DD-nom-spec.md"
+  "spec_path": "specs/YYYY-MM-DD-nom-spec.md",
+  "visual_assets_path": "specs/assets/YYYY-MM-DD-nom/ | null"
 }
 ```
+
+- `visual_assets_path` : chemin vers les maquettes UX sauvées. `null` si pas de changement d'interface. Ce champ est lu par feature-plan (Stage 1) pour planifier la validation visuelle et par feature-implementation (Stage 2) comme baseline de comparaison.
 
 ---
 
