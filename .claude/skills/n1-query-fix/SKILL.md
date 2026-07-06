@@ -91,6 +91,8 @@ grep -c 'N+1 queries detected' tmp/prosopite-scan.log
 grep -A 5 'N+1 queries detected' tmp/prosopite-scan.log
 ```
 
+**Sauvegarder le log AVANT** pour la PR : noter le nombre de patterns PROD et copier les 5 premieres lignes de chaque pattern. Ces extraits seront injectes dans `pr-description.md` (Etape 4).
+
 **Classifier chaque pattern** par sa call stack :
 
 - **PROD** : au moins une ligne `app/` dans la call stack → vrai N+1 utilisateur
@@ -211,7 +213,13 @@ Tu es un agent de fix N+1 queries. Tu corriges UN pattern.
    ```
    bundle exec rubocop <fichiers_modifies>
    ```
-6. Si tests verts → commit :
+6. Relancer le scan Prosopite et capturer le log APRES fix :
+   ```
+   rm -f tmp/prosopite-scan.log
+   bundle exec rspec <spec_file>
+   grep -A 5 'N+1 queries detected' tmp/prosopite-scan.log
+   ```
+7. Si tests verts → commit :
    ```
    git add <fichiers>
    git commit --no-gpg-sign -m "perf(<scope>): fix N+1 on <association>"
@@ -228,6 +236,8 @@ Tu es un agent de fix N+1 queries. Tu corriges UN pattern.
 - `applied` ou `skipped` ou `failed`
 - Fichiers modifies
 - Ce qui a ete change (1-2 phrases)
+- **Log Prosopite apres fix** : copier les 5 premieres lignes du grep (ou "Aucun N+1 PROD detecte" si vide)
+- **Resume du changement** : 1 ligne decrivant le fix (ex: "Ajoute includes(:instructeur) dans Dossier#preloaded_commentaires")
 ```
 
 **Apres chaque sous-agent :**
@@ -247,13 +257,13 @@ title: "Tech: fix N+1 sur <association> dans <Controller>"
 
 # Probleme
 
-N+1 detecte par [Prosopite](https://github.com/charkost/prosopite) (scan des tests) et confirme par [Skylight](https://www.skylight.io/) (production).
+N+1 detecte par [Prosopite](https://github.com/charkost/prosopite) (scan des tests) et confirme par analyse du code.
 
-**Donnees de production** (depuis `.skill-context.json`) :
+<!-- Section Skylight CONDITIONNELLE : ne rendre QUE si des donnees existent.
+     Si RPM/P95 sont vides, ecrire une ligne simple avec le waste uniquement.
+     Si aucune donnee Skylight → supprimer toute la section. -->
 
-| Endpoint | RPM | P95 | Waste |
-|----------|-----|-----|-------|
-| `Controller#action` | X | Yms | Zms |
+**Donnees de production** (Skylight) : waste estime Xms sur `Controller#action`.
 
 **Triage Prosopite** : N patterns PROD / M patterns TEST ignores.
 
@@ -261,11 +271,23 @@ N+1 detecte par [Prosopite](https://github.com/charkost/prosopite) (scan des tes
 
 Skill [`/n1-query-fix`](https://github.com/mfo/night-shift/blob/main/.claude/skills/n1-query-fix/SKILL.md)
 
-### Patterns corriges (PROD uniquement)
+### Patterns corriges
 
-| Association | Table | Strategy | Call site (app/) |
-|-------------|-------|----------|------------------|
-| ... | ... | ... | ... |
+| Association | Table | Strategy | Changement |
+|-------------|-------|----------|------------|
+| `association` | `table` | `includes` | Ajoute a `Model#scope_method` |
+
+### Preuve Prosopite
+
+**Avant (N patterns PROD) :**
+```
+<extrait du log Prosopite AVANT fix — 5 lignes max par pattern>
+```
+
+**Apres (0 patterns PROD) :**
+```
+Aucun N+1 PROD detecte.
+```
 
 ### Patterns ignores (TEST)
 
@@ -277,6 +299,7 @@ Skill [`/n1-query-fix`](https://github.com/mfo/night-shift/blob/main/.claude/ski
 
 - [x] Tests passes (rspec)
 - [x] Rubocop OK
+- [x] Prosopite : 0 N+1 PROD apres fix
 - [x] Seuls des fichiers app/ et config/ commites
 
 Generated with [Claude Code](https://claude.com/claude-code)
@@ -292,7 +315,8 @@ Generated with [Claude Code](https://claude.com/claude-code)
 4. **Pas de default_scope** avec includes.
 5. **Preload vs Includes** : `preload` pour les polymorphiques ou quand on ne filtre pas sur l'association.
 6. **1 fichier controller = 1 run** : traiter tous les N+1 du controller cible, pas d'autres.
-7. **GraphQL** : avant de proposer un preload (`with_attached_*`, `includes`), vérifier si un `GraphQL::Batch::Loader` ou `Loaders::Association` résout déjà le N+1. Si oui, le preload est redondant et contre-productif (charge les données même quand le client ne demande pas le champ). Vérifier aussi que le type GraphQL expose réellement les champs concernés.
+7. **GraphQL** : avant de proposer un preload (`with_attached_*`, `includes`), vérifier si un `dataloader.with(Sources::Association, ...)` résout déjà le N+1. Si oui, le preload est redondant et contre-productif (charge les données même quand le client ne demande pas le champ). Vérifier aussi que le type GraphQL expose réellement les champs concernés.
+8. **GraphQL — `inverse_of` avant preload nested** : quand on ajoute un resolver GraphQL avec un preload nested (ex: `dataloader.with(Sources::Association, labels: :procedure)`), vérifier si l'association parente déclare `inverse_of`. Si `has_many :labels, inverse_of: :procedure` existe côté parent, alors ActiveRecord remplit automatiquement `label.procedure` — le preload nested est redondant. Utiliser simplement `:labels`.
 
 ## Pieges connus (retours kaizen)
 
@@ -302,7 +326,7 @@ L'ancien patch (`prosopite-setup.patch`) ciblait des offsets precis de `Gemfile.
 
 ### Faux positifs GraphQL batch loaders
 
-Prosopite detecte des N+1 dans les tests GraphQL, mais en prod les `Loaders::Association` (GraphQL::Batch) resolvent ces N+1 par batching automatique. Le pattern Prosopite est un artefact du contexte de test (pas de batch loader actif). Avant de fixer un N+1 dont la call stack passe par `app/graphql/`, verifier si un loader existe deja pour cette association. Si oui, ne pas ajouter de preload — c'est contre-productif.
+Prosopite detecte des N+1 dans les tests GraphQL, mais en prod les `Sources::Association` (GraphQL::Dataloader) resolvent ces N+1 par batching automatique. Le pattern Prosopite est un artefact du contexte de test (pas de dataloader actif). Avant de fixer un N+1 dont la call stack passe par `app/graphql/`, verifier si un resolver utilise deja `dataloader.with(Sources::Association, ...)` pour cette association. Si oui, ne pas ajouter de preload — c'est contre-productif.
 
 ### Faux negatifs Prosopite
 

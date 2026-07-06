@@ -131,7 +131,9 @@ If multiple examples were fixed, run the script once per example.
 
 ### 5. Deliver
 
-Commit with `--no-gpg-sign`, then write `pr-description.md` :
+Commit with `--no-gpg-sign`, then write `pr-description.md`.
+
+**Parser la sortie de `verify-flaky.sh`** pour chaque test fixe : extraire le nombre de runs et le resultat (STABLE/FLAKY). Ces donnees alimentent la section "Preuve de stabilite" de la PR.
 
 ```markdown
 ---
@@ -140,7 +142,17 @@ title: "Tech: stabiliser les tests flaky de <spec_file>"
 
 # Probleme
 
-Le fichier `<spec_file>` echoue de maniere intermittente en CI (<merge_queue_count> echecs merge queue, <retry_count> retries).
+Le fichier `<spec_file>` echoue de maniere intermittente en CI.
+
+### Evidence CI
+
+| Signal | Count | Signification |
+|--------|-------|---------------|
+| Merge queue | <merge_queue_count> echecs | Pas de changement de code → preuve forte de flakiness |
+| Retries | <retry_count> passes au retry | Le test est instable |
+
+Branches concernees : `<branch1>`, `<branch2>`
+Jobs : `<job1>`, `<job2>`
 
 Tests concernes :
 - `<test_name_1>`
@@ -152,14 +164,19 @@ Skill [`/flaky-test-fix`](https://github.com/mfo/night-shift/blob/main/.claude/s
 
 ### Causes identifiees et fixes
 
-| Cause | Scope | Fix | Tests concernes |
-|-------|-------|-----|-----------------|
-| <root cause 1> | test / app | <fix applied> | <test names> |
-| <root cause 2> | test / app | <fix applied> | <test names> |
+| Cause | Scope | Fix | Pourquoi ca resout |
+|-------|-------|-----|--------------------|
+| <root cause 1> | test / app | <fix applied> | <explication en 1 ligne> |
+| <root cause 2> | test / app | <fix applied> | <explication en 1 ligne> |
 
-### Verification
+### Preuve de stabilite
 
-`verify-flaky.sh` : <passed>/<runs> passes (system: 20 runs, unit: 50 runs).
+| Test | Runs | Resultat | Type |
+|------|------|----------|------|
+| `<test_name_1>` | 20/20 | ✅ STABLE | system |
+| `<test_name_2>` | 50/50 | ✅ STABLE | unit |
+
+Script : [`verify-flaky.sh`](https://github.com/mfo/night-shift/blob/main/.claude/skills/flaky-test-fix/verify-flaky.sh) (20 runs system, 50 runs unit, random seed a chaque run)
 
 Generated with [Claude Code](https://claude.com/claude-code)
 ```
