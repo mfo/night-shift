@@ -38,3 +38,8 @@ Si les permissions ne peuvent pas être pré-configurées (environnement restrei
 Si vous avez besoin de données de seed pour les tests, vérifiez d'abord si les données sont déjà présentes ou utilisez `bundle exec rails db:seed` (non destructif) si les permissions le permettent.
 
 Quand une commande est refusée par approval, ne bouclez pas sur d'autres tentatives qui accumulent du contexte. Acceptez l'échec et ajustez votre approche (ex: utiliser les données existantes plutôt que de tout replanter).
+
+### AL-4 (2026-07-08 18:59)
+
+## Répertoire temporaire
+Toujours créer les scripts de reproduction dans le répertoire du projet (ex: `repro_spec.rb` à la racine) plutôt que dans `/tmp`. Les écritures dans `/tmp` sont bloquées par la permission system. Nettoyer le fichier après usage avec `rm <file>`.
