@@ -99,7 +99,7 @@ module Nightshift
 
       sig { params(repo: String, failures: T::Array[T::Hash[Symbol, T.untyped]]).returns(T::Hash[String, T::Hash[Symbol, T.untyped]]) }
       def extract_flaky_specs(repo, failures)
-        by_spec = Hash.new { |h, k| h[k] = { merge_queue_count: 0, retry_count: 0, branches: Set.new, jobs: Set.new, lines: Set.new, test_names: Set.new } }
+        by_spec = Hash.new { |h, k| h[k] = { merge_queue_count: 0, retry_count: 0, branches: Set.new, jobs: Set.new, job_urls: Set.new, lines: Set.new, test_names: Set.new } }
 
         failures.each do |f|
           refs = extract_specs_from_log(repo, f[:job_id])
@@ -112,6 +112,7 @@ module Nightshift
             data[:retry_count] += 1 if f[:attempt] > 1
             data[:branches] << f[:branch]
             data[:jobs] << f[:job_name]
+            data[:job_urls] << "https://github.com/#{repo}/actions/runs/#{f[:run_id]}/job/#{f[:job_id]}"
             if line
               line_num = line.to_i
               data[:lines] << line_num
@@ -124,6 +125,7 @@ module Nightshift
         by_spec.each_value do |data|
           data[:branches] = data[:branches].to_a
           data[:jobs] = data[:jobs].to_a
+          data[:job_urls] = data[:job_urls].to_a
           data[:lines] = data[:lines].to_a.sort
           data[:test_names] = data[:test_names].to_a
         end

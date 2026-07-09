@@ -5,6 +5,8 @@ metadata:
   type: kaizen
   category: n1-query-fix
   iteration: 1
+status: traité
+date_synth: 2026-07-08
 ---
 
 # N1-Query-Fix Failed: AttestationTemplateV2sController

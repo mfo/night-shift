@@ -25,7 +25,7 @@ allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git commit:*), B
 ```
 Agent(subagent_type: "visual-verify", prompt: "port: <PORT>, urls: ['/path'], selector: 'body', output_dir: 'tmp/<nom>/', prefix: 'before'")
 ```
-Si l'agent retourne `{"status": "playwright_unavailable"}` → ecrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
+Si l'agent retourne `{"status": "playwright_unavailable"}` → ecrire `pr-description.md` en notant "screenshots non disponibles" et terminer **sans commit**.
 
 **Regle serveur** : le serveur est deja lance par nightshift. Verifier avec `curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/` — si pas de reponse, **ARRETER** immediatement.
 
@@ -68,7 +68,7 @@ Si retour `playwright_unavailable` → noter et continuer sans screenshots. Sino
    - Noms de fichiers, chemins, identifiants techniques
    - Strings uniquement ASCII sans mots francais
    - Constantes techniques (`"application/pdf"`, `"text/html"`)
-4. **Si aucun texte hardcode trouve** : ecrire `pr-description.md` avec "Aucun texte hardcode trouve" et terminer (le pipeline marquera `no_diff`).
+4. **Si aucun texte hardcode trouve** : ecrire `pr-description.md` avec "Aucun texte hardcode trouve" et terminer **sans commit** — ne PAS faire `git add` ni `git commit`. Le pipeline detectera `no_diff` automatiquement.
 
 ### Etape 2 : Screenshot AVANT (preuve visuelle)
 

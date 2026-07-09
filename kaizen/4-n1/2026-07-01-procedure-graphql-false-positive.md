@@ -1,3 +1,8 @@
+---
+status: traité
+date_synth: 2026-07-08
+---
+
 # n1-query-fix: faux positif GraphQL batch loader (PR #13391)
 
 **Date**: 2026-07-01

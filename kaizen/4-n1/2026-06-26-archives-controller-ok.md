@@ -4,6 +4,8 @@ description: Kaizen du run n1-query-fix réussi sur Administrateurs::ArchivesCon
 metadata:
   type: kaizen
   iteration: 4
+status: traité
+date_synth: 2026-07-08
 ---
 
 # n1-query-fix OK — ArchivesController

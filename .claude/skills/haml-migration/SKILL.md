@@ -29,7 +29,7 @@ allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist
 ```
 Agent(subagent_type: "visual-verify", prompt: "port: <PORT>, urls: ['/path1', '/path2'], selector: 'body', output_dir: 'tmp/<nom>/', prefix: 'haml'")
 ```
-Si l'agent retourne `{"status": "playwright_unavailable"}` → écrire `pr-description.md` en notant "screenshots non disponibles" et terminer normalement.
+Si l'agent retourne `{"status": "playwright_unavailable"}` → écrire `pr-description.md` en notant "screenshots non disponibles" et terminer **sans commit**.
 
 **⚠️ Règle serveur** : le serveur de dev est déjà lancé par nightshift. Vérifier avec `curl -s -o /dev/null -w '%{http_code}' http://localhost:$PORT/` — si pas de réponse, **ARRÊTER** immédiatement. Ne PAS essayer de lancer le serveur.
 
@@ -94,7 +94,7 @@ Si absent → appliquer le skill `/dev-auto-login` (crée l'initializer + redém
 ```
 Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/'], selector: 'body', output_dir: 'tmp/test/', prefix: 'check'")
 ```
-Si retour `playwright_unavailable` → **ARRÊTER** (écrire pr-description.md "screenshots non disponibles" et terminer). Sinon supprimer `tmp/test/`.
+Si retour `playwright_unavailable` → **ARRÊTER** (écrire pr-description.md "screenshots non disponibles" et terminer **sans commit**). Sinon supprimer `tmp/test/`.
 
 Lancer le skill `/screenshot-gist NomDuComposant` pour créer le gist et cloner dans `tmp/<nom-composant>/`. Les screenshots sont stockés à plat dedans (ex: `usage1-component-1.png`).
 

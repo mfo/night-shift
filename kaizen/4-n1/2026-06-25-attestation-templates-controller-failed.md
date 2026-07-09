@@ -3,6 +3,8 @@ name: attestation-templates-controller-failed
 description: n1-query-fix échec sur attestation_templates_controller.rb — context overflow deepseek-v4-flash, pas de Prosopite dans le repo cible
 metadata:
   type: kaizen
+status: traité
+date_synth: 2026-07-08
 ---
 
 # n1-query-fix failed: attestation_templates_controller.rb

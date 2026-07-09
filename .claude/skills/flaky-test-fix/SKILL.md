@@ -42,6 +42,7 @@ The context JSON contains flaky evidence:
 - `retry_count` — failures that passed on retry
 - `branches` — which branches saw the failure
 - `jobs` — which CI jobs failed
+- `job_urls` — direct links to the failed CI jobs (include in PR description)
 
 ## Process
 
@@ -117,6 +118,28 @@ Common fixes by category:
 - Remove hidden dependencies between examples
 - Ensure each example is self-contained
 
+### 3b. Reproduce the flaky (commit RED when possible)
+
+Before applying the fix, try to **reproduce the failure deterministically** in a dedicated commit.
+This proves the root cause and gives reviewers confidence the fix is not a placebo.
+
+Common reproduction techniques:
+- **PG sequence collision**: `ActiveRecord::Base.connection.execute("SELECT setval('<table>_id_seq', 1, false)")` in a `let` or `before` block to force low auto-generated IDs that collide with explicit test data
+- **CI seed replay**: `bundle exec rspec <file> --seed <seed_from_ci_log>`
+- **Time travel**: `travel_to` to a boundary time (midnight, DST transition, end of month)
+- **Ordering**: run the full suite or a subset that triggers the ordering dependency
+
+**Decision criteria** — attempt reproduction when:
+- The root cause hypothesis is clear (you know exactly what condition triggers the failure)
+- The reproduction can be expressed as a small, self-contained change (1-3 lines)
+- Cost is low: a `let` override, a `before` hook, or a CLI flag — not a complex test harness
+
+**Skip reproduction** when the flake is inherently non-deterministic (true race condition in async JS, network timing) or the reproduction setup would be more complex than the fix itself.
+
+If reproduction succeeds:
+1. Commit the reproduction change with message: `test(<Component>): reproduce flaky via <technique>` and a note that the commit is intentionally RED
+2. Then apply the fix in a separate commit (the reviewer sees RED → GREEN)
+
 ### 4. Verify the fix
 
 Run the stress test script. **Target specific examples by line** to avoid running the entire file (critical for system specs) :
@@ -152,7 +175,7 @@ Le fichier `<spec_file>` echoue de maniere intermittente en CI.
 | Retries | <retry_count> passes au retry | Le test est instable |
 
 Branches concernees : `<branch1>`, `<branch2>`
-Jobs : `<job1>`, `<job2>`
+Jobs : [`<job1>`](<job_url_1>), [`<job2>`](<job_url_2>)
 
 Tests concernes :
 - `<test_name_1>`
@@ -183,7 +206,8 @@ Generated with [Claude Code](https://claude.com/claude-code)
 
 ## Contraintes
 
-- Privilegier le fix dans le test. Mais si la root cause est une race condition app (controller JS, flux async), fixer le code app — ajouter des waits dans le test ne fait que masquer le vrai bug
+- **Ne JAMAIS modifier du code métier (app/) pour un problème de données de test.** Si la flakiness vient d'une collision d'IDs, d'un ordering de factory, ou d'un état de test mal isolé, le fix appartient à 100% au test. Le test litmus : "est-ce que ce changement app aurait du sens si aucun test n'était flaky ?" — si non, c'est un fix test.
+- Modifier du code app UNIQUEMENT pour une vraie race condition app (controller JS, flux async, morph timing) — ajouter des waits dans le test ne fait que masquer le vrai bug
 - Ne PAS skip ou quarantine le test — le fixer
 - Ne PAS ajouter de mecanisme `retry` — fixer la root cause
 - Changements minimaux — ne toucher que le spec flaky et le code directement responsable de la race condition
