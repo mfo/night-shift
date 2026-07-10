@@ -1,0 +1,59 @@
+#!/bin/bash
+# Pre-commit hook: autofix linters on staged files only
+# Runs fixers by file type, re-stages fixes, commit proceeds clean.
+#
+# Installation: copied to worktrees by post-checkout hook
+# Activation: core.hooksPath must point to .githooks/
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+# --- Ruby files: rubocop -A ---
+RB_FILES=$(echo "$STAGED" | grep -E '\.rb$' || true)
+if [ -n "$RB_FILES" ]; then
+  echo "🔧 rubocop -A on $(echo "$RB_FILES" | wc -l | tr -d ' ') ruby files..."
+  echo "$RB_FILES" | xargs bundle exec rubocop -A --force-exclusion --fail-level=F 2>/dev/null || true
+  echo "$RB_FILES" | xargs git add
+fi
+
+# --- ERB files: herb-format ---
+ERB_FILES=$(echo "$STAGED" | grep -E '\.html\.erb$' || true)
+if [ -n "$ERB_FILES" ]; then
+  echo "🔧 herb-format on $(echo "$ERB_FILES" | wc -l | tr -d ' ') erb files..."
+  echo "$ERB_FILES" | xargs bun herb-format 2>/dev/null || true
+  echo "$ERB_FILES" | xargs git add
+fi
+
+# --- YAML locale files: apostrophe fix ---
+YAML_FILES=$(echo "$STAGED" | grep -E '\.(yml|yaml)$' | grep -E '^config/locales/' || true)
+if [ -n "$YAML_FILES" ]; then
+  echo "🔧 lint:apostrophe:fix on locale files..."
+  bundle exec rake lint:apostrophe:fix 2>/dev/null || true
+  echo "$YAML_FILES" | xargs git add
+fi
+
+# --- JS/TS files: eslint --fix ---
+JS_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' || true)
+if [ -n "$JS_FILES" ]; then
+  echo "🔧 eslint --fix on $(echo "$JS_FILES" | wc -l | tr -d ' ') js/ts files..."
+  echo "$JS_FILES" | xargs bun eslint --fix 2>/dev/null || true
+  echo "$JS_FILES" | xargs git add
+fi
+
+# --- CSS files: prettier --write ---
+CSS_FILES=$(echo "$STAGED" | grep -E '\.css$' | grep -E '^app/assets/stylesheets/' || true)
+if [ -n "$CSS_FILES" ]; then
+  echo "🔧 prettier --write on $(echo "$CSS_FILES" | wc -l | tr -d ' ') css files..."
+  echo "$CSS_FILES" | xargs bun prettier --write 2>/dev/null || true
+  echo "$CSS_FILES" | xargs git add
+fi
+
+exit 0
