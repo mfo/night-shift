@@ -126,15 +126,20 @@ L'agent gere le viewport, la navigation et les captures. Il retourne la liste de
   ```
 
 #### Pour les composants ViewComponent (`app/components/`)
-- Fichier YAML : `app/components/<nom>/<nom>_component.yml` (fichier sidecar du composant)
-- Ce fichier contient **les deux locales** (`fr:` et `en:`) dans le meme fichier
-- Scope : lazy lookup `.key` (ViewComponent resout automatiquement)
+- **Sidecars scindes par locale** (convention dominante du repo, ~160 composants) : **un fichier par locale**, a plat a cote du `.rb` :
+  - FR : `app/components/<chemin>/<nom>_component.fr.yml` avec un bloc `fr:`
+  - EN : `app/components/<chemin>/<nom>_component.en.yml` avec un bloc `en:`
+- **NE JAMAIS** mettre `fr:` et `en:` dans un seul `<nom>_component.yml` — c'est l'ancienne forme, minoritaire, a ne pas reproduire.
+- Scope : lazy lookup `.key` (ViewComponent resout automatiquement les deux fichiers)
 - Exemple :
   ```yaml
-  # app/components/dsfr/alert/alert_component.yml
+  # app/components/dsfr/alert/alert_component.fr.yml
   fr:
     error_prefix: "Erreur : "
     info_prefix: "Information : "
+  ```
+  ```yaml
+  # app/components/dsfr/alert/alert_component.en.yml
   en:
     error_prefix: "Error: "
     info_prefix: "Information: "
@@ -207,10 +212,13 @@ Pour chaque texte hardcode identifie :
    - `"Erreur : "` → `error_prefix`
    - `"Votre archive est disponible"` → `archive_available` (ou `subject` si c'est un sujet mail)
 2. **Ajouter la cle au YAML francais** (`fr.yml` ou section `fr:`) avec la valeur francaise
+   - **Casse d'une valeur autonome** : si le texte extrait etait un fragment en milieu de phrase (commence par une minuscule apres un prefixe genre `"Source : "`, `"Origine : "`) mais devient une **valeur autonome** affichee dans un label / tag / badge / cellule, **mettre une majuscule initiale**. Verifier la casse des cles soeurs dans le meme fichier et rester coherent (ex: si `source: Annuaire des Entreprises` existe deja capitalise, alors `source: Référentiels géographiques nationaux`, pas `référentiels...`).
 3. **Ajouter la cle au YAML anglais** (`en.yml` ou section `en:`) avec la traduction anglaise
    - Traduire le texte francais en anglais naturel (pas du mot-a-mot)
+   - **Noms propres non traduits** : les noms de services, institutions, marques, produits, sigles restent **identiques** en FR et EN — ne PAS traduire. Ex: `Annuaire des Entreprises`, `Banque de France`, `INSEE`, `Infogreffe`, `URSSAF`, `FranceConnect`, `France Titres` gardent la meme valeur dans la section `en:`. En cas de doute sur le statut « nom propre » d'un texte, le laisser tel quel plutot que de le traduire (une traduction erronee d'un nom de service est pire qu'une non-traduction).
+   - Appliquer la meme regle de casse qu'en FR (point 2) a la valeur anglaise autonome.
    - Conserver les interpolations `%{variable}` identiques
-   - Pour les sidecar ViewComponent (`.yml` unique) : ajouter la section `en:` en miroir de `fr:`
+   - Pour les sidecar ViewComponent : ecrire dans le fichier scinde `<nom>_component.en.yml` (bloc `en:`), miroir de `<nom>_component.fr.yml` — jamais dans un `.yml` unique
 5. **Remplacer dans le code** :
    - Vue ERB : `<%= t(".cle") %>`
    - Ruby (vue lazy) : `t(".cle")`
@@ -348,6 +356,8 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
 2. **Respecter la structure existante** : ne pas creer une nouvelle hierarchie YAML si une existe deja. S'inserer dedans.
 3. **Pas de duplication** : avant de creer une cle, chercher la valeur dans `config/locales/fr.yml`, `config/locales/shared.fr.yml`. Si une cle existante porte la meme traduction → reutiliser (cf. Etape 4b). Ne jamais dupliquer.
 4. **1 fichier = 1 run** : traiter un seul fichier par execution. Ne pas elargir le scope.
-5. **Toujours les deux locales** : chaque cle extraite doit exister en FR et EN. Ne jamais creer un `fr.yml` sans son `en.yml` correspondant (ou section `en:` pour les sidecar ViewComponent).
+5. **Toujours les deux locales, en fichiers scindes** : chaque cle extraite doit exister en FR et EN. Ne jamais creer un `fr.yml` sans son `en.yml` correspondant. Pour les sidecar ViewComponent : **deux fichiers** `<nom>_component.fr.yml` et `<nom>_component.en.yml` — jamais un seul `.yml` melangeant `fr:` et `en:`.
 6. **Pas de texte technique** : ne pas extraire les constantes, chemins, formats techniques.
 7. **Interpolation simple uniquement** : `#{variable}` → `%{variable}`. Si l'interpolation contient du HTML ou des helpers complexes → skip cette string.
+8. **Noms propres non traduits** : services / institutions / marques / sigles (`Annuaire des Entreprises`, `Banque de France`, `INSEE`, `URSSAF`, `FranceConnect`…) restent identiques FR/EN. En cas de doute, ne pas traduire.
+9. **Casse coherente** : une valeur autonome affichee comme label/tag/badge prend une majuscule initiale, meme si le fragment d'origine etait en minuscule au milieu d'une phrase. S'aligner sur la casse des cles soeurs du meme fichier.

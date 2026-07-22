@@ -40,11 +40,18 @@ when :error then "Erreur : "
 when :error then t(".error_prefix")
 ```
 
-YAML sidecar (`app/components/dsfr/alert/alert_component.yml`) :
+YAML sidecar **scinde par locale** (convention du repo) :
 ```yaml
+# app/components/dsfr/alert/alert_component.fr.yml
 fr:
   error_prefix: "Erreur : "
 ```
+```yaml
+# app/components/dsfr/alert/alert_component.en.yml
+en:
+  error_prefix: "Error: "
+```
+⚠️ Ne PAS creer `alert_component.yml` avec `fr:` + `en:` melanges — forme minoritaire a proscrire.
 
 ### Interpolation
 ```ruby
@@ -68,6 +75,37 @@ data: { turbo_confirm: "Confirmez-vous la suppression ?" }
 
 <!-- Apres -->
 data: { turbo_confirm: t(".confirm_delete") }
+```
+
+### Noms propres de services (non traduits)
+Les noms de services, institutions, marques et sigles gardent la **meme valeur** en FR et EN.
+```yaml
+# app/components/dossiers/identite_entreprise_for_usager_component.fr.yml
+fr:
+  source: Annuaire des Entreprises      # nom de service
+  sources: INSEE, Infogreffe, URSSAF    # sigles
+  bilans_bdf: Bilans Banque de France
+```
+```yaml
+# app/components/dossiers/identite_entreprise_for_usager_component.en.yml
+en:
+  source: Annuaire des Entreprises      # ✅ identique — PAS "Business Directory"
+  sources: INSEE, Infogreffe, URSSAF    # ✅ identique
+  bilans_bdf: Banque de France balance sheets  # "Bilans" traduit, "Banque de France" conserve
+```
+Regle : en cas de doute sur le statut « nom propre », laisser tel quel plutot que de traduire.
+
+### Casse d'une valeur autonome (label / tag / badge)
+Quand un fragment en milieu de phrase (minuscule) devient une valeur autonome affichee, mettre une majuscule initiale et s'aligner sur les cles soeurs.
+```yaml
+# region_component.fr.yml — affiche comme "Source : <valeur>" dans un tag
+fr:
+  source: Référentiels géographiques nationaux   # ✅ majuscule — PAS "référentiels..."
+```
+```yaml
+# region_component.en.yml
+en:
+  source: National geographic reference systems  # ✅ majuscule — PAS "national..."
 ```
 
 ## Anti-patterns (ne PAS extraire)
