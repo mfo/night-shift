@@ -39,6 +39,10 @@ Rails.application.config.to_prepare do
       sign_in(user, scope: :user)
       current_user.instructeur&.update(bypass_email_login_token: true)
     end
+
+    def pundit_user
+      current_user
+    end
   end
 
   # Invalidation cache ViewComponent — permet de switcher .haml → .erb sans redémarrer le serveur
