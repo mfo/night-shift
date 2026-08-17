@@ -9,6 +9,59 @@ module Nightshift
 
       sig { override.returns(T::Array[T::Hash[Symbol, T.untyped]]) }
       def scan
+        seed_path = File.join(repo_path, 'tmp', 'n1-backlog-seed.json')
+        if File.exist?(seed_path)
+          scan_from_seed(seed_path)
+        else
+          scan_from_prosopite
+        end
+      end
+
+      sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
+      def prioritize(item)
+        context = JSON.parse(item[:context], symbolize_names: true)
+        score = (context[:score] || 0).to_f
+        if score >= 1_000 then HIGHEST
+        elsif score >= 200 then HIGH
+        elsif score >= 50 then MEDIUM
+        elsif score >= 10 then LOW
+        elsif score >= 1 then LOWEST
+        else LATER
+        end
+      end
+
+      sig { override.params(item_path: String).returns(T::Boolean) }
+      def relevant?(item_path)
+        File.exist?(File.join(repo_path, item_path))
+      end
+
+      private
+
+      def scan_from_seed(seed_path)
+        data = JSON.parse(File.read(seed_path), symbolize_names: true)
+        (data[:items] || []).map do |item|
+          {
+            item: item[:item],
+            context: JSON.generate({
+              source_file: item[:item],
+              score: item[:score],
+              detection_count: item[:detection_count],
+              tables: item[:tables],
+              controllers: item[:controllers],
+              spec_files: item[:spec_files],
+              total_waste_ms: item[:total_waste_ms],
+              skylight_rpm: item[:skylight_rpm],
+              skylight_p95_ms: item[:skylight_p95_ms],
+              n1_patterns: (item[:patterns] || []).map { |p|
+                { table: p[:table], sql_pattern: p[:sql], endpoints: [{ name: p[:controller] }] }
+              },
+              skylight_app_url: SKYLIGHT_APP_URL
+            })
+          }
+        end
+      end
+
+      def scan_from_prosopite
         patterns = parse_prosopite
         skylight = load_skylight
         by_file = group_by_source(patterns)
@@ -18,23 +71,6 @@ module Nightshift
           { item: source_file, context: JSON.generate(context) }
         end
       end
-
-      sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
-      def prioritize(item)
-        context = JSON.parse(item[:context], symbolize_names: true)
-        waste = context[:total_waste_ms] || 0
-        case waste
-        when 10_000.. then 10
-        when 5_000..9_999 then 8
-        when 3_000..4_999 then 7
-        when 1_000..2_999 then 5
-        when 500..999 then 3
-        when 1..499 then 1
-        else 0
-        end
-      end
-
-      private
 
       sig { returns(T::Array[T::Hash[Symbol, T.untyped]]) }
       def parse_prosopite
