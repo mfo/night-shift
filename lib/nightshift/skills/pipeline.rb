@@ -19,8 +19,6 @@ module Nightshift
     class Pipeline
       extend T::Sig
 
-      DRAFT_SKILLS = Set.new(%w[n1-query-fix flaky-test-fix]).freeze
-
       sig { params(store: Core::Store).void }
       def initialize(store:)
         @store = store
@@ -178,6 +176,19 @@ module Nightshift
 
         remove_pr_description(worktree_path)
 
+        diff_files, = Open3.capture2('git', 'diff', '--name-only', 'main..HEAD', chdir: worktree_path)
+        real_changes = diff_files.lines.any? { |f| f.strip.match?(%r{^(app|spec|config|lib)/}) }
+        unless real_changes
+          Log.warn "no real code changes in #{branch} (only pr-description.md / chore commits) — treating as no_diff"
+          no_diff_result = RunnerResult.new(
+            success: false, failure_reason: FailureReason::NoDiff.serialize,
+            log_path: committed.last[:result].log_path, turns_used: committed.last[:result].turns_used,
+            files_changed: 0
+          )
+          committed.each { |c| handle_failure(c[:backlog_item], no_diff_result) }
+          return
+        end
+
         unless system('git', 'push', '-u', 'origin', branch, chdir: worktree_path)
           committed.each do |c|
             @store.update_backlog_status(c[:backlog_item], BacklogStatus::Failed,
@@ -187,9 +198,7 @@ module Nightshift
           return
         end
 
-        draft = DRAFT_SKILLS.include?(skill)
-        title = "WIP - #{title}" if draft && title && !title.start_with?('WIP')
-        pr_number = create_gh_pr(branch, title, body, worktree_path, draft: draft)
+        pr_number = create_gh_pr(branch, title, body, worktree_path)
 
         # Insert a minimal PR row so the FK constraint on backlog_items.pr_number is satisfied
         # (the reconciler will enrich it on next fetch from GitHub)
@@ -233,14 +242,13 @@ module Nightshift
         end
       end
 
-      def create_gh_pr(branch, title, body, worktree_path, draft: false)
+      def create_gh_pr(branch, title, body, worktree_path)
         pr_args = ['gh', 'pr', 'create', '--head', branch, '--body', body]
         if title
           pr_args.push('--title', title)
         else
           pr_args.push('--fill')
         end
-        pr_args.push('--draft') if draft
         pr_url, = Open3.capture2(*pr_args, chdir: worktree_path)
         pr_url.strip.split('/').last.to_i
       end
