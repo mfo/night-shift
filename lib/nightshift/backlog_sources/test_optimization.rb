@@ -21,12 +21,11 @@ module Nightshift
 
       sig { override.params(item: T::Hash[Symbol, T.untyped]).returns(Integer) }
       def prioritize(item)
-        duration = spec_duration(item[:item])
-        case duration
-        when 60.. then HIGHEST
-        when 30..59 then HIGH
-        when 15..29 then MEDIUM
-        when 5..14 then LOW
+        duration = spec_duration(item[:item]).to_f
+        if duration >= 60 then HIGHEST
+        elsif duration >= 30 then HIGH
+        elsif duration >= 15 then MEDIUM
+        elsif duration >= 5 then LOW
         else LOWEST
         end
       end
