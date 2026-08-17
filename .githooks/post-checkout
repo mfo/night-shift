@@ -132,19 +132,12 @@ else
   echo "⚠️  night-shift/.claude/ non trouvé ($nightshift_claude)"
 fi
 
-# Copier .githooks/ depuis night-shift (pre-commit linters)
-nightshift_hooks="${NIGHTSHIFT_DIR:-$HOME/dev/night-shift}/.githooks"
-hooks_target="$worktree_path/.githooks"
-
-if [ -d "$nightshift_hooks" ]; then
-  mkdir -p "$hooks_target"
-  for hook in "$nightshift_hooks"/*; do
-    name=$(basename "$hook")
-    cp "$hook" "$hooks_target/$name"
-    chmod +x "$hooks_target/$name"
-  done
-  git -C "$worktree_path" config core.hooksPath .githooks
-  echo "==> .githooks/ copié depuis night-shift (pre-commit, post-checkout)"
+# Installer lefthook dans le worktree (lefthook.yml est déjà dans l'arbre git)
+if command -v lefthook &>/dev/null; then
+  cd "$worktree_path"
+  lefthook install 2>/dev/null && echo "==> lefthook installé dans le worktree"
+else
+  echo "⚠️  lefthook non trouvé (brew install lefthook)"
 fi
 
 # Installation des dépendances

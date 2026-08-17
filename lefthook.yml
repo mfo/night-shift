@@ -1,0 +1,7 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: rubocop
+      run: bundle exec rubocop -A --force-exclusion --fail-level=F {staged_files}
+      glob: "*.rb"
+      stage_fixed: true

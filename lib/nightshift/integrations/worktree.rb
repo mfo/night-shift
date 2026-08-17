@@ -54,6 +54,36 @@ module Nightshift
         path&.sub(/^~/, Dir.home) || repo_path
       end
 
+      sig { params(wt_path: String, repo_path: String).void }
+      def setup(wt_path, repo_path = Nightshift.repo_path)
+        # Lefthook config (not committed, must be copied)
+        %w[lefthook.yml].each do |f|
+          src = File.join(repo_path, f)
+          FileUtils.cp(src, wt_path) if File.exist?(src)
+        end
+        lefthook_dir = File.join(repo_path, '.lefthook')
+        if Dir.exist?(lefthook_dir)
+          FileUtils.cp_r(lefthook_dir, File.join(wt_path, '.lefthook'))
+        end
+
+        # .claude/ from night-shift (skills, settings — sans agents)
+        nightshift_dir = File.expand_path('../../..', __dir__)
+        nightshift_claude = File.join(nightshift_dir, '.claude')
+        if Dir.exist?(nightshift_claude)
+          claude_target = File.join(wt_path, '.claude')
+          FileUtils.mkdir_p(claude_target)
+          Dir.children(nightshift_claude).each do |name|
+            next if name == 'agents'
+            FileUtils.cp_r(File.join(nightshift_claude, name), File.join(claude_target, name))
+          end
+        end
+
+        # Install lefthook in worktree
+        system('lefthook', 'install', chdir: wt_path, out: File::NULL, err: File::NULL)
+
+        Log.info "worktree setup: #{File.basename(wt_path)}"
+      end
+
       sig { params(branch: String, repo_path: String).void }
       def cleanup(branch, repo_path: Nightshift.repo_path)
         wt_path = path_for_branch(branch, repo_path)
