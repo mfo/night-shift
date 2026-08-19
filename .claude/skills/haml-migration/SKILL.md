@@ -1,7 +1,7 @@
 ---
 name: haml-migration
 description: "Migrate HAML to ERB with visual validation. Use when user says 'migrate haml', 'convert to erb', or provides a .haml file."
-allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), Agent, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(bin/rails runner:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(curl:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
+allowed-tools: Skill(dev-auto-login), Skill(rails-routes), Skill(screenshot-gist), Agent, Bash(git status:*), Bash(git mv:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(git rebase:*), Bash(bun lint:herb:*), Bash(bun format:herb *), Bash(bundle exec rspec spec/components:*), Bash(bundle exec erb_lint:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bundle exec rubocop:*), Bash(bundle exec brakeman:*), Edit(config/brakeman.ignore), Bash(bin/rails runner:*), Bash(shuf:*), Bash(grep:*), Bash(echo:*), Bash(touch:*), Bash(stat:*), Bash(curl:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(gh gist create:*), Bash(gh auth setup-git:*), Bash(git clone:*), Bash(mkdir:*), Bash(cp:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(tmp/**), Write(pr-description.md)
 ---
 
 # Migration HAML → ERB
@@ -186,6 +186,11 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
                             (⚠️ Si my_class est un Array → .join(' '))
 
 %div{ **options }        →  <div <%= tag.attributes(options) %>>
+
+= expr                   →  <%= expr %>        (échappé des deux côtés)
+&= expr                  →  <%= expr %>        (échappé explicite)
+!= expr                  →  <%= raw(expr) %>   (⚠️ NON échappé en HAML)
+-# commentaire           →  <%# commentaire %>
 ```
 
 **⚠️ Règles critiques :**
@@ -197,14 +202,20 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
 5. **String interpolation avec helpers HTML** :
    - ❌ `<%= "#{link_to('text', url)}." %>` (échappe le HTML)
    - ✅ `<%= link_to('text', url) %>.` (sortir le texte de l'interpolation)
-6. **Extraction i18n obligatoire** : tout texte français en dur dans le HAML doit être extrait en clé i18n dans l'ERB. Ne PAS recopier les textes tels quels. **Toujours les deux locales** : chaque clé extraite doit exister en FR et EN. Traduire le texte français en anglais naturel (pas du mot-à-mot).
+6. **Ne JAMAIS introduire de `html_safe` ni de `raw`** : une migration est iso-comportement. Les `html_safe` déjà présents dans le HAML se reportent **à l'identique** — on ne les « corrige » pas dans le commit de migration, même s'ils paraissent suspects. Si un `html_safe` existant porte sur une clé i18n, c'est un candidat au renommage en `_html` : le **signaler dans les points d'attention de la PR** (étape 6), pas le traiter ici.
 
-   **Pour un ViewComponent** (`app/components/`) : utiliser le fichier de traduction sidecar du composant (le créer si besoin). Ce fichier contient **les deux locales** (`fr:` et `en:`) :
+   Piège associé : Rails n'auto-`html_safe` les clés `_html` qu'à travers le helper de vue `t`/`translate`, **jamais** via `I18n.t`. Un `I18n.t('...._html').html_safe` a donc un `.html_safe` porteur, pas redondant — ne pas le supprimer.
+7. **Extraction i18n obligatoire** : tout texte français en dur dans le HAML doit être extrait en clé i18n dans l'ERB. Ne PAS recopier les textes tels quels. **Toujours les deux locales** : chaque clé extraite doit exister en FR et EN. Traduire le texte français en anglais naturel (pas du mot-à-mot).
+
+   **Pour un ViewComponent** (`app/components/`) : sidecars **scindés par locale**, un fichier par locale à côté du `.rb` (convention dominante du repo, ~160 composants). **NE JAMAIS** mettre `fr:` et `en:` dans un seul `<nom>_component.yml` — c'est l'ancienne forme, minoritaire, à ne pas reproduire (cf. skill `/i18n-hardcoded`) :
    ```yaml
-   # app/components/export_dropdown/export_dropdown_component.yml
+   # app/components/export_dropdown/export_dropdown_component.fr.yml
    fr:
      standard: "Standard"
      cancel: "Annuler"
+   ```
+   ```yaml
+   # app/components/export_dropdown/export_dropdown_component.en.yml
    en:
      standard: "Standard"
      cancel: "Cancel"
@@ -253,13 +264,27 @@ Lister chaque point d'utilisation avec la page correspondante. Consulter `data/r
    - `grep '/>' <fichier.html.erb>` → doit être vide (pas de balises auto-fermantes)
    - `grep 'link_to' <fichier.html.erb>` → vérifier qu'aucun n'est dans une interpolation `"#{}"`
    - `grep 'button_to' <fichier.html.erb>` → idem
+   - `grep -c 'html_safe\|raw(' <fichier.html.haml>` puis `<fichier.html.erb>` → **les deux comptes doivent être identiques** (aucun ajout, aucune suppression)
 
 4. **Linter apostrophes typographiques** :
    ```bash
    bundle exec rake lint:apostrophe:fix
    ```
 
-5. **Check i18n** : relire le fichier ERB et vérifier qu'aucun texte français n'est resté en dur (cf. règle 6 étape 3a)
+5. **Check i18n** : relire le fichier ERB et vérifier qu'aucun texte français n'est resté en dur (cf. règle 7 étape 3a)
+
+6. **Brakeman après rename** — piège récurrent, ne PAS le sauter :
+   ```bash
+   grep '<chemin>.html.haml' config/brakeman.ignore
+   ```
+   Si le fichier y figure, le rename casse l'entrée : Brakeman hashe le **chemin** dans son fingerprint, donc l'entrée devient obsolète **et** le même warning ressurgit non-ignoré sur le chemin `.erb`.
+   ```bash
+   bundle exec brakeman -q --no-pager    # montre les deux symptômes ensemble
+   bundle exec brakeman -f json          # fournit le nouveau fingerprint
+   ```
+   Mettre à jour dans `config/brakeman.ignore` : `fingerprint`, `file`, `line` et `render_path[*].rendered.file`. **Conserver la `note` telle quelle** (`config/brakeman.yml` impose `:ensure_ignore_notes`).
+
+   ⚠️ Ce n'est **pas** une régression de sécurité : le périmètre est inchangé, seul le chemin a bougé. Ne pas rédiger la PR comme si un nouveau risque était apparu — mais le mentionner dans les points d'attention (étape 6).
 
 #### 3c. Remplacement HAML → ERB + commit
 
@@ -356,6 +381,12 @@ Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/path/usage1
 
    **Validation :** formatter herb ✅, tests ✅, apostrophes ✅
 
+   <!-- Section à inclure UNIQUEMENT si le fichier contient un html_safe/raw repris du HAML,
+        ou si config/brakeman.ignore a dû être mis à jour. Sinon, la supprimer. -->
+   **Points d'attention :**
+   - `html_safe` ligne N — **repris tel quel du HAML**, non introduit par la migration. Sûr parce que <source du contenu + renderer utilisé>.
+   - `config/brakeman.ignore` : fingerprint recalculé suite au rename (Brakeman hashe le chemin). Warning et périmètre de sécurité inchangés.
+
    **Avant :**
    ![haml](https://gist.githubusercontent.com/<user>/<gist-id>/raw/haml-usage1-component-1.png)
 
@@ -391,9 +422,12 @@ Agent(subagent_type: "visual-verify", prompt: "port: $PORT, urls: ['/path/usage1
 - [ ] Screenshot HAML capturé dans `tmp/<nom-composant>/haml-*.png`
 - [ ] Conversion complète (arrays `.join`, pas de `/>`, espacement, pas d'interpolation helpers)
 - [ ] Textes français extraits en i18n (pas de texte en dur dans l'ERB) avec traductions EN
+- [ ] Aucun `html_safe`/`raw` introduit (`grep -c` identique entre le HAML et l'ERB)
 - [ ] Formatter herb passé
 - [ ] Linter apostrophes passé
 - [ ] Tests passés (si identifiés)
+- [ ] `bundle exec brakeman` : 0 warning et aucune entrée obsolète (si le fichier était dans `config/brakeman.ignore`, fingerprint + chemins mis à jour, note conservée)
+- [ ] Points d'attention documentés dans `pr-description.md` si `html_safe`/`raw` repris ou `brakeman.ignore` touché
 - [ ] `git mv` HAML → ERB + `touch` du `.rb` + fichiers i18n → commit migration
 - [ ] Screenshot ERB capturé dans `tmp/<nom-composant>/erb-*.png`
 - [ ] Comparaison : tous ✅ ou différences investiguées et fixées
