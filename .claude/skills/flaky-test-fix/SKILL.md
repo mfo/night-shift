@@ -29,7 +29,9 @@ allowed-tools:
 
 # Fix Flaky Test
 
-You are fixing a flaky RSpec test. The test passes sometimes and fails sometimes with the same code. The root cause can be in the test (isolation, timing) or in the app code (race condition, async flow).
+**Architecture :** cet agent est un **coordinateur leger**. Il lit le contexte flaky, localise les
+examples concernes, puis delegue l'investigation et le fix a un **sous-agent isole** qui recoit
+uniquement ce dont il a besoin. Cela evite de saturer le contexte sur les gros specs (500+ lignes).
 
 ## Input
 
@@ -44,119 +46,117 @@ The context JSON contains flaky evidence:
 - `jobs` — which CI jobs failed
 - `job_urls` — direct links to the failed CI jobs (include in PR description)
 
+## Etape 1 : Triage (coordinateur — contexte leger)
+
+**NE PAS lire le fichier spec entier.** Le sous-agent le fera.
+
+1. Lire le contexte JSON pour extraire `test_names`, `lines`, `merge_queue_count`, `retry_count`
+2. Estimer la taille du spec :
+   ```bash
+   wc -l < $SPEC_FILE
+   ```
+3. Localiser les examples flaky (grep, pas Read) :
+   ```bash
+   grep -n "it \|scenario \|context \|describe " $SPEC_FILE | head -30
+   ```
+4. Identifier la categorie probable :
+   - `spec/system/` → timing/race condition (Capybara, Turbo, Stimulus)
+   - `spec/models/` + jobs → async/ordering
+   - `spec/graphql/` → ID collision, sequence reset
+   - Autre → DB state leak, shared state
+
+## Etape 2 : Deleguer au sous-agent
+
+Lancer un **sous-agent** via `Agent`. Le sous-agent recoit un prompt auto-suffisant :
+
+```
+Tu es un agent de fix de test flaky. Tu corriges UN spec.
+
+## Fichier
+`<spec_file>`
+
+## Examples flaky
+<test_names ou lines>
+
+## Evidence CI
+- merge_queue_count: <N> (pas de changement de code → preuve forte)
+- retry_count: <N>
+- jobs: <jobs>
+
+## Categorie suspectee
+<timing | db_state | race_condition | id_collision | shared_state>
+
 ## Process
 
-### 1. Understand the flaky test
+1. Lire le spec complet
+2. Lire les fichiers d'implementation references (concerns, controllers JS, models)
+   — LIMITER aux fichiers directement lies au test flaky, ne pas explorer le framework
+3. Identifier la root cause
+4. Classifier : test-side ou app-side
+5. Si possible, reproduire le flaky dans un commit RED (setval sequence, travel_to, seed replay)
+6. Appliquer le fix minimal
+7. Lancer le spec en isolation pour verifier qu'il passe :
+   ```bash
+   bundle exec rspec <spec_file>:<line> --order random
+   ```
 
-Use `test_names` from the context to locate the specific flaky examples in the spec file. If `test_names` is empty, fall back to `lines` to find them.
+## Regles
 
-Read the spec file. Identify which examples are likely flaky based on:
-- Shared mutable state (instance variables, class variables, global state)
-- Database state leaking between examples (missing cleanup, `let!` ordering)
-- Time-dependent logic (`Time.now`, `Date.today`, timezone sensitivity)
-- Async/race conditions (Capybara waits, JS rendering, background jobs)
-- External service dependencies (API calls, file system, network)
-- Random ordering sensitivity (`before(:all)` vs `before(:each)`)
+- Ne JAMAIS modifier du code metier (app/) pour un probleme de donnees de test
+- Modifier app/ UNIQUEMENT pour une vraie race condition app (controller JS, flux async)
+- Ne PAS skip ou quarantine le test
+- Ne PAS ajouter de retry
+- Changements minimaux
+- Commiter avec `--no-gpg-sign`
 
-### 1b. Classify the root cause
+## Patterns connus
 
-Determine if the flakiness is:
-- **Test-side** : shared state, missing cleanup, bad ordering → fix in spec only
-- **App-side** : race condition in JS controller, async flow bug → fix in app code
+- **ID collision GraphQL** : `GraphQL::Schema::UniqueWithinType.encode('Type', 123)` → utiliser `Float::INFINITY` comme sentinel (ne peut jamais etre un ID DB)
+- **PG sequence collision** : IDs auto-generes qui collisionnent avec des IDs en dur → utiliser `Float::INFINITY` ou des IDs negatifs
+- **Turbo Stream race** : `have_content('Saved')` prouve le serveur, PAS le morph DOM — attendre un element specifique au nouvel etat
+- **fixture_file_upload** : IO stream consomme au premier use — incompatible avec `let_it_be`
 
-For system specs involving Turbo Stream or Stimulus interactions:
-1. Identify which Stimulus controller handles the form/interaction
-2. Read the controller source (`app/javascript/controllers/<name>_controller.ts`)
-3. Look for: abort patterns, concurrent fetches, morph timing assumptions
+## Output
 
-If the root cause is app-side, the fix belongs in the app code — adding waits in the test only masks the bug.
-
-### 2. Reproduce if possible
-
-Run the spec in isolation:
-```bash
-bundle exec rspec <spec_file> --order random
+Repondre avec un JSON :
+```json
+{
+  "fixed": true,
+  "root_cause": "ID collision: encode('Champ', 123) collides with real TypeDeChamp",
+  "scope": "test",
+  "files_changed": ["spec/graphql/annotation_spec.rb"],
+  "commits": ["test(annotation): fix flaky via Float::INFINITY sentinel"]
+}
+```
+Si non fixable, `"fixed": false` avec `"reason"`.
 ```
 
-If the context contains failing CI seeds, replay them to confirm the flake:
-```bash
-bundle exec rspec <spec_file> --seed <seed_from_ci>
-```
+## Etape 3 : Verifier (coordinateur)
 
-### 3. Fix the root cause
+Apres le retour du sous-agent :
 
-Common fixes by category:
+1. Si `fixed: false` → ecrire `pr-description.md` skip et terminer
+2. Si `fixed: true` → verifier le diff :
+   ```bash
+   git diff --stat
+   ```
+3. Lancer le stress test :
+   ```bash
+   bash ~/dev/night-shift/.claude/skills/flaky-test-fix/verify-flaky.sh <spec_file>:<line>
+   ```
+   Le script adapte les iterations (20 system, 50 unit). Il doit sortir STABLE (exit 0).
 
-**Database state leaks:**
-- Replace `before(:all)` with `before(:each)`
-- Add `DatabaseCleaner` strategy adjustments
-- Use `create` instead of `create_list` when order matters
+4. Si FLAKY (exit 1) → relancer le sous-agent avec le seed qui echoue :
+   ```
+   Le fix precedent est insuffisant. Le verify-flaky.sh echoue au seed <seed>.
+   Replay: bundle exec rspec <file> --seed <seed>
+   Analyse ce qui se passe et corrige.
+   ```
+   Maximum 1 retry. Si toujours FLAKY → skip.
 
-**Timing/async issues:**
-- Replace `sleep` with proper Capybara matchers (`have_content`, `have_selector`)
-- Use `using_wait_time(N)` for slow operations
-- Wait for specific conditions instead of arbitrary delays
+## Etape 4 : Livrer
 
-**Turbo Stream / Stimulus race conditions (system specs):**
-- Distinguish server commit from DOM morph — `have_content('Saved')` proves the server
-  committed, NOT that the morph landed. Wait for a DOM element specific to the new state
-  (e.g., `have_field('Cadastres')` after switching to carte type)
-- Serialize interactions: wait for each step to persist before the next change event
-  (fill → wait DB persisted → check → wait DB persisted), don't overlap
-- If the race is in the JS controller (e.g., aborting in-flight re-renders),
-  fix the controller — adding waits in the test only masks the bug
-
-**Time-dependent:**
-- Wrap in `travel_to` / `freeze_time` blocks
-- Use relative time comparisons instead of absolute
-
-**Shared state:**
-- Move shared setup into `let` blocks (lazy) or `before(:each)` (eager)
-- Reset class-level caches in `after(:each)`
-
-**Random ordering:**
-- Remove hidden dependencies between examples
-- Ensure each example is self-contained
-
-### 3b. Reproduce the flaky (commit RED when possible)
-
-Before applying the fix, try to **reproduce the failure deterministically** in a dedicated commit.
-This proves the root cause and gives reviewers confidence the fix is not a placebo.
-
-Common reproduction techniques:
-- **PG sequence collision**: `ActiveRecord::Base.connection.execute("SELECT setval('<table>_id_seq', 1, false)")` in a `let` or `before` block to force low auto-generated IDs that collide with explicit test data
-- **CI seed replay**: `bundle exec rspec <file> --seed <seed_from_ci_log>`
-- **Time travel**: `travel_to` to a boundary time (midnight, DST transition, end of month)
-- **Ordering**: run the full suite or a subset that triggers the ordering dependency
-
-**Decision criteria** — attempt reproduction when:
-- The root cause hypothesis is clear (you know exactly what condition triggers the failure)
-- The reproduction can be expressed as a small, self-contained change (1-3 lines)
-- Cost is low: a `let` override, a `before` hook, or a CLI flag — not a complex test harness
-
-**Skip reproduction** when the flake is inherently non-deterministic (true race condition in async JS, network timing) or the reproduction setup would be more complex than the fix itself.
-
-If reproduction succeeds:
-1. Commit the reproduction change with message: `test(<Component>): reproduce flaky via <technique>` and a note that the commit is intentionally RED
-2. Then apply the fix in a separate commit (the reviewer sees RED → GREEN)
-
-### 4. Verify the fix
-
-Run the stress test script. **Target specific examples by line** to avoid running the entire file (critical for system specs) :
-
-```bash
-bash ~/dev/night-shift/.claude/skills/flaky-test-fix/verify-flaky.sh <spec_file>:<line>
-```
-
-The script adapts iterations (20 for system specs, 50 for unit) and captures seeds. It must exit 0 (STABLE). If it exits 1 (FLAKY), use the printed seed to replay and investigate further.
-
-If multiple examples were fixed, run the script once per example.
-
-### 5. Deliver
-
-Commit with `--no-gpg-sign`, then write `pr-description.md`.
-
-**Parser la sortie de `verify-flaky.sh`** pour chaque test fixe : extraire le nombre de runs et le resultat (STABLE/FLAKY). Ces donnees alimentent la section "Preuve de stabilite" de la PR.
+Ecrire `pr-description.md` :
 
 ```markdown
 ---
@@ -190,14 +190,13 @@ Skill [`/flaky-test-fix`](https://github.com/mfo/night-shift/blob/main/.claude/s
 | Cause | Scope | Fix | Pourquoi ca resout |
 |-------|-------|-----|--------------------|
 | <root cause 1> | test / app | <fix applied> | <explication en 1 ligne> |
-| <root cause 2> | test / app | <fix applied> | <explication en 1 ligne> |
 
 ### Preuve de stabilite
 
 | Test | Runs | Resultat | Type |
 |------|------|----------|------|
-| `<test_name_1>` | 20/20 | ✅ STABLE | system |
-| `<test_name_2>` | 50/50 | ✅ STABLE | unit |
+| `<test_name_1>` | 20/20 | STABLE | system |
+| `<test_name_2>` | 50/50 | STABLE | unit |
 
 Script : [`verify-flaky.sh`](https://github.com/mfo/night-shift/blob/main/.claude/skills/flaky-test-fix/verify-flaky.sh) (20 runs system, 50 runs unit, random seed a chaque run)
 
@@ -206,7 +205,7 @@ Generated with [Claude Code](https://claude.com/claude-code)
 
 ## Contraintes
 
-- **Ne JAMAIS modifier du code métier (app/) pour un problème de données de test.** Si la flakiness vient d'une collision d'IDs, d'un ordering de factory, ou d'un état de test mal isolé, le fix appartient à 100% au test. Le test litmus : "est-ce que ce changement app aurait du sens si aucun test n'était flaky ?" — si non, c'est un fix test.
+- **Ne JAMAIS modifier du code metier (app/) pour un probleme de donnees de test.** Si la flakiness vient d'une collision d'IDs, d'un ordering de factory, ou d'un etat de test mal isole, le fix appartient a 100% au test. Le test litmus : "est-ce que ce changement app aurait du sens si aucun test n'etait flaky ?" — si non, c'est un fix test.
 - Modifier du code app UNIQUEMENT pour une vraie race condition app (controller JS, flux async, morph timing) — ajouter des waits dans le test ne fait que masquer le vrai bug
 - Ne PAS skip ou quarantine le test — le fixer
 - Ne PAS ajouter de mecanisme `retry` — fixer la root cause
