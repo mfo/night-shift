@@ -13,6 +13,7 @@
 - [ ] Appels `t()` avec le bon scope (lazy ou explicite)
 - [ ] Interpolations converties (`#{var}` → `%{var}`)
 - [ ] Strings complexes (HTML, helpers) laissees en l'etat
+- [ ] Valeurs contenant du HTML → cle suffixee `_html` (FR, EN et appel `t()`)
 
 ## Validation
 - [ ] CHAQUE `t()` a sa cle dans le YAML (zero "translation missing")

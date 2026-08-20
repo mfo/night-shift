@@ -219,6 +219,12 @@ Pour chaque texte hardcode identifie :
    - Appliquer la meme regle de casse qu'en FR (point 2) a la valeur anglaise autonome.
    - Conserver les interpolations `%{variable}` identiques
    - Pour les sidecar ViewComponent : ecrire dans le fichier scinde `<nom>_component.en.yml` (bloc `en:`), miroir de `<nom>_component.fr.yml` — jamais dans un `.yml` unique
+4. **Valeur contenant du HTML → suffixe `_html` obligatoire** :
+   - Si la valeur extraite contient des balises (`<strong>`, `<br>`, `<abbr>`, `<span class="fr-sr-only">`…), la cle DOIT se terminer par `_html` (ex: `libelles_description_html`). Sinon le helper echappe la valeur et l'usager voit `&lt;strong&gt;` a l'ecran.
+   - Le suffixe s'applique aux DEUX locales ET a l'appel dans le code : `<%= t(".libelles_description_html") %>`.
+   - Valable uniquement avec le helper de vue `t()` / `translate` (ERB, HAML, ViewComponent). `I18n.t` n'a PAS ce comportement : dans un service, un job ou un mailer hors template, ne pas mettre de HTML dans la valeur du tout.
+   - Interpolation : le helper `translate` echappe automatiquement les valeurs interpolees dans une cle `_html` — `t(".x_html", libelle: user_input)` est sur.
+   - Alternative preferable quand la balise enveloppe le segment ENTIER : garder la balise dans le template et la cle sans markup — `<strong><%= t(".x_label") %></strong>`. Le suffixe `_html` reste la regle des que le markup est en milieu de phrase.
 5. **Remplacer dans le code** :
    - Vue ERB : `<%= t(".cle") %>`
    - Ruby (vue lazy) : `t(".cle")`
@@ -361,3 +367,4 @@ Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN
 7. **Interpolation simple uniquement** : `#{variable}` → `%{variable}`. Si l'interpolation contient du HTML ou des helpers complexes → skip cette string.
 8. **Noms propres non traduits** : services / institutions / marques / sigles (`Annuaire des Entreprises`, `Banque de France`, `INSEE`, `URSSAF`, `FranceConnect`…) restent identiques FR/EN. En cas de doute, ne pas traduire.
 9. **Casse coherente** : une valeur autonome affichee comme label/tag/badge prend une majuscule initiale, meme si le fragment d'origine etait en minuscule au milieu d'une phrase. S'aligner sur la casse des cles soeurs du meme fichier.
+10. **HTML dans la valeur → cle suffixee `_html`** : une valeur contenant des balises doit avoir une cle terminee par `_html`, dans les deux locales et dans l'appel `t()`. Sans le suffixe, le helper echappe le markup et l'usager voit `&lt;strong&gt;` au lieu du gras. Ne s'applique qu'au helper de vue `t()` — jamais a `I18n.t` (cf. Etape 5 point 4).
