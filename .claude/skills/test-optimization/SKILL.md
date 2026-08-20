@@ -39,7 +39,22 @@ allowed-tools:
 
 ---
 
-## Étape 0 : Setup + relire le socle
+## Étape 0 : Pre-scan + Setup
+
+### Pre-scan rapide (avant tout profiling)
+
+```bash
+wc -l < $SPEC_FILE
+grep -c 'it ' $SPEC_FILE
+```
+
+**Skip automatique** si le fichier coche l'un de ces critères :
+- < 50 lignes **et** < 3 examples → gain garanti insuffisant, coût skill > bénéfice
+- Baseline estimée < 0.5s (component specs avec `render_inline` uniquement)
+
+Si skip → écrire `pr-description.md` avec "skip: fichier trop petit (N lignes, M examples)" et terminer.
+
+### Setup
 
 ```bash
 bundle exec spring start
@@ -266,6 +281,11 @@ Les transitions d'état créent un `DossierOperationLog` dont `serialize_subject
 ### aggregate_failures : efficacité liée au coût du setup
 
 Gain marginal si setup léger. Gain majeur si setup avec transitions d'état (~1s chacune). Prioriser T09 quand le `before` fait des transitions.
+
+### fixture_file_upload + let_it_be = incompatible
+
+`fixture_file_upload` retourne un IO stream consommé au premier `create`. Avec `let_it_be`, le
+stream est réutilisé entre examples → `ActiveStorage::IntegrityError`. Garder ces fixtures en `let`.
 
 ### Smart quotes
 
