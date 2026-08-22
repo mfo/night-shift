@@ -41,6 +41,13 @@ cp "$script_dir/post-checkout" "$worktree_path/.githooks/"
 # Rendre exécutable
 chmod +x "$worktree_path/.githooks/post-checkout"
 
+# Déposer lefthook.yml : c'est ici que night-shift pousse sa config vers le
+# repo cible. Le post-checkout ne fait ensuite que la recopier du repo principal
+# vers chacun de ses worktrees — il ne remonte jamais dans night-shift.
+# Pour mettre à jour la config : éditer le lefthook.yml à la racine de
+# night-shift (la source de vérité), puis relancer ce script.
+cp "$script_dir/../../lefthook.yml" "$worktree_path/lefthook.yml"
+
 # Configurer git pour utiliser .githooks
 cd "$worktree_path"
 git config core.hooksPath .githooks
