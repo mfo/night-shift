@@ -27,25 +27,30 @@ grep -l auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 # Rouvre ApplicationController pour ajouter le auto-login sans modifier le fichier original.
 return unless Rails.env.development?
 
-Rails.application.config.to_prepare do
-  # Auto-login
-  ApplicationController.class_eval do
+# ⚠️ NE PAS référencer ApplicationController dans un `to_prepare` : ce hook s'exécute AVANT
+# le chargement des routes (finisher `run_prepare_callbacks` < `set_routes_reloader_hook`),
+# donc avant que `devise_for :users` n'ait défini les helpers `current_user` /
+# `user_signed_in?`. Forcer l'autoload de ApplicationController à ce moment-là fait planter
+# le boot sur toute ligne qui suppose Devise chargé (ex : `alias_method :pundit_user, :current_user`).
+# Le callback Zeitwerk ci-dessous s'accroche à l'autoload réel de la classe (premier usage,
+# et à chaque reload) : les routes sont alors dessinées.
+Rails.autoloaders.main.on_load("ApplicationController") do |klass, _abspath|
+  klass.class_eval do
     prepend_before_action :auto_sign_in_dev_user
 
     def auto_sign_in_dev_user
       return if user_signed_in?
       raise "[dev_auto_login] ENV['DEV_EMAIL'] non définie — auto-login désactivé" if ENV['DEV_EMAIL'].blank?
       user = User.find_by(email: ENV['DEV_EMAIL'])
+      raise "[dev_auto_login] aucun User avec l'email #{ENV['DEV_EMAIL']}" if user.nil?
       sign_in(user, scope: :user)
       current_user.instructeur&.update(bypass_email_login_token: true)
     end
-
-    def pundit_user
-      current_user
-    end
   end
+end
 
-  # Invalidation cache ViewComponent — permet de switcher .haml → .erb sans redémarrer le serveur
+# Invalidation cache ViewComponent — permet de switcher .haml → .erb sans redémarrer le serveur
+Rails.application.config.to_prepare do
   ViewComponent::CompileCache.invalidate!
 
   ObjectSpace.each_object(Class).select { |klass| klass < ViewComponent::Base }.each do |klass|
@@ -57,9 +62,18 @@ Rails.application.config.to_prepare do
 end
 ```
 
+**Points de vigilance :**
+- Le `on_load` Zeitwerk doit être enregistré **au top-level** de l'initializer, jamais dans un `to_prepare` (sinon un callback en double est enregistré à chaque reload).
+- Ne pas redéfinir `pundit_user` : `ApplicationController` l'alias déjà sur `current_user`. Si le repo cible ne le fait pas, ajouter `alias_method :pundit_user, :current_user` **dans le bloc `class_eval` ci-dessus**, pas ailleurs.
+
 **4. Redémarrer le serveur** pour charger l'initializer :
 ```bash
 touch tmp/restart.txt
+```
+
+**5. Vérifier que le boot passe** (l'erreur type est un `NameError` sur `current_user` au boot) :
+```bash
+bin/rails runner 'puts ApplicationController.name'
 ```
 
 ## Désactivation
