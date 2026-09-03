@@ -110,3 +110,7 @@ périmé pendant des semaines, et a proposé un fix vers une API supprimée.
 
 **Règle** : au début de chaque run, lire `AGENTS.md` §Testing Philosophy (étape 0). Si le socle
 décrit diverge de ce catalogue, **s'arrêter et signaler** au lieu d'optimiser à l'aveugle.
+
+### AL-3 (2026-09-03 17:37)
+
+Dans patterns.md, ajouter une règle : lors du calcul du répertoire de travail pour une spec, ne jamais reconstruire le chemin à partir du hash du batch. Utiliser le working directory réel (cwd) ou le path complet du fichier spec passé en paramètre. Si le nom du répertoire contient un préfixe comme 'auto-test-optimization-batch-XXXX', conserver le path complet sans tronquer le préfixe.
