@@ -114,3 +114,7 @@ décrit diverge de ce catalogue, **s'arrêter et signaler** au lieu d'optimiser 
 ### AL-3 (2026-09-03 17:37)
 
 Dans patterns.md, ajouter une règle : lors du calcul du répertoire de travail pour une spec, ne jamais reconstruire le chemin à partir du hash du batch. Utiliser le working directory réel (cwd) ou le path complet du fichier spec passé en paramètre. Si le nom du répertoire contient un préfixe comme 'auto-test-optimization-batch-XXXX', conserver le path complet sans tronquer le préfixe.
+
+### AL-4 (2026-09-03 18:50)
+
+Dans patterns.md (ou dans le prompt du skill), ajouter une note que le skill requiert l'autorisation préalable des commandes Bash pour l'exécution de specs : « Le skill test-optimization a besoin d'exécuter `bundle exec rspec` / `bundle exec spring rspec` via Bash. Assurez-vous que ces commandes sont pré-autorisées dans les permissions du projet (settings.json) avant de lancer le skill, sinon l'agent ne pourra pas mesurer les temps d'exécution et le workflow échouera. »
