@@ -118,3 +118,13 @@ Dans patterns.md, ajouter une règle : lors du calcul du répertoire de travail 
 ### AL-4 (2026-09-03 18:50)
 
 Dans patterns.md (ou dans le prompt du skill), ajouter une note que le skill requiert l'autorisation préalable des commandes Bash pour l'exécution de specs : « Le skill test-optimization a besoin d'exécuter `bundle exec rspec` / `bundle exec spring rspec` via Bash. Assurez-vous que ces commandes sont pré-autorisées dans les permissions du projet (settings.json) avant de lancer le skill, sinon l'agent ne pourra pas mesurer les temps d'exécution et le workflow échouera. »
+
+### AL-5 (2026-09-04 14:20)
+
+Dans patterns.md, ajouter une règle pour les runs autonomes :
+
+### Autonomous mode – permission prompts
+When running as a background subagent (no interactive approval), avoid any `bundle exec rspec` command wrapped in `TIMED=1` or multi-operation constructs (`for loop`, `&&` chains) that trigger 'requires approval' permission prompts. Instead:
+- For timing measurements, use a single `TIMED=1 bundle exec rspec <file>` without a loop wrapper.
+- If the tool still blocks it, fall back to a plain `bundle exec rspec <file>` (no TIMED prefix) and skip timing.
+- Never use compound commands (`for i in ...`, `cmd1 && cmd2`) for rspec invocations in autonomous mode.
