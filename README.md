@@ -80,8 +80,9 @@ nightshift pr autofix <pr>     # Débloquer la CI : fix linters, fix specs (clau
 
 # Worktrees
 nightshift worktree open <branch>   # Crée un worktree + fenêtre tmux
-nightshift worktree close <branch>  # Supprime worktree, branche, DB test, puis fenêtre tmux
+nightshift worktree close <branch>  # Supprime worktree, branche, DB test (+ sœurs parallèles), puis fenêtre tmux
 nightshift worktree reset <skill>   # Reset items running/failed → pending (cleanup worktrees)
+nightshift worktree reap            # Liste les DB de test orphelines (--force pour les dropper)
 
 # Backlog (skills auto)
 nightshift backlog list [skill]         # Liste les items du backlog

@@ -11,11 +11,14 @@
 #   open  — Crée un worktree + fenêtre pour une branche
 #   close — Supprime worktree + branche + fenêtre
 #   reset — Remet les items running/failed d'un skill en pending (cleanup)
+#   reap  — Liste (ou supprime avec --force) les DB de test orphelines
 #
 # Usage :
 #   nightshift worktree open feat/my-branch
 #   nightshift worktree close feat/my-branch
 #   nightshift worktree reset haml-migration
+#   nightshift worktree reap           # dry-run
+#   nightshift worktree reap --force   # supprime pour de vrai
 
 module Nightshift
   class CLI
@@ -68,6 +71,26 @@ module Nightshift
           say "  ⬜ ##{backlog_item.id} #{backlog_item.item} → pending"
         end
         say_status :reset, "#{backlog_items.size} item(s) for #{skill}", :green
+      end
+
+      desc 'reap', 'Drop tps_test databases with no matching worktree (dry-run unless --force)'
+      option :force, type: :boolean, default: false, desc: 'Actually drop the databases'
+      def reap
+        orphans = Integrations::Worktree.orphan_databases
+        if orphans.empty?
+          say_status :reap, 'no orphan database', :green
+          return
+        end
+
+        orphans.each { |db| say "  #{options[:force] ? '🗑' : '·'}  #{db}" }
+
+        unless options[:force]
+          say_status :reap, "#{orphans.size} orphan(s) — re-run with --force to drop", :yellow
+          return
+        end
+
+        Integrations::Worktree.drop_databases(orphans)
+        say_status :reap, "#{orphans.size} database(s) dropped", :green
       end
 
       private

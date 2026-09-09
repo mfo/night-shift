@@ -30,7 +30,7 @@ class CLIDispatchTest < Minitest::Test
   end
 
   def test_worktree_subcommand_commands
-    %w[open close reset].each do |cmd|
+    %w[open close reset reap].each do |cmd|
       assert Nightshift::CLI::Worktree.all_commands.key?(cmd), "Missing worktree command: #{cmd}"
     end
   end
