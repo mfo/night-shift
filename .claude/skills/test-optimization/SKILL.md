@@ -122,9 +122,16 @@ figurant, ou ses attributs sont-ils le sujet du test ?* Figurant + accesseur sem
 
 Construire la liste des techniques à tenter (celles dont le signal est positif).
 
-**Ordre recommandé :** **T13 (seeds Oaken)** → T08 (let_it_be) → T10 (let!→let) → T04 (setup inutile) → T01 (create→build) → T09 (aggregate) → T06 (dupliqués) → T11 (factory_default) → T12 (split). Pour system specs, ajouter : S01 → S02 → S03.
+**Ordre recommandé :** **T12 (split) si le fichier est gros** → **T13 (seeds Oaken)** → T08 (let_it_be) → T10 (let!→let) → T04 (setup inutile) → T01 (create→build) → T09 (aggregate) → T06 (dupliqués) → T11 (factory_default). Pour system specs, ajouter : S01 → S02 → S03.
 
-T13 passe en premier : ce que le seed fournit n'a plus besoin d'être mutualisé par T08.
+T12 passe en premier **sur un fichier > ~1500 lignes** : au-delà, le fichier ne tient pas en contexte,
+on ne peut pas arbitrer générique/objet-du-test bloc par bloc, et T13 comme T08 échouent — c'est
+exactement le mode d'échec `context_limit` observé trois fois de suite sur
+`spec/controllers/users/dossiers_controller_spec.rb` (3492 lignes). Découper d'abord, optimiser ensuite,
+en deux PR distinctes : le split ne revendique aucun gain de temps cumulé.
+
+T13 passe avant T08 : ce que le seed fournit n'a plus besoin d'être mutualisé par T08. Voir l'arbre de
+décision en tête de `patterns.md` pour l'arbitrage entre les deux.
 
 ---
 
