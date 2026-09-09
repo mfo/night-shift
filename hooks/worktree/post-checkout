@@ -202,6 +202,43 @@ mkdir -p "$worktree_path/log" "$worktree_path/tmp"
 find "$worktree_path/log" -name '*.log' -exec truncate -s 0 {} \;
 echo "==> log/ et tmp/ prêts (logs tronqués)"
 
+# Bases parallèles pour bin/parallel-rspec.
+#
+# database.yml compose le nom en concaténant TEST_ENV_NUMBER : le worktree a
+# donc besoin de $db_name (process 1, créée plus haut) plus une sœur numérotée
+# par process supplémentaire — ${db_name}2 … ${db_name}8. Sans elles,
+# bin/parallel-rspec échoue et le dev doit deviner qu'il faut lancer --setup.
+# On les crée donc d'office. Coût mesuré : ~25s et ~150 Mo par worktree.
+#
+# Idempotent : si toutes les sœurs sont déjà là on ne recharge aucun schema.
+parallel_processes="${PARALLEL_TEST_PROCESSORS:-8}"
+
+existing_dbs=$(psql -U tps_test -h localhost -lqt 2>/dev/null | cut -d \| -f 1 | tr -d ' ') || existing_dbs=""
+
+missing_sisters=""
+i=2
+while [ "$i" -le "$parallel_processes" ]; do
+  echo "$existing_dbs" | grep -qx "${db_name}${i}" || missing_sisters="${missing_sisters} ${db_name}${i}"
+  i=$((i + 1))
+done
+
+if [ "$parallel_processes" -lt 2 ]; then
+  echo "==> Bases parallèles: rien à faire (PARALLEL_TEST_PROCESSORS=$parallel_processes)"
+elif [ -z "$missing_sisters" ]; then
+  echo "==> Bases parallèles déjà présentes (${db_name}2 … ${db_name}${parallel_processes})"
+else
+  echo "==> Création des bases parallèles pour bin/parallel-rspec :${missing_sisters}"
+  echo "    (création + chargement du schema, compter ~30s — c'est normal)"
+  (cd "$worktree_path" && RAILS_ENV=test bin/rake "parallel:create[$parallel_processes]" "parallel:load_schema[$parallel_processes]") || {
+    echo "⚠️  Erreur lors de la préparation des bases parallèles."
+    echo "    La base principale reste utilisable (bundle exec rspec)."
+    echo "    Pour réessayer : bin/parallel-rspec --setup"
+  }
+fi
+
 echo "✓ Configuration worktree terminée!"
 echo "  → Base de données: $db_name"
+if [ "$parallel_processes" -ge 2 ]; then
+  echo "  → Bases parallèles: ${db_name}2 … ${db_name}${parallel_processes} (bin/parallel-rspec)"
+fi
 echo "  → Config: $env_test_local"

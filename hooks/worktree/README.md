@@ -26,6 +26,7 @@ Le hook `post-checkout` s'exécute automatiquement après chaque checkout de bra
 3. Crée un fichier `.env.test.local` avec la config DB spécifique
 4. Crée la DB PostgreSQL si elle n'existe pas
 5. Charge le schema Rails dans la nouvelle DB
+6. Crée les bases parallèles `<db>2` … `<db>8` pour `bin/parallel-rspec`
 
 ---
 
@@ -162,6 +163,33 @@ cat config/application.rb | grep Dotenv
 
 ---
 
+## Bases parallèles (`bin/parallel-rspec`)
+
+`bin/parallel-rspec` répartit la suite sur 8 processus. `config/database.yml`
+concatène `TEST_ENV_NUMBER` au nom de base :
+
+```erb
+database: <%= ENV.fetch("DB_DATABASE_TEST", "tps_test") %><%= ENV["TEST_ENV_NUMBER"] %>
+```
+
+Un worktree a donc besoin de **8 bases** : `tps_test_poc_haml` (process 1) et
+ses sœurs `tps_test_poc_haml2` … `tps_test_poc_haml8`. Le hook les crée d'office
+via `parallel:create` + `parallel:load_schema`, pour qu'un `bin/parallel-rspec`
+fonctionne sans étape manuelle dans un worktree neuf.
+
+| | Coût mesuré |
+|---|---|
+| Temps | ~25 s (en plus du reste du hook) |
+| Disque | ~150 Mo (7 × ~21 Mo) |
+
+C'est **idempotent** : si les 8 bases existent déjà, le hook ne recharge aucun
+schema (~0,05 s). Et une erreur PostgreSQL n'échoue jamais le checkout : le hook
+affiche un warning, rappelle `bin/parallel-rspec --setup`, et sort en `exit 0`.
+
+Le nombre de processus suit `PARALLEL_TEST_PROCESSORS` (défaut 8).
+
+---
+
 ## Nettoyage
 
 ### Supprimer un worktree
@@ -171,9 +199,28 @@ cat config/application.rb | grep Dotenv
 cd /path/to/demarche.numerique.gouv.fr
 git worktree remove ../demarche.numerique.gouv.fr-poc-haml
 
-# Supprimer la DB associée
+# Supprimer les DB associées (la principale et ses sœurs parallèles)
 dropdb -U tps_test -h localhost tps_test_poc_haml
+for i in $(seq 2 8); do dropdb -U tps_test -h localhost --if-exists "tps_test_poc_haml$i"; done
 ```
+
+`nightshift worktree close <branche>` le fait pour vous : le cleanup droppe
+`tps_test_poc_haml` **et** ses sœurs numérotées — et rien d'autre. Le motif est
+ancré (`/\Atps_test_poc_haml\d{0,2}\z/`) : un `LIKE 'tps_test_poc_haml%'` naïf
+emporterait `tps_test_poc_haml_v2`, la base d'un autre worktree.
+
+### Ramasser les bases orphelines
+
+Les worktrees créés à la main (hors nightshift) laissent leurs bases derrière
+eux. `nightshift worktree reap` compare `git worktree list` à `pg_database` :
+
+```bash
+nightshift worktree reap           # dry-run : liste seulement
+nightshift worktree reap --force   # supprime pour de vrai
+```
+
+Sont épargnés : la famille du repo principal (`tps_test`, `tps_test2` …) et
+toutes les familles des worktrees vivants.
 
 ### Lister toutes les DBs de worktrees
 
@@ -226,6 +273,6 @@ Ce hook est un **building block** du projet Night Shift.
 
 **Cleanup automatique :**
 - Hook post-worktree-remove qui supprime la DB
-- Script qui détecte les DBs orphelines
+  (aujourd'hui : `nightshift worktree close`, et `reap` pour les orphelines)
 
 ---
