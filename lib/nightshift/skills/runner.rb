@@ -43,7 +43,8 @@ module Nightshift
         log_suffix = batch_index ? "-#{batch_index}" : ''
         log_path = File.join(logdir, "claude-#{skill_name}#{log_suffix}.log")
 
-        Log.info "── SKILL #{skill_name} — #{item} ──────────────────────"
+        binary = Nightshift.runner_for(skill_name)
+        Log.info "── SKILL #{skill_name} — #{item} [#{binary}] ──────────────────"
 
         # Snapshot commit count before run (for batch: detect NEW commits only)
         commits_before, = Open3.capture2('git', 'rev-list', '--count', 'main..HEAD',
@@ -51,7 +52,6 @@ module Nightshift
         commits_before = commits_before.strip.to_i
 
         allowed = extract_allowed_tools(skill_name, worktree_path)
-        binary = Nightshift.runner_for(skill_name)
         cmd = [binary, '-p', prompt,
                '--permission-mode', 'acceptEdits',
                '--output-format', 'stream-json',

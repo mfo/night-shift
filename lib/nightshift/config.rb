@@ -31,6 +31,7 @@ module Nightshift
       raw = YAML.safe_load_file(yaml_path, symbolize_names: true)
       @backends = parse_backends(raw[:backends] || {})
       @default_backend_name = (raw[:default_backend] || @backends.keys.first)&.to_s
+      @schedule = parse_schedule(raw[:schedule] || [])
       @skills = parse_skills(raw[:skills] || {})
     end
 
@@ -40,19 +41,60 @@ module Nightshift
     sig { returns(String) }
     def db_path = File.join(@repo_path, '.nightshift', 'nightshift.db')
 
-    sig { params(skill_name: String).returns(Core::LLMBackend) }
-    def backend_for(skill_name)
-      backend_name = @skills.dig(skill_name, :backend)&.to_s || @default_backend_name
+    # Un backend explicite au niveau du skill gagne toujours ; sinon on suit
+    # la plage horaire active, et à défaut le default_backend.
+    sig { params(skill_name: String, now: Time).returns(Core::LLMBackend) }
+    def backend_for(skill_name, now: Time.now)
+      backend_name = @skills.dig(skill_name, :backend)&.to_s || active_backend_name(now: now)
       @backends[backend_name] || DEFAULT_BACKEND
     end
 
-    sig { returns(String) }
-    def runner = default_backend.harness
+    sig { params(now: Time).returns(String) }
+    def runner(now: Time.now) = default_backend(now: now).harness
+
+    sig { returns(T::Array[Core::BackendWindow]) }
+    def schedule = @schedule || []
+
+    sig { params(now: Time).returns(T.nilable(Core::BackendWindow)) }
+    def active_window(now: Time.now) = schedule.find { |w| w.covers?(now) }
+
+    sig { params(now: Time).returns(Core::LLMBackend) }
+    def active_backend(now: Time.now) = @backends[active_backend_name(now: now)] || DEFAULT_BACKEND
+
+    sig { params(now: Time).returns(String) }
+    def active_backend_name(now: Time.now)
+      active_window(now: now)&.backend || @default_backend_name.to_s
+    end
+
+    # Prochaine bascule (début ou fin de fenêtre), nil si aucune plage configurée.
+    sig { params(now: Time).returns(T.nilable(Time)) }
+    def next_switch_at(now: Time.now)
+      bounds = schedule.flat_map { |w| [w.from_min, w.to_min] }.uniq.sort
+      return nil if bounds.empty?
+
+      current = (now.hour * 60) + now.min
+      midnight = Time.new(now.year, now.month, now.day)
+      upcoming = bounds.find { |b| b > current }
+      midnight + ((upcoming || (bounds.fetch(0) + Core::BackendWindow::DAY_MIN)) * 60)
+    end
 
     private
 
-    def default_backend
-      @backends[@default_backend_name] || DEFAULT_BACKEND
+    def default_backend(now: Time.now) = active_backend(now: now)
+
+    def parse_schedule(raw)
+      Array(raw).map do |entry|
+        entry = entry.transform_keys(&:to_sym)
+        name = entry[:backend]&.to_s
+        abort 'nightshift: schedule entry sans backend' unless name
+        abort "nightshift: schedule backend inconnu: #{name}" unless @backends.key?(name)
+
+        from = Core::BackendWindow.parse_time(entry[:from])
+        to = Core::BackendWindow.parse_time(entry[:to])
+        abort "nightshift: schedule #{name}: from et to identiques (#{entry[:from]})" if from == to
+
+        Core::BackendWindow.new(backend: name, from_min: from, to_min: to)
+      end
     end
 
     def parse_backends(raw)

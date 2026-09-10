@@ -176,6 +176,11 @@ backends:
 
 default_backend: local
 
+schedule:                  # bascule horaire du backend par défaut
+  - from: "20:00"          # fenêtre [from, to[ — peut franchir minuit
+    to: "04:00"
+    backend: frontier      # la nuit, on brûle le quota Claude
+
 skills:
   haml-migration:
     needs_server: true     # lance overmind avant le skill
@@ -187,6 +192,13 @@ skills:
 ```
 
 **Backends & concurrence :** chaque backend définit un binaire (`harness`) et un plafond de concurrence. Le reconciler compte les items `running` par harness et ne lance de nouveaux items que si `active < concurrency`. Ceci permet de faire cohabiter un modèle local (concurrency: 1) et une API frontier (concurrency: 4). Par défaut, 1 seul item actif par skill (`active_for_skill?`), plus le plafond backend.
+
+**Plage horaire (`schedule`) :** chaque fenêtre remplace le `default_backend` sur l'intervalle `[from, to[` (les heures doivent être quotées, sinon YAML les lit comme des entiers). Le backend est résolu **à chaque lancement d'item**, pas au boot : à 20:00 les nouveaux items partent sur `frontier` (concurrency 5), à 04:00 ils repassent sur `local`. Un item déjà en cours n'est jamais interrompu par la bascule. La première fenêtre qui matche gagne ; un skill qui déclare `backend:` explicitement est pinné et ignore le schedule.
+
+```bash
+nightshift-rb --repo ~/dev/mon-projet backend            # backend actif + prochaine bascule
+nightshift-rb --repo ~/dev/mon-projet backend --at 22:30 # simule une heure
+```
 
 **BacklogSources :** la logique de scan, filtrage et priorité est dans le code Ruby (`lib/nightshift/backlog_sources/`), pas dans le YAML. Le YAML ne définit que les propriétés runtime (server, port, batch_size, backend).
 

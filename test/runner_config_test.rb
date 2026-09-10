@@ -49,6 +49,88 @@ class RunnerConfigTest < Minitest::Test
     assert_equal 'claude', backend.harness
   end
 
+  # --- Plage horaire (schedule) ---
+
+  def test_schedule_switches_default_backend_at_night
+    Nightshift.config = night_config
+
+    assert_equal 'claude', Nightshift.runner_for('haml-migration', now: at(22))
+    assert_equal 'claude', Nightshift.runner_for('haml-migration', now: at(2))
+    assert_equal 'claude', Nightshift.runner_for('haml-migration', now: at(20, 0))
+    assert_equal 'claude', Nightshift.runner_for('haml-migration', now: at(3, 59))
+  end
+
+  def test_schedule_falls_back_to_default_backend_during_the_day
+    Nightshift.config = night_config
+
+    assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration', now: at(4, 0))
+    assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration', now: at(11))
+    assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration', now: at(19, 59))
+  end
+
+  def test_night_backend_carries_its_own_concurrency
+    Nightshift.config = night_config
+
+    assert_equal 5, Nightshift.backend_for('haml-migration', now: at(22)).concurrency
+    assert_equal 1, Nightshift.backend_for('haml-migration', now: at(11)).concurrency
+  end
+
+  def test_skill_pinned_backend_wins_over_schedule
+    Nightshift.config = night_config(skills: { 'haml-migration' => { backend: 'local' } })
+
+    assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration', now: at(22))
+  end
+
+  def test_next_switch_at_returns_upcoming_boundary
+    Nightshift.config = night_config
+
+    assert_equal at(20), Nightshift.next_switch_at(now: at(11))
+    assert_equal at(4), Nightshift.next_switch_at(now: at(2))
+    assert_equal at(4) + 86_400, Nightshift.next_switch_at(now: at(22))
+  end
+
+  def test_no_schedule_means_next_switch_is_nil
+    Nightshift.config = night_config
+    Nightshift.config.instance_variable_set(:@schedule, [])
+
+    assert_nil Nightshift.next_switch_at(now: at(11))
+    assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration', now: at(22))
+  end
+
+  def test_window_parse_time_accepts_string_and_yaml_sexagesimal
+    assert_equal 1200, Nightshift::Core::BackendWindow.parse_time('20:00')
+    assert_equal 1230, Nightshift::Core::BackendWindow.parse_time('20:30')
+    assert_equal 1200, Nightshift::Core::BackendWindow.parse_time(72_000) # YAML lit 20:00 non quoté
+  end
+
+  def test_config_from_yaml_with_schedule
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        backends:
+          local:
+            harness: claude-ds4
+            concurrency: 1
+          frontier:
+            harness: claude
+            concurrency: 5
+        default_backend: local
+        schedule:
+          - from: "20:00"
+            to: "04:00"
+            backend: frontier
+        skills:
+          haml-migration: {}
+      YAML
+
+      config = Nightshift::Config.new(repo_path: dir)
+
+      assert_equal 'claude', config.runner(now: at(23))
+      assert_equal 'claude-ds4', config.runner(now: at(9))
+      assert_equal 'frontier', config.active_window(now: at(23)).backend
+      assert_nil config.active_window(now: at(9))
+    end
+  end
+
   def test_config_from_yaml_with_backends
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
@@ -102,12 +184,29 @@ class RunnerConfigTest < Minitest::Test
 
   private
 
-  def build_config(backends:, default_backend:, skills:)
+  def build_config(backends:, default_backend:, skills:, schedule: [])
     Nightshift::Config.allocate.tap do |c|
       c.instance_variable_set(:@repo_path, '/tmp/test-repo')
       c.instance_variable_set(:@backends, backends)
       c.instance_variable_set(:@default_backend_name, default_backend)
+      c.instance_variable_set(:@schedule, schedule)
       c.instance_variable_set(:@skills, skills)
     end
   end
+
+  def night_config(skills: { 'haml-migration' => {} })
+    build_config(
+      backends: {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1),
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 5)
+      },
+      default_backend: 'local',
+      schedule: [
+        Nightshift::Core::BackendWindow.new(backend: 'frontier', from_min: 20 * 60, to_min: 4 * 60)
+      ],
+      skills: skills
+    )
+  end
+
+  def at(hour, min = 0) = Time.new(2026, 9, 10, hour, min, 0)
 end
