@@ -25,7 +25,6 @@ allowed-tools:
   - Skill(screenshot-gist)
   - Skill(create-pr)
   - Skill(code-review)
-  - ReportFindings
   - Agent
 ---
 
@@ -241,46 +240,66 @@ Il retourne un JSON structuré :
 ## Boucle `/code-review` (dernier geste du Stage 2)
 
 Quand tous les commits du plan sont passés, la suite verte **et la validation visuelle
-terminée** — donc juste avant le handoff vers `/feature-review` puis `/create-pr`, qui pousse.
+terminée** — donc juste avant le handoff vers `/feature-review`.
 
-C'est le dernier geste : rien ne doit modifier le code après cette boucle, sinon elle valide
-un état qui n'est plus celui qu'on livre.
+C'est le dernier geste **du Stage 2** : plus rien dans ce stage ne doit modifier le code après
+cette boucle, sinon elle valide un état qui n'est plus celui qu'on transmet. (Le Stage 3 a le
+droit de modifier le code : c'est sa raison d'être, et il re-review ce qu'il change.)
 
 ```
 bundle exec rspec  → doit être VERT avant d'entrer dans la boucle
 tour = 1
+faux_positifs = {}        # findings réfutés, avec leur preuve
 
 tant que tour <= 5 :
-    1. /code-review high <base-branch>      ← niveau ET cible explicites
-    2. critiques = TOUS les findings, SAUF ceux dont la `category` vaut
-       explicitement : simplification, efficiency, reuse, altitude,
-                       conventions, test-coverage
+
+    1. /code-review high          ← niveau explicite, PAS de cible
+
+    2. critiques = TOUS les findings, SAUF :
+         - ceux dont la `category` vaut explicitement
+           simplification, efficiency, reuse, altitude, conventions, test-coverage
+         - ceux déjà présents dans faux_positifs
+
     3. si critiques est vide → SORTIE, on passe le relais
-    4. corriger
+
+    4. si tour == 5 → STOP sans corriger : présenter les critiques restants au user
+
+    5. pour chaque critique : soit le corriger, soit l'ajouter à faux_positifs
+       avec la référence `fichier:ligne` qui le réfute
        → bundle exec rspec (vert)
        → bundle exec rubocop (0 offense sur les fichiers touchés)
        → git commit --no-gpg-sign -m "fix(review): <sujet>"
-    5. tour += 1
+       → si un fix touche une vue / un composant / du CSS :
+         relancer la validation visuelle avant de reboucler
 
-tour > 5 → STOP, présenter les findings restants au user.
+    6. tour += 1
 ```
 
-**Pourquoi un filtre par exclusion et non par inclusion.** Dans le schéma `ReportFindings`,
-seuls `file`, `summary` et `failure_scenario` sont obligatoires : `category` **et** `verdict`
-sont optionnels — `verdict` n'est présent que si une passe de vérification a tourné, et
-`category` est un slug libre, pas une énumération. Un filtre par inclusion laisserait passer en
-silence tout finding non catégorisé, et la boucle sortirait « propre » avec de vrais bugs
-dedans. **Par défaut un finding est critique** ; seules les catégories de cleanup listées
-ci-dessus le disqualifient.
+Le cap porte sur le **nombre de passes de review**, pas sur le nombre de corrections : au
+5e tour on ne corrige plus, on remonte. Ça garantit que toute correction est repassée au moins
+une fois par le reviewer avant la sortie.
 
-**Toujours passer le niveau ET la cible.** Sans niveau, `/code-review` réutilise celui tapé en
-dernier dans la session. Sans cible, il résout le périmètre via `@{upstream}` — qui n'existe pas
-encore en Stage 2, puisque le push a lieu plus tard dans `/create-pr`. Passer la branche de base
-(`main`, ou celle du plan) enlève les deux dépendances à un état extérieur.
+**Toujours passer le niveau, jamais de cible.** Sans niveau, `/code-review` réutilise celui tapé
+en dernier dans la session — la profondeur du contrôle dépendrait d'un état extérieur au skill.
+En revanche l'argument positionnel est une **cible de remplacement** (`<pr#> | <branche> |
+<chemin>`) : passer `main` ferait reviewer la branche de base, c'est-à-dire du code déjà mergé.
+Sans cible, le skill résout le périmètre sur `@{upstream}...HEAD`, avec repli sur
+`main...HEAD` puis `HEAD~1` — le cas sans upstream du Stage 2 est déjà couvert.
 
-**Faux positif.** Ne jamais clore un finding en douce parce qu'on le juge faux. L'écrire dans le
-rapport de fin avec la raison et la référence `fichier:ligne` qui le réfute : il cesse de faire
-boucler, mais il reste visible par le user.
+**Pourquoi un filtre par exclusion et non par inclusion.** Dans le schéma `ReportFindings`, seuls
+`file`, `summary` et `failure_scenario` sont obligatoires : `category` et `verdict` sont
+optionnels. Il n'y a **pas** de champ de sévérité — ne pas construire le filtre dessus.
+
+Selon le modèle et le niveau d'effort, `/code-review` n'utilise pas le même prompt interne, et
+certains ne demandent pas de renseigner `category` du tout : sur ces runs, **aucun** finding
+n'est catégorisé et la liste d'exclusion ci-dessus ne s'applique à rien. C'est voulu — le défaut
+est *critique*, donc un finding non catégorisé fait boucler. Un filtre par inclusion laisserait
+au contraire sortir la boucle « propre » avec de vrais bugs dedans.
+
+**Faux positif.** Ne jamais clore un finding en douce parce qu'on le juge faux : l'inscrire dans
+`faux_positifs` avec la raison et la référence `fichier:ligne` qui le réfute, et le lister dans
+le rapport de fin. C'est ce qui l'empêche de faire reboucler au tour suivant tout en le laissant
+visible par le user.
 
 **Jamais `--fix`** : non déterministe, le tour N+1 peut défaire le tour N. On corrige soi-même,
 pour relancer les tests entre chaque fix.
