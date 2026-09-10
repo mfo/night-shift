@@ -1,5 +1,5 @@
 # Skills Index
-<!-- Last updated: 2026-04-09 -->
+<!-- Last updated: 2026-09-10 -->
 
 ## Skills (`.claude/skills/`)
 
@@ -10,7 +10,7 @@
 | dev-auto-login | utility | Setup dev auto-login | — | SKILL.md |
 | feature-spec | pipeline | Architecture spec (Phase 0) | review-3-amigos | SKILL.md, checklist.md, template.md, pitfalls/*.md |
 | feature-plan | pipeline | Commit plan (Phase 1) | review-3-amigos | SKILL.md, checklist.md, template.md |
-| feature-implementation | pipeline | Execute plan (Phase 2) | visual-verify, visual-compare | SKILL.md, checklist.md, patterns.md |
+| feature-implementation | pipeline | Execute plan (Phase 2) | code-review (built-in), visual-verify, visual-compare | SKILL.md, checklist.md, patterns.md |
 | feature-review | pipeline | Post-impl review (Phase 3) | review-3-amigos | SKILL.md, checklist.md, template.md |
 | haml-migration | workflow | HAML→ERB migration | dev-auto-login, rails-routes, screenshot-gist | SKILL.md |
 | harden-audit | pipeline | Qualify vulnerability (DREAD) | — | SKILL.md, checklist.md, contract.md, patterns.md |
