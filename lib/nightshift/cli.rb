@@ -49,7 +49,7 @@ module Nightshift
       now = Time.now
       if options[:at]
         minutes = Core::BackendWindow.parse_time(options[:at])
-        now = Time.new(now.year, now.month, now.day) + (minutes * 60)
+        now = Time.new(now.year, now.month, now.day, minutes / 60, minutes % 60)
       end
       window = Nightshift.active_window(now: now)
       active = Nightshift.active_backend(now: now)

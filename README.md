@@ -193,7 +193,9 @@ skills:
 
 **Backends & concurrence :** chaque backend définit un binaire (`harness`) et un plafond de concurrence. Le reconciler compte les items `running` par harness et ne lance de nouveaux items que si `active < concurrency`. Ceci permet de faire cohabiter un modèle local (concurrency: 1) et une API frontier (concurrency: 4). Par défaut, 1 seul item actif par skill (`active_for_skill?`), plus le plafond backend.
 
-**Plage horaire (`schedule`) :** chaque fenêtre remplace le `default_backend` sur l'intervalle `[from, to[` (les heures doivent être quotées, sinon YAML les lit comme des entiers). Le backend est résolu **à chaque lancement d'item**, pas au boot : à 20:00 les nouveaux items partent sur `frontier` (concurrency 5), à 04:00 ils repassent sur `local`. Un item déjà en cours n'est jamais interrompu par la bascule. La première fenêtre qui matche gagne ; un skill qui déclare `backend:` explicitement est pinné et ignore le schedule.
+**Plage horaire (`schedule`) :** chaque fenêtre remplace le `default_backend` sur l'intervalle `[from, to[`. Les heures se déclarent en String quotée — YAML lit `20:00` non quoté comme l'entier 72000 et le chargement échoue. Le backend est résolu **à chaque lancement d'item**, pas au boot : à 20:00 les nouveaux items partent sur `frontier` (concurrency 4), à 04:00 ils repassent sur `local`. Un item déjà en cours n'est jamais interrompu par la bascule. La première fenêtre qui matche gagne ; un skill qui déclare `backend:` explicitement est pinné et ignore le schedule.
+
+Le harness réservé au `claim` est persisté sur l'item (`backlog_items.harness`) : le comptage de concurrence reste attaché au binaire réellement occupé, même après la bascule de fenêtre. Les appels LLM auxiliaires (Judge, autofix, reprioritize, analyse kaizen) passent par `Nightshift.runner` et suivent eux aussi la plage horaire — la nuit ils tournent sur frontier, ce qui évite au passage de les faire concourir avec un skill sur le serveur de modèle local. Ils ne sont pas décomptés de la concurrency.
 
 ```bash
 nightshift-rb --repo ~/dev/mon-projet backend            # backend actif + prochaine bascule

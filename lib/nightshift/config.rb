@@ -73,9 +73,12 @@ module Nightshift
       return nil if bounds.empty?
 
       current = (now.hour * 60) + now.min
-      midnight = Time.new(now.year, now.month, now.day)
       upcoming = bounds.find { |b| b > current }
-      midnight + ((upcoming || (bounds.fetch(0) + Core::BackendWindow::DAY_MIN)) * 60)
+      # Time.new(y, m, d, h, min) et pas midnight + n*60 : un jour de changement
+      # d'heure ne fait pas 24 h et l'affichage serait decale.
+      minutes = upcoming || bounds.fetch(0)
+      day = upcoming ? now : now + Core::BackendWindow::DAY_SEC
+      Time.new(day.year, day.month, day.day, minutes / 60, minutes % 60)
     end
 
     private
@@ -84,6 +87,8 @@ module Nightshift
 
     def parse_schedule(raw)
       Array(raw).map do |entry|
+        abort "nightshift: schedule entry invalide (#{entry.inspect}) — attendu {from, to, backend}" unless entry.is_a?(Hash)
+
         entry = entry.transform_keys(&:to_sym)
         name = entry[:backend]&.to_s
         abort 'nightshift: schedule entry sans backend' unless name

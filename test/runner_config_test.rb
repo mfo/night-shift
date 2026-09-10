@@ -89,6 +89,24 @@ class RunnerConfigTest < Minitest::Test
     assert_equal at(4) + 86_400, Nightshift.next_switch_at(now: at(22))
   end
 
+  def test_next_switch_at_survives_dst_transitions
+    Nightshift.config = night_config
+
+    with_tz('Europe/Paris') do
+      # 2026-03-29 : 02:00 -> 03:00 (le jour ne fait que 23 h)
+      spring = Nightshift.next_switch_at(now: Time.new(2026, 3, 29, 1, 0))
+
+      assert_equal 4, spring.hour
+      assert_equal 0, spring.min
+
+      # 2026-10-25 : 03:00 -> 02:00 (le jour fait 25 h)
+      autumn = Nightshift.next_switch_at(now: Time.new(2026, 10, 25, 1, 0))
+
+      assert_equal 4, autumn.hour
+      assert_equal 0, autumn.min
+    end
+  end
+
   def test_no_schedule_means_next_switch_is_nil
     Nightshift.config = night_config
     Nightshift.config.instance_variable_set(:@schedule, [])
@@ -108,6 +126,23 @@ class RunnerConfigTest < Minitest::Test
     [72_000, '20h', '25:00', '20:60', nil].each do |bad|
       capture_io do
         assert_raises(SystemExit) { Nightshift::Core::BackendWindow.parse_time(bad) }
+      end
+    end
+  end
+
+  def test_schedule_entry_must_be_a_hash
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        backends:
+          local:
+            harness: claude-ds4
+        default_backend: local
+        schedule:
+          - "20:00-04:00"
+      YAML
+
+      capture_io do
+        assert_raises(SystemExit) { Nightshift::Config.new(repo_path: dir) }
       end
     end
   end
@@ -218,4 +253,12 @@ class RunnerConfigTest < Minitest::Test
   end
 
   def at(hour, min = 0) = Time.new(2026, 9, 10, hour, min, 0)
+
+  def with_tz(zone)
+    previous = ENV['TZ']
+    ENV['TZ'] = zone
+    yield
+  ensure
+    ENV['TZ'] = previous
+  end
 end
