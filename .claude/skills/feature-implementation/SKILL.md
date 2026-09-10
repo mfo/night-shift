@@ -25,6 +25,7 @@ allowed-tools:
   - Skill(screenshot-gist)
   - Skill(create-pr)
   - Skill(code-review)
+  - ReportFindings
   - Agent
 ---
 
@@ -68,6 +69,8 @@ Pour les tâches avec ≤ 5 fichiers et un plan évident :
 3. Rubocop clean à la fin
 
 Pas besoin de : checkpoint mi-phase, métriques détaillées, phases numérotées 1-7.
+
+**La boucle `/code-review` s'applique quand même** — c'est le dernier geste avant le handoff, quel que soit le format de la tâche.
 
 ---
 
@@ -136,46 +139,6 @@ Tests passent en SQLite permissive, prod crashe en PostgreSQL strict.
 - [ ] Patterns critiques appliqués ?
 - [ ] Rubocop propre ?
 - [ ] Aucun blocage > 30min ? → sinon STOP et demander aide user
-
----
-
-## Boucle `/code-review` (fin d'implémentation, avant le handoff)
-
-Quand tous les commits du plan sont passés et la suite verte — donc avant de passer la main à
-`/feature-review` puis `/create-pr`, qui pousse — lancer `/code-review` et reboucler tant qu'il
-reste des findings critiques.
-
-```
-bundle exec rspec  → doit être VERT avant d'entrer dans la boucle
-
-tant que vrai :
-    1. /code-review high        ← toujours préciser le niveau
-    2. critiques = TOUS les findings, SAUF ceux dont la `category` vaut
-       explicitement `simplification`, `efficiency` ou `test-coverage`
-    3. si critiques est vide    → SORTIE, on passe le relais
-    4. corriger → bundle exec rspec (vert) → git commit -m "fix(review): <sujet>"
-
-max 5 tours. Au-delà → STOP, présenter les findings restants au user.
-```
-
-**Pourquoi un filtre par exclusion et non par inclusion.** Dans le schéma `ReportFindings`,
-seuls `file`, `summary` et `failure_scenario` sont obligatoires : `category` **et** `verdict`
-sont optionnels — `verdict` n'est présent que si une passe de vérification a tourné, et
-`category` est un slug libre, pas une énumération. Un filtre qui exigerait
-`category ∈ {correctness, security}` laisserait donc passer en silence tout finding non
-catégorisé, et la boucle sortirait « propre » avec de vrais bugs dedans. **Par défaut un
-finding est critique ; seules les trois catégories ci-dessus le disqualifient.**
-
-**Toujours passer le niveau** (`high`). Sans niveau explicite, `/code-review` réutilise celui
-tapé en dernier dans la session : la profondeur du contrôle dépendrait d'un état extérieur au
-skill.
-
-**Faux positif.** Ne jamais clore un finding en douce parce qu'on le juge faux. L'écrire dans
-le rapport de fin avec la raison et la référence `fichier:ligne` qui le réfute : il cesse de
-faire boucler, mais il reste visible par le user.
-
-**Jamais `--fix`** : non déterministe, le tour N+1 peut défaire le tour N. On corrige
-soi-même, pour relancer les tests entre chaque fix.
 
 ---
 
@@ -275,6 +238,55 @@ Il retourne un JSON structuré :
 
 ---
 
+## Boucle `/code-review` (dernier geste du Stage 2)
+
+Quand tous les commits du plan sont passés, la suite verte **et la validation visuelle
+terminée** — donc juste avant le handoff vers `/feature-review` puis `/create-pr`, qui pousse.
+
+C'est le dernier geste : rien ne doit modifier le code après cette boucle, sinon elle valide
+un état qui n'est plus celui qu'on livre.
+
+```
+bundle exec rspec  → doit être VERT avant d'entrer dans la boucle
+tour = 1
+
+tant que tour <= 5 :
+    1. /code-review high <base-branch>      ← niveau ET cible explicites
+    2. critiques = TOUS les findings, SAUF ceux dont la `category` vaut
+       explicitement : simplification, efficiency, reuse, altitude,
+                       conventions, test-coverage
+    3. si critiques est vide → SORTIE, on passe le relais
+    4. corriger
+       → bundle exec rspec (vert)
+       → bundle exec rubocop (0 offense sur les fichiers touchés)
+       → git commit --no-gpg-sign -m "fix(review): <sujet>"
+    5. tour += 1
+
+tour > 5 → STOP, présenter les findings restants au user.
+```
+
+**Pourquoi un filtre par exclusion et non par inclusion.** Dans le schéma `ReportFindings`,
+seuls `file`, `summary` et `failure_scenario` sont obligatoires : `category` **et** `verdict`
+sont optionnels — `verdict` n'est présent que si une passe de vérification a tourné, et
+`category` est un slug libre, pas une énumération. Un filtre par inclusion laisserait passer en
+silence tout finding non catégorisé, et la boucle sortirait « propre » avec de vrais bugs
+dedans. **Par défaut un finding est critique** ; seules les catégories de cleanup listées
+ci-dessus le disqualifient.
+
+**Toujours passer le niveau ET la cible.** Sans niveau, `/code-review` réutilise celui tapé en
+dernier dans la session. Sans cible, il résout le périmètre via `@{upstream}` — qui n'existe pas
+encore en Stage 2, puisque le push a lieu plus tard dans `/create-pr`. Passer la branche de base
+(`main`, ou celle du plan) enlève les deux dépendances à un état extérieur.
+
+**Faux positif.** Ne jamais clore un finding en douce parce qu'on le juge faux. L'écrire dans le
+rapport de fin avec la raison et la référence `fichier:ligne` qui le réfute : il cesse de faire
+boucler, mais il reste visible par le user.
+
+**Jamais `--fix`** : non déterministe, le tour N+1 peut défaire le tour N. On corrige soi-même,
+pour relancer les tests entre chaque fix.
+
+---
+
 ## Checklist Fin Stage 2
 
 - [ ] Tous commits exécutés selon plan (comparer plan vs. réels)
@@ -283,8 +295,8 @@ Il retourne un JSON structuré :
 - [ ] Coverage ≥ 80%
 - [ ] Breaking changes en blocs (merge safe)
 - [ ] Feature implémentée complètement (acceptance criteria validées)
-- [ ] Boucle `/code-review high` sortie sans finding critique (ou faux positifs documentés)
 - [ ] Validation visuelle effectuée (si applicable)
+- [ ] Boucle `/code-review high` sortie sans finding critique (ou faux positifs documentés) — **en dernier**
 - [ ] Prêt pour Stage 3 (Review & Cleanup) ?
 
 ---
