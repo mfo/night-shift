@@ -97,10 +97,19 @@ class RunnerConfigTest < Minitest::Test
     assert_equal 'claude-ds4', Nightshift.runner_for('haml-migration', now: at(22))
   end
 
-  def test_window_parse_time_accepts_string_and_yaml_sexagesimal
+  def test_window_parse_time_reads_quoted_hours
+    assert_equal 0, Nightshift::Core::BackendWindow.parse_time('00:00')
     assert_equal 1200, Nightshift::Core::BackendWindow.parse_time('20:00')
     assert_equal 1230, Nightshift::Core::BackendWindow.parse_time('20:30')
-    assert_equal 1200, Nightshift::Core::BackendWindow.parse_time(72_000) # YAML lit 20:00 non quoté
+  end
+
+  def test_window_parse_time_rejects_unquoted_and_malformed_hours
+    # YAML lit `20:00` non quoté comme l'entier 72000 : on echoue au chargement.
+    [72_000, '20h', '25:00', '20:60', nil].each do |bad|
+      capture_io do
+        assert_raises(SystemExit) { Nightshift::Core::BackendWindow.parse_time(bad) }
+      end
+    end
   end
 
   def test_config_from_yaml_with_schedule

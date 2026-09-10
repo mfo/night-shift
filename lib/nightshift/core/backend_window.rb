@@ -18,24 +18,17 @@ module Nightshift
 
       DAY_MIN = 24 * 60
 
-      # Accepte "20:00" (String) ou 72000 (Integer — YAML sexagésimal si non quoté).
+      # Les heures se declarent en String quotee : "20:00".
       sig { params(value: T.untyped).returns(Integer) }
       def self.parse_time(value)
-        case value
-        when Integer
-          # YAML 1.1 lit `20:00` non quoté comme 20*3600 secondes.
-          abort "nightshift: heure invalide (#{value}) — utilise des guillemets: \"HH:MM\"" unless (value % 60).zero? && value < 86_400
-          value / 60
-        when String
-          m = value.strip.match(/\A(\d{1,2}):(\d{2})\z/)
-          abort "nightshift: heure invalide (#{value.inspect}) — format attendu \"HH:MM\"" unless m
-          h = m[1].to_i
-          min = m[2].to_i
-          abort "nightshift: heure hors bornes (#{value.inspect})" if h > 23 || min > 59
-          (h * 60) + min
-        else
-          abort "nightshift: heure invalide (#{value.inspect}) — format attendu \"HH:MM\""
-        end
+        m = value.is_a?(String) && value.strip.match(/\A(\d{1,2}):(\d{2})\z/)
+        abort "nightshift: heure invalide (#{value.inspect}) — format attendu \"HH:MM\" (quote la valeur)" unless m
+
+        h = m[1].to_i
+        min = m[2].to_i
+        abort "nightshift: heure hors bornes (#{value.inspect})" if h > 23 || min > 59
+
+        (h * 60) + min
       end
 
       sig { params(now: Time).returns(T::Boolean) }
