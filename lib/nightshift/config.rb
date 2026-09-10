@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'date'
 require 'yaml'
 
 module Nightshift
@@ -61,6 +62,15 @@ module Nightshift
     sig { params(now: Time).returns(Core::LLMBackend) }
     def active_backend(now: Time.now) = @backends[active_backend_name(now: now)] || DEFAULT_BACKEND
 
+    # Backend declare en config, sans appliquer la plage horaire. Sert aux items
+    # claim avant la migration 012 : ils n'ont pas de harness enregistre et ont
+    # forcement tourne sur le pin ou le default, le schedule n'existait pas.
+    sig { params(skill_name: String).returns(Core::LLMBackend) }
+    def configured_backend(skill_name)
+      name = @skills.dig(skill_name, :backend)&.to_s || @default_backend_name.to_s
+      @backends[name] || DEFAULT_BACKEND
+    end
+
     sig { params(now: Time).returns(String) }
     def active_backend_name(now: Time.now)
       active_window(now: now)&.backend || @default_backend_name.to_s
@@ -74,10 +84,11 @@ module Nightshift
 
       current = (now.hour * 60) + now.min
       upcoming = bounds.find { |b| b > current }
-      # Time.new(y, m, d, h, min) et pas midnight + n*60 : un jour de changement
-      # d'heure ne fait pas 24 h et l'affichage serait decale.
       minutes = upcoming || bounds.fetch(0)
-      day = upcoming ? now : now + Core::BackendWindow::DAY_SEC
+      # Tout se calcule en date civile : un jour de changement d'heure ne fait
+      # pas 24 h, donc ni `midnight + n * 60` ni `now + 86_400` ne tombent juste.
+      day = Date.new(now.year, now.month, now.day)
+      day += 1 unless upcoming
       Time.new(day.year, day.month, day.day, minutes / 60, minutes % 60)
     end
 
@@ -86,7 +97,9 @@ module Nightshift
     def default_backend(now: Time.now) = active_backend(now: now)
 
     def parse_schedule(raw)
-      Array(raw).map do |entry|
+      abort "nightshift: schedule doit etre une liste de fenetres, pas #{raw.class.name.downcase}" unless raw.is_a?(Array)
+
+      raw.map do |entry|
         abort "nightshift: schedule entry invalide (#{entry.inspect}) — attendu {from, to, backend}" unless entry.is_a?(Hash)
 
         entry = entry.transform_keys(&:to_sym)

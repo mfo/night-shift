@@ -107,6 +107,25 @@ class RunnerConfigTest < Minitest::Test
     end
   end
 
+  # Branche "plus de borne aujourd'hui" : la prochaine bascule est le lendemain
+  # civil, pas now + 86400 s (le 2026-03-29 ne dure que 23 h).
+  def test_next_switch_at_rolls_to_the_next_calendar_day_across_dst
+    Nightshift.config = night_config
+
+    with_tz('Europe/Paris') do
+      switch = Nightshift.next_switch_at(now: Time.new(2026, 3, 28, 23, 30))
+
+      assert_equal '2026-03-29 04:00', switch.strftime('%Y-%m-%d %H:%M')
+    end
+  end
+
+  def test_configured_backend_ignores_the_schedule
+    Nightshift.config = night_config(skills: { 'haml-migration' => {}, 'bugfix' => { backend: 'frontier' } })
+
+    assert_equal 'claude-ds4', Nightshift.configured_backend('haml-migration').harness
+    assert_equal 'claude', Nightshift.configured_backend('bugfix').harness
+  end
+
   def test_no_schedule_means_next_switch_is_nil
     Nightshift.config = night_config
     Nightshift.config.instance_variable_set(:@schedule, [])
@@ -139,6 +158,25 @@ class RunnerConfigTest < Minitest::Test
         default_backend: local
         schedule:
           - "20:00-04:00"
+      YAML
+
+      capture_io do
+        assert_raises(SystemExit) { Nightshift::Config.new(repo_path: dir) }
+      end
+    end
+  end
+
+  def test_schedule_must_be_a_list
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        backends:
+          local:
+            harness: claude-ds4
+        default_backend: local
+        schedule:
+          from: "20:00"
+          to: "04:00"
+          backend: local
       YAML
 
       capture_io do

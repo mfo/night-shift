@@ -16,9 +16,6 @@ module Nightshift
       const :from_min, Integer
       const :to_min, Integer
 
-      DAY_MIN = 24 * 60
-      DAY_SEC = 24 * 60 * 60
-
       # Les heures se declarent en String quotee : "20:00".
       sig { params(value: T.untyped).returns(Integer) }
       def self.parse_time(value)

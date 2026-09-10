@@ -206,7 +206,10 @@ module Nightshift
       @store.all_backlog.each do |bi|
         next unless bi.status == BacklogStatus::Running
 
-        active_by_backend[bi.harness || Nightshift.backend_for(bi.skill).harness] += 1
+        # Sans harness enregistre (item claim avant la migration 012), on retombe
+        # sur le backend configure : re-resoudre la plage horaire ici rejouerait
+        # exactement la regression qu'on corrige.
+        active_by_backend[bi.harness || Nightshift.configured_backend(bi.skill).harness] += 1
       end
 
       BacklogSources::REGISTRY.each_key do |skill_name|
