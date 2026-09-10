@@ -22,6 +22,7 @@ allowed-tools:
   - Skill(dev-auto-login)
   - Skill(screenshot-gist)
   - Skill(create-pr)
+  - Skill(code-review)
   - Agent
 ---
 
@@ -136,6 +137,32 @@ Tests passent en SQLite permissive, prod crashe en PostgreSQL strict.
 
 ---
 
+## Boucle `/code-review` (fin de phase, avant push)
+
+À la fin de chaque phase d'implémentation — donc **avant de pousser** — lancer `/code-review`
+et reboucler tant qu'il reste des findings critiques.
+
+```
+tant que vrai :
+    1. bundle exec rspec           → doit être VERT
+    2. /code-review
+    3. critiques = findings de category `correctness` ou `security`
+    4. si critiques est vide       → SORTIE, on peut pousser
+    5. corriger → rspec vert → git commit -m "fix(review): <sujet>"
+
+max 5 tours. Au-delà → STOP, présenter les findings restants au user.
+```
+
+**Ce qui compte comme critique.** `/code-review` n'a pas d'axe de sévérité : ses findings
+portent une `category` (`correctness`, `security`, `simplification`, `efficiency`,
+`test-coverage`…) et un `verdict` (`CONFIRMED` | `PLAUSIBLE`). On reboucle sur
+`correctness` et `security` ; le reste est signalé au user et ne fait pas boucler.
+
+**Jamais `--fix`** : non déterministe, le tour N+1 peut défaire le tour N. On corrige
+soi-même, pour relancer les tests entre chaque fix.
+
+---
+
 ## Validation Visuelle (si changement d'interface)
 
 Exécuter la validation visuelle **à chaque checkpoint** défini dans le plan (pas seulement en fin d'implémentation). Les checkpoints sont dans `visual_validation.checkpoints` du JSON du plan.
@@ -240,6 +267,7 @@ Il retourne un JSON structuré :
 - [ ] Coverage ≥ 80%
 - [ ] Breaking changes en blocs (merge safe)
 - [ ] Feature implémentée complètement (acceptance criteria validées)
+- [ ] `/code-review` sans finding correctness/security avant push
 - [ ] Validation visuelle effectuée (si applicable)
 - [ ] Prêt pour Stage 3 (Review & Cleanup) ?
 
