@@ -43,6 +43,31 @@ module Nightshift
       UI::Attach.run(renderer: build_renderer)
     end
 
+    desc 'backend', 'Show which backend the schedule selects right now'
+    method_option :at, type: :string, desc: 'Simulate a time of day (HH:MM) instead of now'
+    def backend
+      now = Time.now
+      if options[:at]
+        minutes = Core::BackendWindow.parse_time(options[:at])
+        now = Time.new(now.year, now.month, now.day, minutes / 60, minutes % 60)
+      end
+      window = Nightshift.active_window(now: now)
+      active = Nightshift.active_backend(now: now)
+
+      puts "now      : #{now.strftime('%H:%M')}"
+      puts "backend  : #{active.name} (#{active.harness}, concurrency #{active.concurrency})"
+      puts "window   : #{window ? "#{window.label} → #{window.backend}" : 'aucune plage active (default_backend)'}"
+      switch = Nightshift.next_switch_at(now: now)
+      puts "next     : #{switch ? switch.strftime('%a %H:%M') : 'jamais (pas de schedule)'}"
+      puts
+
+      Nightshift.skill_names.sort.each do |skill|
+        b = Nightshift.backend_for(skill, now: now)
+        pinned = (Nightshift.skills.dig(skill, :backend) ? ' (pinned)' : '')
+        puts format('  %-20s %s%s', skill, b.harness, pinned)
+      end
+    end
+
     # --- Internal (called inside panes by attach/reconciler) ---
 
     desc 'watch', 'Refresh and watch PRs periodically (internal, runs in pane)', hide: true

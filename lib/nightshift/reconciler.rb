@@ -198,13 +198,18 @@ module Nightshift
     def pick_next_items
       repo_path = Nightshift.repo_path
 
-      # Count actually-running items per backend (PrOpen doesn't consume compute)
+      # Count actually-running items per backend (PrOpen doesn't consume compute).
+      # On compte le harness reserve au claim, pas celui que la plage horaire
+      # designerait maintenant : sinon une bascule de fenetre "libere" des slots
+      # que les items en cours occupent toujours.
       active_by_backend = Hash.new(0)
       @store.all_backlog.each do |bi|
         next unless bi.status == BacklogStatus::Running
 
-        backend = Nightshift.backend_for(bi.skill)
-        active_by_backend[backend.harness] += 1
+        # Sans harness enregistre (item claim avant la migration 012), on retombe
+        # sur le backend configure : re-resoudre la plage horaire ici rejouerait
+        # exactement la regression qu'on corrige.
+        active_by_backend[bi.harness || Nightshift.configured_backend(bi.skill).harness] += 1
       end
 
       BacklogSources::REGISTRY.each_key do |skill_name|
@@ -217,7 +222,7 @@ module Nightshift
         batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
 
         if batch_size > 1
-          items = @store.claim_batch(skill_name, batch_size)
+          items = @store.claim_batch(skill_name, batch_size, harness: backend.harness)
           next if items.empty?
 
           valid, stale = items.partition do |bi|
@@ -229,7 +234,7 @@ module Nightshift
           launch_batch(skill_name, valid)
           active_by_backend[backend.harness] += 1
         else
-          backlog_item = @store.claim_next(skill_name)
+          backlog_item = @store.claim_next(skill_name, harness: backend.harness)
           next unless backlog_item
 
           unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)

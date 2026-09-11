@@ -145,8 +145,8 @@ module Nightshift
         db[:backlog_items].where(id: id).update(priority: priority, updated_at: Time.now.to_i)
       end
 
-      sig { params(skill: String).returns(T.nilable(BacklogItem)) }
-      def claim_next(skill)
+      sig { params(skill: String, harness: T.nilable(String)).returns(T.nilable(BacklogItem)) }
+      def claim_next(skill, harness: nil)
         db.transaction do
           row = db[:backlog_items]
                 .where(skill: skill, status: PENDING_S)
@@ -157,13 +157,13 @@ module Nightshift
 
           rows = db[:backlog_items]
                  .where(id: row[:id], status: PENDING_S)
-                 .update(status: RUNNING_S, updated_at: Time.now.to_i)
-          rows == 1 ? BacklogItem.from_row(row.merge(status: RUNNING_S)) : nil
+                 .update(status: RUNNING_S, harness: harness, updated_at: Time.now.to_i)
+          rows == 1 ? BacklogItem.from_row(row.merge(status: RUNNING_S, harness: harness)) : nil
         end
       end
 
-      sig { params(skill: String, size: Integer).returns(T::Array[BacklogItem]) }
-      def claim_batch(skill, size)
+      sig { params(skill: String, size: Integer, harness: T.nilable(String)).returns(T::Array[BacklogItem]) }
+      def claim_batch(skill, size, harness: nil)
         db.transaction do
           batch_id = SecureRandom.hex(8)
           items = []
@@ -180,11 +180,12 @@ module Nightshift
 
             rows_updated = db[:backlog_items]
                            .where(id: row[:id], status: PENDING_S)
-                           .update(status: RUNNING_S, batch_id: batch_id, updated_at: Time.now.to_i)
+                           .update(status: RUNNING_S, batch_id: batch_id, harness: harness,
+                                   updated_at: Time.now.to_i)
             next unless rows_updated == 1
 
             claimed_ids << row[:id]
-            items << BacklogItem.from_row(row.merge(status: RUNNING_S, batch_id: batch_id))
+            items << BacklogItem.from_row(row.merge(status: RUNNING_S, batch_id: batch_id, harness: harness))
           end
 
           items

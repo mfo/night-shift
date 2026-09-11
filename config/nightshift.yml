@@ -19,6 +19,14 @@ backends:
 # Which backend to use when a skill doesn't specify one.
 default_backend: local
 
+# Plage horaire : bascule le backend par défaut sur une fenêtre [from, to[
+# (peut franchir minuit). Un skill qui déclare `backend:` explicitement n'est
+# pas concerné. Quote les heures ("20:00"), sinon YAML les lit comme des entiers.
+schedule:
+  - from: "20:00"
+    to: "04:00"
+    backend: frontier
+
 # Only skills needing runtime overrides are listed here.
 # Skills without config (test-optimization, n1-query-fix, flaky-test-fix)
 # are discovered automatically via BacklogSources::REGISTRY.
