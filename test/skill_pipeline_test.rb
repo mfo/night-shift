@@ -5,6 +5,22 @@ require 'minitest/mock'
 require 'open3'
 
 class SkillPipelineTest < Minitest::Test
+
+  # `Pipeline#push_and_create_pr` appelle Open3.capture2 deux fois : d'abord
+  # `git diff --name-only main..HEAD` pour decider si le diff est reel
+  # (pipeline.rb:179), puis `gh pr create` (pipeline.rb:252). Un stub a valeur
+  # unique faisait passer l'URL de PR pour une liste de fichiers, aucune ligne
+  # ne matchait le filtre `^(app|spec|config|lib)/`, et le batch partait en
+  # no_diff. Ce stub discrimine sur la commande.
+  def git_then_gh(pr_number)
+    lambda do |*args, **_opts|
+      if args.include?('diff')
+        ["app/views/foo/bar.html.erb\n", nil]
+      else
+        ["https://github.com/org/repo/pull/#{pr_number}\n", nil]
+      end
+    end
+  end
   def setup
     @db = Sequel.sqlite
     Sequel::Migrator.run(@db, 'db/migrations')
@@ -306,7 +322,7 @@ class SkillPipelineTest < Minitest::Test
       Nightshift::Skills::Runner.stub(:run, runner_stub) do
         Nightshift::Skills::Runner.stub(:analyze_run, nil) do
           @pipeline.stub(:system, true) do
-            Open3.stub(:capture2, ["https://github.com/org/repo/pull/42\n", nil]) do
+            Open3.stub(:capture2, git_then_gh(42)) do
               @pipeline.execute_batch([bi1, bi2])
             end
           end
@@ -366,7 +382,7 @@ class SkillPipelineTest < Minitest::Test
         Nightshift::Skills::Runner.stub(:analyze_run, nil) do
           Nightshift::CI::Judge.stub(:evaluate, hard_verdict) do
             @pipeline.stub(:system, true) do
-              Open3.stub(:capture2, ["https://github.com/org/repo/pull/99\n", nil]) do
+              Open3.stub(:capture2, git_then_gh(99)) do
                 @pipeline.execute_batch([bi1, bi2])
               end
             end
