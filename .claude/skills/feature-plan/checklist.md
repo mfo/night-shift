@@ -38,13 +38,24 @@ UI avant DB → respecter dépendances (DB → Infra → Features → UI → Tes
 ### 5. > 20 Commits
 Fusionner commits similaires ou revoir découpage feature.
 
+### 6. Couche « Tests »
+Faire de la phase 5 une couche produit une PR de specs sans code, et laisse les couches 1-4 sans
+leurs tests. C'est le piège #2 érigé en structure. Chaque couche embarque ses propres specs.
+
+### 7. Une Phase = Une Couche
+Mapper mécaniquement les 7 phases sur les couches donne un découpage horizontal : chaque PR est plus
+petite mais aucune n'est compréhensible seule. Les 7 phases sont un **ordre**, pas un gabarit.
+Le critère de couche est le test de la phrase (SKILL.md Étape 2-bis).
+
 ---
 
 ## Métriques de Succès
 
 - [ ] Commits atomiques (< 20)
 - [ ] Phases logiques (7 phases)
-- [ ] Breaking changes isolés en blocs
+- [ ] Couches : 2-5 (ou 1 = pas de pile), chacune avec sa phrase « ce que le reviewer peut vérifier ici »
+- [ ] Aucune couche « Tests » ; chaque couche embarque ses specs
+- [ ] Breaking changes isolés en blocs, jamais à cheval sur deux couches
 - [ ] Tests exécutables après chaque commit
 - [ ] User a validé structure
 

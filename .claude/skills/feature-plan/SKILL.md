@@ -67,6 +67,39 @@ DB → Infrastructure → Features → UI → Tests → Cleanup → UX (optionne
 
 **Structure commit** (voir `template.md`) : Objectif / Fichiers / Actions / Tests / Notes
 
+### Étape 2-bis : Regroupement en Couches (stacked PRs)
+
+Les commits atomiques sont pour l'auteur. Les **couches** sont pour le reviewer.
+
+**Une couche = une branche = une PR.** Le reviewer relit et approuve chaque couche
+indépendamment ; la pile entière est mergée d'un coup.
+
+**Critère unique — le test de la phrase :**
+
+> Écrire, pour chaque couche, une phrase à l'indicatif : *« ce que le reviewer peut vérifier ici »*.
+> Si la phrase ne s'écrit pas, la couche n'existe pas → la fusionner avec la suivante.
+
+**Règles de découpage :**
+
+| Règle | Pourquoi |
+|---|---|
+| Une couche embarque **ses propres tests** | Sinon le reviewer doit approuver du code non testé. C'est le piège #2 de `checklist.md`, hissé au rang de structure |
+| **Jamais de couche « Tests »** séparée | Corollaire direct de la règle ci-dessus |
+| Une phase à **0 commit** ne produit pas de couche | Cleanup et UX sont souvent vides |
+| Un **bloc breaking change** ne traverse jamais une frontière de couche | Reprise de `checklist.md` §3 : sinon une couche est incompréhensible seule |
+| Viser **2 à 5 couches**. Au-delà, regrouper | Au-delà de 5, le coût de navigation dépasse le gain de relecture |
+| **1 seule couche → pas de pile** | Fallback : `create-pr` classique, workflow inchangé |
+
+⚠️ **Les 7 phases standards sont un ordre de dépendance, pas un gabarit de découpage.**
+Mapper mécaniquement 1 phase → 1 couche produit un découpage *horizontal* : une migration invisible,
+puis une infra sans usage, puis une UI qui dépend de tout. Chaque PR est plus petite mais aucune
+n'est compréhensible seule — l'inverse de l'objectif.
+
+**Nommage :** `feat/<slug>-<n>-<mot>` (le `<n>` donne l'ordre de lecture dans la liste de PR).
+**Worktree :** `feat/<slug>` — un seul worktree pour toute la pile (voir Stage 2).
+
+---
+
 ### Étape 2.5 : Review 3 Amigos du plan
 
 Lancer `/review-3-amigos` avec le plan + `checklist.md`.
@@ -96,6 +129,8 @@ Le mapping scénario → commit est porté dans le JSON de sortie (`visual_valid
 
 ## Checklist Plan Validé
 
+- Couches : 2-5 (ou 1 = pas de pile), chacune avec sa phrase « ce que le reviewer peut vérifier ici »
+- Aucune couche « Tests » ; chaque couche embarque ses specs
 - Commits < 20, phases logiques, breaking changes isolés
 - Tests exécutables après chaque commit
 - Chaque commit : Objectif / Fichiers / Actions / Tests / Notes
@@ -131,17 +166,30 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "commits_count": 12,
   "breaking_changes": [{"commits": "4-6", "description": "..."}],
   "plan_path": "specs/YYYY-MM-DD-nom-implementation-plan.md",
+  "stack": {
+    "trunk": "main",
+    "worktree": "feat/nom-feature",
+    "layers": [
+      {"branch": "feat/nom-feature-1-db", "base": "main", "title": "Tech: ...", "commits": "1-3", "reviewable": "..."},
+      {"branch": "feat/nom-feature-2-api", "base": "feat/nom-feature-1-db", "title": "Amelioration: ETQ ...", "commits": "4-7", "reviewable": "..."}
+    ]
+  },
   "visual_validation": {
     "assets_path": "specs/assets/YYYY-MM-DD-nom/ | null",
     "scenarios": ["scenario 1 description", "scenario 2 description"],
-    "checkpoints": ["commit N: vérifier X", "commit M: vérifier Y"]
+    "checkpoints": [{"commit": 7, "layer": "feat/nom-feature-2-api", "check": "vérifier scenario-1"}]
   }
 }
 ```
 
 - `visual_validation.assets_path` : repris de `visual_assets_path` du JSON de feature-spec. `null` si pas de changement d'interface.
 - `visual_validation.scenarios` : liste des scénarios de capture définis dans la spec (section 14).
-- `visual_validation.checkpoints` : à quels commits la validation visuelle doit être exécutée (pas seulement en fin d'implémentation). Ce champ est lu par feature-implementation (Stage 2).
+- `stack.layers[]` : les couches, de bas en haut. `commits` est une **plage de chaînes** (`"1-3"`), même
+  typage que `breaking_changes[].commits`. `reviewable` porte la phrase du test de la phrase.
+  Une seule entrée = pas de pile. Ce champ est lu par feature-implementation (Stage 2) et feature-review (Stage 3).
+- `visual_validation.checkpoints` : à quels commits la validation visuelle doit être exécutée (pas seulement en
+  fin d'implémentation). Chaque checkpoint porte désormais sa **couche propriétaire** — Stage 2 en a besoin pour
+  committer un `fix(visual)` au bon étage de la pile. Ce champ est lu par feature-implementation (Stage 2).
 
 ---
 
