@@ -253,7 +253,7 @@ module Nightshift
           puts ''
           system('git', 'diff', '--color', chdir: repo_path)
           puts ''
-          puts '  next: git add -u && git commit && git push mfo HEAD'
+          puts '  next: git add -u && git commit && git push origin HEAD'
         end
       end
 

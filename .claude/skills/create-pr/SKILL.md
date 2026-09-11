@@ -58,13 +58,13 @@ ne pas ajouter : ce qui manque se demande en commentaire, ce qui est en trop ne 
 
 ## Etape 2 : Creer la PR
 
-1. Pousser la branche si pas deja fait (`git push mfo <branch>`)
+1. Pousser la branche si pas deja fait (`git push -u origin <branch>`)
 2. Proposer titre + description au user pour validation
 3. Creer la PR avec `gh pr create`
 
 ```bash
 gh pr create --repo demarche-numerique/demarche.numerique.gouv.fr \
-  --head mfo:<branch> \
+  --head <branch> \
   --title "le titre" \
   --body "$(cat <<'EOF'
 # Probleme
