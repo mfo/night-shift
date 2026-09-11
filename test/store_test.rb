@@ -184,6 +184,7 @@ class StoreTest < Minitest::Test
   def test_active_for_skill_pr_open
     @store.add_backlog('haml-migration', 'foo.haml')
     backlog_item = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
     assert @store.active_for_skill?('haml-migration')
   end
@@ -651,6 +652,7 @@ class StoreTest < Minitest::Test
   def test_reconcile_backlog_never_prunes_pr_open
     @store.add_backlog('haml-migration', 'pr.haml')
     bi = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(bi, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
 
     result = @store.reconcile_backlog('haml-migration', [])
@@ -834,9 +836,4 @@ class StoreTest < Minitest::Test
 
   private
 
-  def seed_pr(number)
-    pr = Nightshift::Core::PR.new(number: number, branch: "fix/bug-#{number}",
-                                  github_state: 'OPEN', ci: 'red')
-    @store.upsert(pr)
-  end
 end

@@ -199,6 +199,7 @@ class ReconcilerTest < Minitest::Test
   def test_reconcile_skills_detect_merge_marks_done
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
     backlog_item = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-foo', pr_number: 42)
 
@@ -403,6 +404,7 @@ class ReconcilerTest < Minitest::Test
   def test_handle_done_closes_worktree_via_renderer
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
     backlog_item = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-foo', pr_number: 42)
 
@@ -417,6 +419,7 @@ class ReconcilerTest < Minitest::Test
   def test_handle_done_ignores_pr_open_not_merged
     @store.add_backlog('haml-migration', 'app/views/foo.html.haml')
     backlog_item = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-foo', pr_number: 42)
 
@@ -456,6 +459,7 @@ class ReconcilerTest < Minitest::Test
 
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::Running,
                                  branch: 'auto/haml-migration/views-bar')
+    seed_pr(99)
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen,
                                  branch: 'auto/haml-migration/views-bar', pr_number: 99)
 
