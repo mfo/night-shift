@@ -335,22 +335,33 @@ class N1QueryFixSourceTest < Minitest::Test
     assert_empty @source.scan
   end
 
-  def test_prioritize_by_waste_ms
+  # Le scanner ecrit `score` ET `total_waste_ms` dans le context (n1_query_fix.rb:47
+  # et :52), mais `prioritize` lit `score` et rend l'echelle 0-5 de Base, celle
+  # qu'emploient tout le harness et les libelles de `backlog list`. Ce test visait
+  # `total_waste_ms` sur une echelle 0-10 qui n'existe nulle part.
+  def test_prioritize_by_score
     cases = [
-      [0, 0],
-      [100, 1],
-      [500, 3],
-      [1_000, 5],
-      [3_000, 7],
-      [5_000, 8],
-      [10_000, 10]
+      [0,      Nightshift::BacklogSources::Base::LATER],
+      [1,      Nightshift::BacklogSources::Base::LOWEST],
+      [10,     Nightshift::BacklogSources::Base::LOW],
+      [50,     Nightshift::BacklogSources::Base::MEDIUM],
+      [200,    Nightshift::BacklogSources::Base::HIGH],
+      [1_000,  Nightshift::BacklogSources::Base::HIGHEST],
+      [10_000, Nightshift::BacklogSources::Base::HIGHEST]
     ]
 
-    cases.each do |waste, expected|
-      ctx = JSON.generate({ total_waste_ms: waste })
+    cases.each do |score, expected|
+      ctx = JSON.generate({ score: score })
       assert_equal expected, @source.prioritize({ item: 'x.rb', context: ctx }),
-        "waste=#{waste} should give priority #{expected}"
+        "score=#{score} should give priority #{expected}"
     end
+  end
+
+  # Un item sans `score` retombe sur LATER plutot que de lever.
+  def test_prioritize_without_score
+    ctx = JSON.generate({ total_waste_ms: 5_000 })
+    assert_equal Nightshift::BacklogSources::Base::LATER,
+                 @source.prioritize({ item: 'x.rb', context: ctx })
   end
 
   def test_scan_with_skylight_data
