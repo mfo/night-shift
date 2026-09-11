@@ -14,6 +14,8 @@ allowed-tools:
   - Bash(git diff:*)
   - Bash(git log:*)
   - Bash(git show:*)
+  - Bash(git rev-parse:*)
+  - Bash(git merge-base:*)
   - Bash(git blame:*)
   - Bash(git status)
   - Bash(git push:*)
@@ -256,21 +258,31 @@ tant que tour <= 5 :
     1. /code-review high          ← niveau explicite, PAS de cible
 
     2. critiques = TOUS les findings, SAUF :
-         - ceux dont la `category` vaut explicitement
-           simplification, efficiency, reuse, altitude, conventions, test-coverage
+         - ceux que tu identifies comme du NETTOYAGE : le finding décrit une
+           amélioration de forme (duplication, lisibilité, niveau d'abstraction,
+           convention, perf marginale) et son `failure_scenario` ne décrit aucun
+           comportement faux. Quand `category` est présente, elle t'aide :
+           simplification / efficiency / reuse / altitude / conventions / test-coverage
+           sont du nettoyage. Quand elle est absente, tu juges sur le contenu.
          - ceux déjà présents dans faux_positifs
 
     3. si critiques est vide → SORTIE, on passe le relais
 
-    4. si tour == 5 → STOP sans corriger : présenter les critiques restants au user
+    4. si tour == 5 → STOP sans corriger. Sortie `escalated` :
+       écrire les critiques restants dans `review_loop.remaining` du JSON de
+       sortie, et ne PAS cocher le handoff Stage 3. C'est un état livrable
+       (le Stage 3 les reprendra), pas un échec.
 
     5. pour chaque critique : soit le corriger, soit l'ajouter à faux_positifs
-       avec la référence `fichier:ligne` qui le réfute
+       en le repérant par son `summary` (PAS par `fichier:ligne` : les fixes
+       décalent les numéros de ligne d'un tour à l'autre), avec la preuve qui le réfute
        → bundle exec rspec (vert)
        → bundle exec rubocop (0 offense sur les fichiers touchés)
        → git commit --no-gpg-sign -m "fix(review): <sujet>"
        → si un fix touche une vue / un composant / du CSS :
-         relancer la validation visuelle avant de reboucler
+         relancer la validation visuelle avant de reboucler. Si elle atteint
+         son propre cap de 3 itérations, la boucle s'arrête aussi : on remonte
+         les deux au user d'un coup, pas l'un après l'autre.
 
     6. tour += 1
 ```
@@ -288,7 +300,12 @@ Sans cible, le skill résout le périmètre sur `@{upstream}...HEAD`, avec repli
 
 **Pourquoi un filtre par exclusion et non par inclusion.** Dans le schéma `ReportFindings`, seuls
 `file`, `summary` et `failure_scenario` sont obligatoires : `category` et `verdict` sont
-optionnels. Il n'y a **pas** de champ de sévérité — ne pas construire le filtre dessus.
+optionnels. Le schéma n'a **pas** de champ de sévérité, même si certains prompts internes en
+demandent une en prose — dans les deux cas, ne pas construire le filtre dessus.
+
+Plus généralement : **ne pas indexer la boucle sur des champs que l'outil ne garantit pas.** Les
+seuls champs toujours présents sont `file`, `summary` et `failure_scenario`. C'est sur eux qu'on
+juge ; `category` et `verdict` ne sont que des indices quand ils sont là.
 
 Selon le modèle et le niveau d'effort, `/code-review` n'utilise pas le même prompt interne, et
 certains ne demandent pas de renseigner `category` du tout : sur ces runs, **aucun** finding
@@ -315,7 +332,7 @@ pour relancer les tests entre chaque fix.
 - [ ] Breaking changes en blocs (merge safe)
 - [ ] Feature implémentée complètement (acceptance criteria validées)
 - [ ] Validation visuelle effectuée (si applicable)
-- [ ] Boucle `/code-review high` sortie sans finding critique (ou faux positifs documentés) — **en dernier**
+- [ ] Boucle `/code-review high` sortie `clean` (0 critique) — **en dernier**. Sortie `escalated` : ne pas cocher, transmettre `review_loop.remaining` au Stage 3
 - [ ] Prêt pour Stage 3 (Review & Cleanup) ?
 
 ---
@@ -345,6 +362,12 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "commits_executed": 12,
   "tests_pass": true,
   "rubocop_clean": true,
+  "review_loop": {
+    "passes": 3,
+    "exit": "clean | escalated",
+    "false_positives": ["summary du finding réfuté"],
+    "remaining": []
+  },
   "visual_validation": {
     "baseline_path": "specs/assets/YYYY-MM-DD-nom/",
     "captures_path": "specs/assets/YYYY-MM-DD-nom/captures/",
@@ -355,6 +378,7 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
 }
 ```
 
+- `review_loop.exit` : `clean` = aucun finding critique à la dernière passe. `escalated` = cap de 5 passes atteint avec des critiques ouverts, listés dans `remaining` et repris par le Stage 3.
 - `visual_validation.baseline_path` : repris du JSON de feature-plan. Contient les maquettes UX de référence.
 - `visual_validation.captures_path` : screenshots capturés pendant l'implémentation, nommés pour correspondre aux scénarios de la spec.
 - `visual_validation.comparison` : résultat de la comparaison visuelle baseline vs captures.
