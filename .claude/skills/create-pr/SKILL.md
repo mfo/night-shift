@@ -17,6 +17,11 @@ allowed-tools:
 
 # Creation de Pull Request
 
+> **Pile en cours ?** Si le plan (Stage 1) porte un `stack.layers[]` a 2+ entrees, les PR sont deja
+> creees par `feature-implementation` (Etape 0-ter) via `gh stack submit` + `gh pr edit`. Ne pas
+> relancer ce skill : le lien natif entre PR remplace la convention `depends_on:`, et une PR creee
+> a la main sortirait de la pile. Ce skill reste le chemin nominal en mono-couche.
+
 ## Etape 1 : La description
 
 Dans l'ordre : si `pr-description.md` existe, le lire ; sinon si le skill `pr-description`
@@ -47,7 +52,7 @@ ne pas ajouter : ce qui manque se demande en commentaire, ce qui est en trop ne 
 | Requete SQL | le reviewer doit verifier un etat prod avant de merger |
 | Diagramme | flux non lineaire que le texte ne rend pas |
 | Section "Apres merge" | une action manuelle est requise |
-| `depends_on:` / `follows:` | la PR depend d'une autre. Non mergee : prefixer le titre `WIP - depends_on#XXXX –` |
+| `depends_on:` / `follows:` | la PR depend d'une autre **et n'est pas dans une pile**. Non mergee : prefixer le titre `WIP - depends_on#XXXX –` |
 
 ### Jamais
 
