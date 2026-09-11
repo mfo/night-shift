@@ -8,12 +8,12 @@ Le harness Ruby (`lib/nightshift/`) est organisé en 7 modules Zeitwerk :
 
 | Module | Responsabilité |
 |---|---|
-| `Core` | Données et persistance — `Store` (SQLite), `PR`, `BacklogItem`, `AutolearnCycle` |
+| `Core` | Données et persistance — `Store` (SQLite), `PR`, `BacklogItem`, `AutolearnCycle`, `Inventory` (scan croisé), `WorkItem`, `WorktreeEntry` |
 | `CI` | Intelligence post-CI — `Judge` (verdict LLM), `Verdict`, `Autofix`, `Reprioritizer` |
 | `Skills` | Exécution des skills — `Runner` (appel `claude -p`), `RunnerResult`, `Pipeline` (run→PR ou judge→retry), `Loader` |
 | `BacklogSources` | Scan, filtre et priorité par skill — `Base`, `HamlMigration`, `I18nHardcoded`, `TestOptimization`, `N1QueryFix`, `FlakyTestFix` |
-| `Integrations` | Monde extérieur — `GitHub` (API gh), `Worktree` (git worktrees) |
-| `Monitoring` | Observabilité — `AutolearnMonitor`, `Brief`, `Diagnose` |
+| `Integrations` | Monde extérieur — `GitHub` (API gh), `Worktree` (git worktrees), `Git` (hygiène : dirty?, unpushed?, prune) |
+| `Monitoring` | Observabilité — `AutolearnMonitor`, `Brief`, `Diagnose`, `Status`, `Doctor` |
 | `UI` | Affichage tmux — `TmuxRenderer`, `Attach` |
 
 Modules transversaux hors namespace : `CLI` (Thor), `Reconciler` (boucle principale), `Log` (logger structuré).
@@ -65,6 +65,8 @@ Chaque groupe de commandes est dans son fichier (`lib/nightshift/cli/<groupe>.rb
 ```
 CLI < Thor                              # cli.rb — squelette
   ├── attach                            # Point d'entrée (crée/rattache session tmux)
+  ├── status                            # Vue globale de l'encours (PRs + worktrees)
+  ├── doctor [--fix] [--only X]         # Dette de nettoyage, dry-run par défaut
   ├── watch, skill_run                  # Interne (lancés dans les panes tmux)
   ├── pr (subcommand)                   # cli/pr.rb
   │     ├── merge, brief, diagnose, autofix

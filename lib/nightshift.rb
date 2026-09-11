@@ -18,6 +18,7 @@ module Nightshift
     attr_accessor :config
 
     def repo_path = config.repo_path
+    def repos = config.repos
     def skill_names = config.skill_names
     def skills = config.skills
     def runner = config.runner
@@ -55,6 +56,20 @@ module Nightshift
   # compatible avec les sockets Unix (104 chars max sur macOS).
   # overmind-auto-<skill>-<slug>-<22 chars> ≤ 104
   # → slug max = 71 - len("auto-") - len(skill) - 1
+  # Human-readable byte count, used everywhere the inventory reports disk.
+  def self.human_size(bytes)
+    return '0 o' if bytes.to_i <= 0
+
+    units = %w[o Ko Mo Go To]
+    value = bytes.to_f
+    idx = 0
+    while value >= 1024 && idx < units.size - 1
+      value /= 1024
+      idx += 1
+    end
+    format(value >= 10 || idx.zero? ? '%<v>d %<u>s' : '%<v>.1f %<u>s', v: value, u: units[idx])
+  end
+
   MAX_WORKTREE_DIR = 50 # safe default: auto-<skill>-<slug> ≤ ~70 chars
 
   def self.short_slug(path, skill_name: nil)
