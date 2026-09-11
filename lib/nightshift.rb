@@ -29,7 +29,6 @@ module Nightshift
     # Plage horaire : quel backend est actif maintenant, et quand ça bascule
     def active_backend(now: Time.now) = config.active_backend(now: now)
     def configured_backend(skill_name) = config.configured_backend(skill_name)
-    def active_backend_name(now: Time.now) = config.active_backend_name(now: now)
     def active_window(now: Time.now) = config.active_window(now: now)
     def next_switch_at(now: Time.now) = config.next_switch_at(now: now)
   end

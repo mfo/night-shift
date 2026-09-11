@@ -53,6 +53,8 @@ module Nightshift
     sig { params(now: Time).returns(String) }
     def runner(now: Time.now) = default_backend(now: now).harness
 
+    # Le guard nil couvre les stubs de test construits via Config.allocate ;
+    # le constructeur, lui, renseigne toujours @schedule.
     sig { returns(T::Array[Core::BackendWindow]) }
     def schedule = @schedule || []
 
@@ -76,23 +78,31 @@ module Nightshift
       active_window(now: now)&.backend || @default_backend_name.to_s
     end
 
-    # Prochaine bascule (début ou fin de fenêtre), nil si aucune plage configurée.
+    # Prochain moment ou le backend actif change reellement. Une borne de fenetre
+    # ne suffit pas : deux fenetres adjacentes vers le meme backend, ou une
+    # fenetre qui pointe deja le default_backend, ne changent rien.
+    # nil si aucune plage configuree, ou si aucune ne change quoi que ce soit.
     sig { params(now: Time).returns(T.nilable(Time)) }
     def next_switch_at(now: Time.now)
       bounds = schedule.flat_map { |w| [w.from_min, w.to_min] }.uniq.sort
       return nil if bounds.empty?
 
-      current = (now.hour * 60) + now.min
-      upcoming = bounds.find { |b| b > current }
-      minutes = upcoming || bounds.fetch(0)
-      # Tout se calcule en date civile : un jour de changement d'heure ne fait
-      # pas 24 h, donc ni `midnight + n * 60` ni `now + 86_400` ne tombent juste.
-      day = Date.new(now.year, now.month, now.day)
-      day += 1 unless upcoming
-      Time.new(day.year, day.month, day.day, minutes / 60, minutes % 60)
+      current = active_backend_name(now: now)
+      boundary_times(now, bounds).find { |t| active_backend_name(now: t) != current }
     end
 
     private
+
+    # Les bornes des deux prochains jours, en date civile : un jour de changement
+    # d'heure ne fait pas 24 h, donc ni `midnight + n * 60` ni `now + 86_400` ne
+    # tombent juste.
+    sig { params(now: Time, bounds: T::Array[Integer]).returns(T::Array[Time]) }
+    def boundary_times(now, bounds)
+      today = Date.new(now.year, now.month, now.day)
+      [today, today + 1].flat_map do |day|
+        bounds.map { |b| Time.new(day.year, day.month, day.day, b / 60, b % 60) }
+      end.select { |t| t > now }
+    end
 
     def default_backend(now: Time.now) = active_backend(now: now)
 

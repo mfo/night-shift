@@ -126,6 +126,37 @@ class RunnerConfigTest < Minitest::Test
     assert_equal 'claude', Nightshift.configured_backend('bugfix').harness
   end
 
+  # Deux fenetres collees vers le meme backend : 00:00 est une borne, pas une
+  # bascule. Et une fenetre qui pointe le default_backend ne change rien du tout.
+  def test_next_switch_at_ignores_boundaries_that_change_nothing
+    Nightshift.config = build_config(
+      backends: {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1),
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 5)
+      },
+      default_backend: 'local',
+      schedule: [
+        Nightshift::Core::BackendWindow.new(backend: 'frontier', from_min: 20 * 60, to_min: 0),
+        Nightshift::Core::BackendWindow.new(backend: 'frontier', from_min: 0, to_min: 4 * 60)
+      ],
+      skills: { 'haml-migration' => {} }
+    )
+
+    assert_equal at(4) + 86_400, Nightshift.next_switch_at(now: at(22))
+    assert_equal at(20), Nightshift.next_switch_at(now: at(11))
+  end
+
+  def test_next_switch_at_is_nil_when_the_window_matches_the_default
+    Nightshift.config = build_config(
+      backends: { 'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1) },
+      default_backend: 'local',
+      schedule: [Nightshift::Core::BackendWindow.new(backend: 'local', from_min: 20 * 60, to_min: 4 * 60)],
+      skills: { 'haml-migration' => {} }
+    )
+
+    assert_nil Nightshift.next_switch_at(now: at(11))
+  end
+
   def test_no_schedule_means_next_switch_is_nil
     Nightshift.config = night_config
     Nightshift.config.instance_variable_set(:@schedule, [])

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 Sequel.migration do
   change do
     # Harness effectivement reserve au moment du claim : la plage horaire peut
