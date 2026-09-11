@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'open3'
+require 'set'
 
 module Nightshift
   module Integrations
@@ -36,6 +37,69 @@ module Nightshift
           next unless branch_match && wt_path && File.directory?(wt_path)
 
           [wt_path, branch_match[1]]
+        end
+      end
+
+      # Lossless view of `git worktree list --porcelain`, main worktree included.
+      #
+      # `list` above filters out the entries whose directory has disappeared,
+      # which is precisely what makes them invisible and lets the admin
+      # directory grow forever. Nothing is filtered here.
+      sig { params(repo_path: String).returns(T::Array[Core::WorktreeEntry]) }
+      def entries(repo_path = Nightshift.repo_path)
+        out, _, status = Open3.capture3('git', '-C', repo_path, 'worktree', 'list', '--porcelain')
+        return [] unless status.success?
+
+        Core::WorktreeEntry.parse(out)
+      end
+
+      # Directories that look like a worktree git no longer knows about.
+      #
+      # Two shapes, and they are not equally safe to touch:
+      #   - a `.git` FILE pointing into <repo>/.git/worktrees/<name>. If that
+      #     admin directory is gone, git cannot be questioned there at all —
+      #     the content is a full checkout whose state nobody can vouch for.
+      #   - no `.git` at all and an `auto-` prefix: a husk nightshift left
+      #     behind after removing its own worktree. Safe.
+      sig { params(repo_path: String, roots: T.nilable(T::Array[String])).returns(T::Array[T::Hash[Symbol, T.untyped]]) }
+      def ghost_dirs(repo_path = Nightshift.repo_path, roots: nil)
+        known = entries(repo_path).map { |e| File.expand_path(e.path) }.to_set
+        admin_root = File.join(repo_path, '.git', 'worktrees')
+        search = roots || [File.dirname(repo_path), File.join(repo_path, '.claude', 'worktrees')]
+
+        search.select { |root| Dir.exist?(root) }.flat_map do |root|
+          Dir.children(root).filter_map do |name|
+            path = File.join(root, name)
+            next unless File.directory?(path)
+            next if known.include?(File.expand_path(path))
+
+            git_path = File.join(path, '.git')
+            if File.file?(git_path)
+              target = File.read(git_path).to_s.sub(/\Agitdir:\s*/, '').strip
+              next unless target.start_with?(admin_root)
+
+              { path: path, kind: :dangling_git, admin: target, verifiable: Dir.exist?(target) }
+            elsif !File.exist?(git_path) && name.start_with?('auto-')
+              { path: path, kind: :auto_husk, admin: nil, verifiable: false }
+            end
+          end
+        end
+      end
+
+      sig { params(names: T::Array[String]).returns(T::Hash[String, Integer]) }
+      def database_sizes(names)
+        return {} if names.empty?
+
+        list = names.map { |n| "'#{n.gsub("'", "''")}'" }.join(',')
+        out, status = Open3.capture2(
+          'psql', '-U', DB_USER, '-h', DB_HOST, '-d', 'postgres', '-tAF', '|', '-c',
+          "SELECT datname, pg_database_size(datname) FROM pg_database WHERE datname IN (#{list})"
+        )
+        return {} unless status.success?
+
+        out.lines.each_with_object({}) do |line, h|
+          name, size = line.strip.split('|')
+          h[name] = size.to_i if name && size
         end
       end
 
