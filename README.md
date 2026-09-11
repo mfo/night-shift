@@ -78,6 +78,11 @@ nightshift pr brief            # Morning brief : actions requises, changements, 
 nightshift pr diagnose <pr>    # Diagnostic CI : catégorise les échecs (linter/unit/system/codeql)
 nightshift pr autofix <pr>     # Débloquer la CI : fix linters, fix specs (claude -p), retry system tests
 
+# Encours & hygiène
+nightshift status              # Vue globale : toutes les PRs ouvertes, tous les worktrees
+nightshift doctor              # Dette de nettoyage, chiffrée (dry-run)
+nightshift doctor --fix        # Nettoie, avec confirmation par catégorie
+
 # Worktrees
 nightshift worktree open <branch>   # Crée un worktree + fenêtre tmux
 nightshift worktree close <branch>  # Supprime worktree, branche, DB test (+ sœurs parallèles), puis fenêtre tmux
@@ -108,6 +113,63 @@ Quand une PR est rouge, `autofix` prépare le déblocage **dans le worktree de l
 5. **Résumé** — diff coloré des fichiers modifiés
 
 Le commit et le push restent manuels. Se lance automatiquement dans le pane tmux quand une PR passe au rouge.
+
+### status & doctor — Voir tout l'encours, mesurer la dette
+
+Le reconciler ne suit que les PRs ayant un worktree local, et la session tmux se
+construit worktree par worktree. Tout le reste — une PR ouverte à la main sans
+worktree, un worktree dont la PR est mergée depuis trois semaines, un dossier
+que git ne connaît plus, une base de test que personne ne réclame — était
+invisible.
+
+`nightshift status` croise quatre sources : les worktrees git (porcelain, y
+compris détachés, verrouillés et disparus), **toutes** les PRs de l'utilisateur,
+les bases postgres, et le backlog.
+
+```
+── encours ───────────────────────────── demarches-simplifiees.fr
+
+  PRs OUVERTES (9)
+
+    🟢  #13896  auto/i18n-hardcoded/batch-d4130a87    🤖 auto-i18n-hardcoded-batch-d4130a87
+    💬  #13831  dsfr-1.15.2                              dsfr-1.15.2
+    ✅  #13820  session-registry-for-users               —
+         ↳ pas de worktree → nightshift worktree open session-registry-for-users
+
+  83 worktrees · 9 PRs ouvertes
+  3 PR(s) sans worktree · 48 worktree(s) à fermer
+  🧹 1035 élément(s) à nettoyer → nightshift doctor
+```
+
+`nightshift doctor` chiffre la dette et, avec `--fix`, la récupère. Cinq
+catégories, sélectionnables avec `--only` :
+
+| Catégorie | Action | Garde-fou |
+|---|---|---|
+| `worktrees` | PR mergée/fermée → `worktree close` | refus si modifs non commitées ou commits non poussés |
+| `admin` | entrée `.git/worktrees` sans dossier → `git worktree prune` | git s'en charge |
+| `ghosts` | dossier qu'aucun worktree ne revendique → `rm -rf` | refus si l'état git n'est pas vérifiable |
+| `dbs` | base `tps_test_*` orpheline → `dropdb` | famille de bases calculée par worktree |
+| `branches` | branche mergée sans worktree → `git branch -d` | `-d`, jamais `-D` : git refuse tout ce qui n'est pas mergé |
+
+Rien n'est supprimé sans `--fix`, et `--fix` ne touche jamais un élément que le
+doctor n'a pas pu vérifier. Ce qu'il refuse est listé explicitement :
+
+```
+  ⛔ NON TOUCHÉS (15)   15 Go
+
+    dossier_updated_since_with_label      modifs non commitées
+    cleanup-i18n-t-html-safe              commits non poussés
+    degraded-mode-for-429                 état git non vérifiable
+```
+
+Ces modifications n'existent comme objet git nulle part : elles ne sont pas
+récupérables une fois le worktree supprimé. C'est la règle « jamais de checkout
+destructif » appliquée au nettoyage.
+
+**Plusieurs repos** — `repos:` dans `.nightshift.yml` ajoute des repos
+secondaires à `status`. Ils sont en lecture seule : les skills, le backlog et le
+doctor restent sur le repo principal.
 
 ### autolearn — Boucle auto-améliorante
 
@@ -184,6 +246,10 @@ skills:
   test-optimization: {}
   i18n-hardcoded:
     batch_size: 5          # traite N items par worktree
+
+# Repos secondaires, affichés par `nightshift status` uniquement.
+repos:
+  - ~/dev/night-shift
 ```
 
 **Backends & concurrence :** chaque backend définit un binaire (`harness`) et un plafond de concurrence. Le reconciler compte les items `running` par harness et ne lance de nouveaux items que si `active < concurrency`. Ceci permet de faire cohabiter un modèle local (concurrency: 1) et une API frontier (concurrency: 4). Par défaut, 1 seul item actif par skill (`active_for_skill?`), plus le plafond backend.
@@ -232,6 +298,9 @@ night-shift/
 │   ├── core/                          # Données et persistance
 │   │   ├── store.rb                   # SQLite (backlog, PRs, autolearn_cycles)
 │   │   ├── pr.rb                      # PR state machine (STATES, EMOJI, state derivation)
+│   │   ├── inventory.rb               # Scan croisé worktrees × PRs × bases × backlog
+│   │   ├── work_item.rb               # T::Struct — une ligne d'inventaire (typé)
+│   │   ├── worktree_entry.rb          # T::Struct — une ligne de worktree list --porcelain
 │   │   ├── backlog_item.rb            # T::Struct — item du backlog (typé)
 │   │   └── autolearn_cycle.rb         # T::Struct — cycle autolearn (typé)
 │   ├── ci/                            # Intelligence post-CI
@@ -253,11 +322,14 @@ night-shift/
 │   │   ├── n1_query_fix.rb            # Prosopite logs + Skylight (waste_ms)
 │   │   └── flaky_test_fix.rb          # GitHub Actions API (merge queue + retry)
 │   ├── integrations/                  # Monde extérieur
-│   │   ├── github.rb                  # API gh (fetch PRs, comments)
-│   │   └── worktree.rb                # Gestion git worktrees (create, cleanup)
+│   │   ├── github.rb                  # API gh (fetch PRs, comments, historique)
+│   │   ├── git.rb                     # Prédicats d'hygiène (dirty?, unpushed?, prune)
+│   │   └── worktree.rb                # Gestion git worktrees (create, cleanup, ghosts)
 │   ├── monitoring/                    # Observabilité
 │   │   ├── autolearn_monitor.rb       # Dashboard et rapport autolearn
 │   │   ├── brief.rb                   # Morning brief (PRs ouvertes)
+│   │   ├── status.rb                  # Vue globale de l'encours
+│   │   ├── doctor.rb                  # Dette de nettoyage + récupération
 │   │   └── diagnose.rb                # Diagnostic CI
 │   └── ui/                            # Affichage tmux
 │       ├── tmux_renderer.rb           # Rendu fenêtres tmux (rename, menus, panes)
