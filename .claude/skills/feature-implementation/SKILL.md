@@ -15,6 +15,9 @@ allowed-tools:
   - Bash(git log:*)
   - Bash(git status)
   - Bash(git push:*)
+  - Bash(git checkout:*)
+  - Bash(git worktree:*)
+  - Bash(nightshift worktree:*)
   - Bash(bin/rails runner:*)
   - Bash(bundle exec rails runner:*)
   - Bash(.claude/skills/feature-spec/find-procedure.sh:*)
@@ -45,6 +48,34 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 
 **Auto-découverte :** chercher le plan via `Glob("specs/*-implementation-plan.md")` — prendre le plus récent.
 **Demande au user :** confirmer le plan trouvé, branche git, contraintes spécifiques.
+
+---
+
+## Étape 0-bis : Worktree (OBLIGATOIRE)
+
+**L'implémentation ne se fait jamais dans le répertoire de travail principal.** Un worktree isole la
+branche, sa base de données de test et son serveur dev — c'est ce qui permet de laisser une feature
+en plan sans bloquer le reste.
+
+```bash
+nightshift worktree open feat/<slug>      # worktree + fenêtre tmux + DB de test
+# fallback si nightshift n'est pas disponible :
+git worktree add ../<repo>-<slug> -b feat/<slug>
+```
+
+Puis **travailler dans ce répertoire** pour tout le reste du skill.
+
+**À la fermeture — dans cet ordre :**
+
+```bash
+gh stack trunk          # UNIQUEMENT si une pile est en cours, voir Étape 0-ter
+nightshift worktree close feat/<slug>
+```
+
+⚠️ `worktree close` résout le worktree en cherchant `[branche]` dans `git worktree list`, qui n'affiche
+que la branche **courante**. Fermer alors qu'une autre couche de la pile est checkée out ne trouve rien :
+ni suppression du worktree, ni `drop_databases` — le répertoire et ses bases `tps_test_<slug>1..8` fuient.
+Revenir au trunk d'abord. En cas d'oubli : `nightshift worktree reap` récupère les bases, pas le worktree.
 
 ---
 
