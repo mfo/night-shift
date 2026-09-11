@@ -104,6 +104,18 @@ module Nightshift
           puts "    #{name}"
         end
 
+        # The session is built from worktrees, so an open PR with nothing
+        # checked out locally gets no window at all. Naming them here is the
+        # difference between "I have 6 PRs" and the 9 actually open.
+        detached = prs.select { |pr| pr.github_state == 'OPEN' && !pr_by_branch_covered?(worktrees, pr) }
+        if detached.any?
+          puts ''
+          puts "  ◎ #{detached.size} PR(s) ouverte(s) sans worktree"
+          detached.sort_by { |pr| -pr.number.to_i }.each do |pr|
+            puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
+          end
+        end
+
         status_parts = ''
         status_parts += " #{n_approved}✅" if n_approved.positive?
         status_parts += " #{n_green}🟢" if n_green.positive?
@@ -127,6 +139,11 @@ module Nightshift
         end
 
         renderer.attach_or_switch
+      end
+
+      sig { params(worktrees: T::Array[[String, String]], pr: Core::PR).returns(T::Boolean) }
+      def pr_by_branch_covered?(worktrees, pr)
+        worktrees.any? { |_path, branch| branch == pr.branch }
       end
 
       def reattach(renderer, _session)

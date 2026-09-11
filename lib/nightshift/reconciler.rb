@@ -26,9 +26,9 @@ module Nightshift
     sig { params(prs: T::Array[Core::PR]).void }
     def reconcile(prs)
       branches = @worktree_branches || list_worktree_branches
-      active_prs = prs.select { |pr| branches.include?(pr.branch) }
+      anchored, detached = prs.partition { |pr| branches.include?(pr.branch) }
 
-      active_prs.each do |pr|
+      anchored.each do |pr|
         result = @store.reconcile_pr(pr)
 
         @renderer.show_comments(pr) if result[:comment_delta].positive?
@@ -39,6 +39,14 @@ module Nightshift
 
         @renderer.update_window(pr)
       end
+
+      # PRs with no local worktree used to be dropped here, which is why most of
+      # the encours was invisible: no state, no transition, nothing in the
+      # brief. They get the full state machine now. What they do not get is a
+      # renderer action — there is no tmux window to act on, and inventing one
+      # would open a worktree nobody asked for.
+      detached.each { |pr| @store.reconcile_pr(pr) }
+
       reconcile_skills(prs)
     end
 
@@ -46,7 +54,7 @@ module Nightshift
     def reconcile_skills(prs)
       active_branches = @worktree_branches || list_worktree_branches
       health_check(prs, active_branches)
-      cleanup_orphan_worktrees(active_branches)
+      cleanup_orphan_worktrees
       pick_next_items
     end
 
@@ -80,34 +88,38 @@ module Nightshift
 
     private
 
-    def cleanup_orphan_worktrees(active_branches)
-      running_branches = Set.new(
+    def cleanup_orphan_worktrees
+      busy_branches = Set.new(
         @store.all_backlog
-              .select { |bi| bi.status == BacklogStatus::Running && bi.branch }
-              .map(&:branch)
-      )
-      pr_open_branches = Set.new(
-        @store.all_backlog
-              .select { |bi| bi.status == BacklogStatus::PrOpen && bi.branch }
+              .select { |bi| [BacklogStatus::Running, BacklogStatus::PrOpen].include?(bi.status) && bi.branch }
               .map(&:branch)
       )
       open_pr_branches = Set.new(
         @store.all_prs(github_state: 'OPEN').map { |pr| pr[:branch] }.compact
       )
 
-      active_branches.each do |branch|
-        next unless branch.start_with?('auto/')
-        next if running_branches.include?(branch)
-        next if pr_open_branches.include?(branch)
+      Integrations::Worktree.list.each do |wt_path, branch|
+        next unless nightshift_owned?(wt_path, branch, busy_branches)
+        next if busy_branches.include?(branch)
         next if open_pr_branches.include?(branch)
-
-        wt_path = Integrations::Worktree.path_for_branch(branch)
-        next if wt_path && !zombie_process?(wt_path)
+        next unless zombie_process?(wt_path)
 
         Log.info "orphan worktree detected: #{branch} — cleaning up"
         Integrations::Worktree.cleanup(branch)
         @renderer.close_worktree(branch)
       end
+    end
+
+    # Worktrees nightshift created. The directory name is the stable identity:
+    # a skill can rename its branch mid-run — auto/test-optimization/batch-86a146d5
+    # became perf/expert-spec in auto-test-optimization-batch-623d3f73 — and an
+    # `auto/` branch-prefix filter then loses track of the worktree forever.
+    sig { params(wt_path: String, branch: T.nilable(String), busy_branches: T::Set[String]).returns(T::Boolean) }
+    def nightshift_owned?(wt_path, branch, busy_branches)
+      return true if File.basename(wt_path).start_with?('auto-')
+      return true if branch.to_s.start_with?('auto/')
+
+      busy_branches.include?(branch)
     end
 
     sig { params(backlog_item: Core::BacklogItem).void }

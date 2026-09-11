@@ -35,6 +35,21 @@ module Nightshift
 
         # Categorize PRs
         open_prs = prs.select { |pr| pr.github_state == 'OPEN' }
+        worktree_branches = Integrations::Worktree.branches
+
+        # PRs the reconciler cannot act on: nothing checked out locally, so no
+        # tmux window, no autofix, no menu. They only need a worktree to rejoin
+        # the normal flow.
+        detached = open_prs.reject { |pr| worktree_branches.include?(pr.branch) }
+        if detached.any?
+          puts '  PRs SANS WORKTREE'
+          puts ''
+          detached.sort_by { |pr| -pr.number.to_i }.each do |pr|
+            puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
+            puts "       → nightshift worktree open #{pr.branch}"
+          end
+          puts ''
+        end
 
         # Actions requises
         actionable = open_prs.select { |pr| [PRState::CiRed, PRState::ChangesRequested, PRState::Approved, PRState::HasComments].include?(pr.state) }
@@ -64,7 +79,6 @@ module Nightshift
         end
 
         # Worktrees to cleanup — only show merged/deployed PRs that still have a worktree
-        worktree_branches = Integrations::Worktree.branches
         cleanup_prs = prs.select do |pr|
           [PRState::Deployed, PRState::Merged].include?(pr.state) && worktree_branches.include?(pr.branch)
         end
@@ -112,8 +126,10 @@ module Nightshift
         parts << "#{counts[PRState::HasComments]}💬" if counts[PRState::HasComments]
         parts << "#{counts[PRState::CiRunning]}⏳" if counts[PRState::CiRunning]
         parts << "#{cleanup_prs.size}🧹" if cleanup_prs.any?
+        parts << "#{detached.size}🔌" if detached.any?
 
         puts "  #{open_prs.size} PRs ouvertes  #{parts.join(' ')}"
+        debt_line(store)
 
         # Backlog progress per skill
         items = store.all_backlog
@@ -154,6 +170,20 @@ module Nightshift
 
         # Update timestamp
         store.set_setting('last_brief', Time.now.to_i.to_s)
+      end
+
+      # One line of cleanup debt, cheap enough for the morning brief: no `du`,
+      # no per-worktree git call. The doctor does the expensive part.
+      sig { params(store: Core::Store).void }
+      def debt_line(store)
+        report = Core::Inventory.scan(store: store, deep: false)
+        count = report.cleanables.size
+        return if count.zero?
+
+        puts ''
+        puts "  🧹 #{count} élément(s) à nettoyer → nightshift doctor"
+      rescue StandardError => e
+        Log.debug "brief: inventory unavailable (#{e.message})"
       end
 
       def fetch_review_comments(pr_number)
