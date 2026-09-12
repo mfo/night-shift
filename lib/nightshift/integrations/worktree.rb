@@ -66,34 +66,65 @@ module Nightshift
         path&.sub(/^~/, Dir.home) || repo_path
       end
 
-      sig { params(wt_path: String, repo_path: String).void }
-      def setup(wt_path, repo_path = Nightshift.repo_path)
-        # Lefthook config (not committed, must be copied)
-        %w[lefthook.yml].each do |f|
-          src = File.join(repo_path, f)
-          FileUtils.cp(src, wt_path) if File.exist?(src)
-        end
-        lefthook_dir = File.join(repo_path, '.lefthook')
-        if Dir.exist?(lefthook_dir)
-          FileUtils.cp_r(lefthook_dir, File.join(wt_path, '.lefthook'))
+      # Provisionne le `.claude/` d'un worktree frais : skills et agents, rien
+      # d'autre.
+      #
+      # Le hook `post-checkout` faisait ce travail *et* celui d'installer
+      # l'environnement du repo (bases de test, bundle, bun, lefthook). Les
+      # deux mecanismes se recouvraient sur `.claude/`, avec des contrats
+      # differents — le hook ne copie que si le repertoire est absent et saute
+      # `settings.json`, cette fonction copiait tout inconditionnellement. Le
+      # hook s'executant pendant `git worktree add`, donc avant, rendre cette
+      # fonction vivante aurait ecrase les permissions a chaque worktree.
+      #
+      # Le partage se fait desormais par nature : ici le provisioning Claude,
+      # pour tous les repos ; au hook l'environnement, propre a chacun.
+      sig { params(wt_path: String, repo: T.nilable(Core::Repo)).void }
+      def setup(wt_path, repo = nil)
+        source = File.join(File.expand_path('../../..', __dir__), '.claude')
+        return unless Dir.exist?(source)
+
+        target = File.join(wt_path, '.claude')
+        FileUtils.mkdir_p(target)
+
+        copy_claude_entry(source, target, 'skills', repo&.worktree_skills)
+        copy_claude_entry(source, target, 'agents', repo&.worktree_agents)
+
+        # Versionne dans les repos cibles : l'ecraser supprimerait leurs regles
+        # de permissions. Les reglages partages passent par settings.local.json.
+        Dir.children(source).each do |name|
+          next if %w[skills agents settings.json].include?(name)
+
+          FileUtils.cp_r(File.join(source, name), File.join(target, name))
         end
 
-        # .claude/ from night-shift (skills, settings — sans agents)
-        nightshift_dir = File.expand_path('../../..', __dir__)
-        nightshift_claude = File.join(nightshift_dir, '.claude')
-        if Dir.exist?(nightshift_claude)
-          claude_target = File.join(wt_path, '.claude')
-          FileUtils.mkdir_p(claude_target)
-          Dir.children(nightshift_claude).each do |name|
-            next if name == 'agents'
-            FileUtils.cp_r(File.join(nightshift_claude, name), File.join(claude_target, name))
+        Log.info "worktree claude: #{File.basename(wt_path)}"
+      end
+
+      # `nil` embarque tout le repertoire ; une liste n'en prend que les
+      # entrees nommees. Une entree demandee mais absente est signalee plutot
+      # que passee sous silence : c'est ainsi qu'un `/skill` finit en *Unknown
+      # command* dans un worktree, apres quoi le run part en no_diff.
+      sig { params(source: String, target: String, kind: String, wanted: T.nilable(T::Array[String])).void }
+      def copy_claude_entry(source, target, kind, wanted)
+        src_dir = File.join(source, kind)
+        return unless Dir.exist?(src_dir)
+
+        if wanted.nil?
+          FileUtils.cp_r(src_dir, File.join(target, kind))
+          return
+        end
+
+        dest_dir = File.join(target, kind)
+        FileUtils.mkdir_p(dest_dir)
+        wanted.each do |name|
+          entry = Dir[File.join(src_dir, name), File.join(src_dir, "#{name}.md")].first
+          if entry.nil?
+            Log.warn "worktree claude: #{kind}/#{name} introuvable dans night-shift"
+            next
           end
+          FileUtils.cp_r(entry, dest_dir)
         end
-
-        # Install lefthook in worktree
-        system('lefthook', 'install', chdir: wt_path, out: File::NULL, err: File::NULL)
-
-        Log.info "worktree setup: #{File.basename(wt_path)}"
       end
 
       # Test databases are named tps_test_<worktree suffix> (post-checkout), and
