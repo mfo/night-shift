@@ -34,12 +34,15 @@ module Nightshift
           skipped = counts[BacklogStatus::Skipped] || 0
           pending = counts[BacklogStatus::Pending] || 0
           running = counts[BacklogStatus::Running] || 0
+          noop = counts[BacklogStatus::NoOp] || 0
 
           cycles = @store.recent_cycles(items.map(&:id), limit: 5)
 
           puts ''
           puts "  #{sk} (#{total} items)"
-          puts "  ✅ #{done}  🔄 #{running}  ⬜ #{pending}  ❌ #{failed}  ⏭ #{skipped}"
+          # Sans le compteur noop, la somme affichee ne vaut plus `total` et
+          # l'ecart n'est signale nulle part.
+          puts "  ✅ #{done}  ➖ #{noop}  🔄 #{running}  ⬜ #{pending}  ❌ #{failed}  ⏭ #{skipped}"
 
           if cycles.any?
             puts ''
@@ -47,7 +50,11 @@ module Nightshift
             cycles.each do |c|
               t = Time.at(c[:created_at]).strftime('%H:%M')
               puts "    #{t} attempt=#{c[:attempt]} verdict=#{c[:verdict]} outcome=#{c[:outcome] || '-'}"
-              puts "         cause: #{c[:root_cause]}" if c[:root_cause]
+              # Vue de synthese : une ligne par cycle. La justification d'un
+              # no-op etant multi-ligne, on n'en prend que la ligne de resume
+              # que son contrat impose en tete — sinon `autolearn status`
+              # deverserait cinq documents markdown par skill.
+              puts "         cause: #{c[:root_cause].lines.first.chomp}" if c[:root_cause]
             end
           end
 

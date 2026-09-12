@@ -139,40 +139,11 @@ else
   }
 fi
 
-# Copier .claude/ depuis night-shift (source de vérité pour skills, settings)
-# Exclure agents/ — nightshift gère l'orchestration, pas les agents Claude
-nightshift_claude="${NIGHTSHIFT_DIR:-$HOME/dev/night-shift}/.claude"
-claude_target="$worktree_path/.claude"
-
-if [ -d "$nightshift_claude" ] && [ ! -d "$claude_target" ]; then
-  mkdir -p "$claude_target"
-  for item in "$nightshift_claude"/*; do
-    name=$(basename "$item")
-    # agents/ : nightshift gère l'orchestration, pas les agents Claude du projet
-    [ "$name" = "agents" ] && continue
-    # settings.json : versionné dans les projets cibles (demarches l'exclut
-    # explicitement de son .gitignore). L'écraser supprimerait leurs règles
-    # permissions. Les réglages partagés passent par settings.local.json.
-    [ "$name" = "settings.json" ] && continue
-    cp -r "$item" "$claude_target/"
-  done
-  echo "==> .claude/ copié depuis night-shift (skills, settings — sans agents)"
-elif [ -d "$claude_target" ]; then
-  echo "==> .claude/ déjà présent"
-else
-  echo "⚠️  night-shift/.claude/ non trouvé ($nightshift_claude)"
-fi
-
-# Installer lefthook dans le worktree (lefthook.yml est déjà dans l'arbre git)
-if command -v lefthook &>/dev/null; then
-  cd "$worktree_path"
-  lefthook install 2>/dev/null && echo "==> lefthook installé dans le worktree"
-else
-  echo "⚠️  lefthook non trouvé (brew install lefthook)"
-fi
-
-# Installation des dépendances
-cd "$worktree_path"
+# .claude/ n'est plus copie ici : `Integrations::Worktree.setup` s'en charge,
+# pilote par `repos.<nom>.worktree.claude` dans .nightshift.yml. Les deux
+# mecanismes se recouvraient avec des contrats differents, et le hook
+# s'executant pendant `git worktree add` gagnait toujours. Le partage se fait
+# desormais par nature : Ruby provisionne Claude, ce hook l'environnement.
 
 echo "==> Installation des gems Ruby (bundle install)"
 bundle install --quiet || {

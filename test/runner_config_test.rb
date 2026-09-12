@@ -100,6 +100,101 @@ class RunnerConfigTest < Minitest::Test
     skip 'preconditions not met in test environment'
   end
 
+  # --- Section repos: ---
+
+  # Un `.nightshift.yml` ecrit avant cette section doit continuer de marcher :
+  # sans repli, `content_paths` serait vide et *tous* les diffs des cinq skills
+  # existants seraient classes no_diff.
+  def test_config_without_repos_section_falls_back_to_host_repo
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, '.nightshift.yml'), "skills:\n  haml-migration:\n    batch_size: 5\n")
+      config = Nightshift::Config.allocate
+      config.send(:initialize, repo_path: dir)
+
+      app = config.repos.fetch('app')
+      assert_equal dir, app.path
+      assert_equal Nightshift::Config::DEFAULT_CONTENT_ALLOW, app.content_allow
+      assert_equal dir, config.repo_path_for('haml-migration')
+    end
+  end
+
+  def test_config_parses_repos_and_resolves_skill_repo
+    Dir.mktmpdir do |dir|
+      doc = File.join(dir, 'doc')
+      Dir.mkdir(doc)
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        repos:
+          app:
+            path: .
+            content_paths:
+              allow: [app, lib]
+          doc:
+            path: doc
+            slug: org/doc
+            main_branch: trunk
+            content_paths:
+              deny: [".gitbook"]
+            worktree:
+              claude:
+                skills: all
+                agents: [doc-pr-analyzer]
+        skills:
+          doc-release-sync:
+            repo: doc
+      YAML
+
+      config = Nightshift::Config.allocate
+      config.send(:initialize, repo_path: dir)
+
+      assert_equal doc, config.repo_path_for('doc-release-sync')
+      assert_equal dir, config.repo_path_for('haml-migration'), 'defaut = repo hote'
+
+      repo = config.repo_for('doc-release-sync')
+      assert_equal 'trunk', repo.main_branch
+      assert_equal 'org/doc', repo.slug
+      assert_nil repo.worktree_skills, '`all` doit valoir « tout embarquer »'
+      assert_equal ['doc-pr-analyzer'], repo.worktree_agents
+      assert repo.content?('api-graphql/README.md')
+      refute repo.content?('.gitbook/assets/x.png')
+    end
+  end
+
+  # Un skill qui vise un repo inexistant commiterait dans le repo hote : on
+  # echoue au demarrage plutot qu'a 3h du matin dans un worktree.
+  def test_config_aborts_on_unknown_skill_repo
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        repos:
+          app:
+            path: .
+            content_paths:
+              allow: [lib]
+        skills:
+          doc-release-sync:
+            repo: dco
+      YAML
+
+      config = Nightshift::Config.allocate
+      err = assert_raises(SystemExit) { config.send(:initialize, repo_path: dir) }
+      refute_predicate err.status, :zero?
+    end
+  end
+
+  def test_config_aborts_when_content_paths_is_empty
+    Dir.mktmpdir do |dir|
+      File.write(File.join(dir, '.nightshift.yml'), <<~YAML)
+        repos:
+          app:
+            path: .
+            content_paths:
+              allow: []
+      YAML
+
+      config = Nightshift::Config.allocate
+      assert_raises(SystemExit) { config.send(:initialize, repo_path: dir) }
+    end
+  end
+
   private
 
   def build_config(backends:, default_backend:, skills:)

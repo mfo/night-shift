@@ -176,8 +176,14 @@ module Nightshift
 
         remove_pr_description(worktree_path)
 
-        diff_files, = Open3.capture2('git', 'diff', '--name-only', 'main..HEAD', chdir: worktree_path)
-        real_changes = diff_files.lines.any? { |f| f.strip.match?(%r{^(app|spec|config|lib)/}) }
+        # `content_paths` vient du repo, pas d'une regex cablee : ce qui compte
+        # comme changement reel differe d'un depot a l'autre. Le repo
+        # applicatif veut ignorer un README modifie seul ; un repo de
+        # documentation, dont c'est justement la matiere, ne le peut pas.
+        repo = Nightshift.repo_for(skill)
+        diff_files, = Open3.capture2('git', 'diff', '--name-only', "#{repo.main_branch}..HEAD",
+                                     chdir: worktree_path)
+        real_changes = diff_files.lines.any? { |f| repo.content?(f.strip) }
         unless real_changes
           Log.warn "no real code changes in #{branch} (only pr-description.md / chore commits) — treating as no_diff"
           no_diff_result = RunnerResult.new(

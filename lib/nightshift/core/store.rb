@@ -225,10 +225,11 @@ module Nightshift
         params(
           skill: String,
           current_items: T::Array[T::Hash[Symbol, T.untyped]],
-          dry_run: T::Boolean
+          dry_run: T::Boolean,
+          prune: T::Boolean
         ).returns(T::Hash[Symbol, T.untyped])
       end
-      def reconcile_backlog(skill, current_items, dry_run: false)
+      def reconcile_backlog(skill, current_items, dry_run: false, prune: true)
         current_by_item = current_items.each_with_object({}) { |ci, h| h[ci[:item]] = ci }
         changes = []
 
@@ -252,7 +253,12 @@ module Nightshift
           end
         end
 
-        db[:backlog_items].where(skill: skill, status: PENDING_S).each do |row|
+        # Le pruning suppose que `current_items` est la verite complete du moment :
+        # ce qui n'y est plus a ete resolu en amont. Vrai d'un glob, faux d'un
+        # flux append-only dont on ne lit qu'une fenetre — d'ou `prune: false`
+        # pour les sources qui repondent `prunable? == false`.
+        pruneable_rows = prune ? db[:backlog_items].where(skill: skill, status: PENDING_S) : []
+        pruneable_rows.each do |row|
           next if current_by_item.key?(row[:item])
 
           changes << { action: :prune, item: row[:item], priority: row[:priority] }
