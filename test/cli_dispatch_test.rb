@@ -84,6 +84,22 @@ class CLIDispatchTest < Minitest::Test
     assert_includes output, '2 items'
   end
 
+  # `backlog list` itere un `status_order` fixe : un statut absent de ce tableau
+  # n'est jamais liste, alors que le pied de page le compte. Le symptome serait
+  # « 1 items: 1 noop » sans aucune ligne — un bug muet, pas une erreur.
+  def test_backlog_list_lists_noop_items_not_just_counts_them
+    @store.add_backlog('doc-release-sync', '2026-09-08-01')
+    bi = @store.claim_next('doc-release-sync')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::NoOp)
+
+    output = with_cli_store do
+      capture_io { Nightshift::CLI.start(%w[backlog list]) }.first
+    end
+
+    assert_includes output, '2026-09-08-01', 'l item NoOp doit apparaitre comme ligne'
+    assert_includes output, 'noop'
+  end
+
   def test_backlog_list_filters_by_skill
     @store.add_backlog('haml-migration', 'a.haml')
     @store.add_backlog('test-optimization', 'b_spec.rb')

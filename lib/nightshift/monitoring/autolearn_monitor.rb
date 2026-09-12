@@ -34,12 +34,15 @@ module Nightshift
           skipped = counts[BacklogStatus::Skipped] || 0
           pending = counts[BacklogStatus::Pending] || 0
           running = counts[BacklogStatus::Running] || 0
+          noop = counts[BacklogStatus::NoOp] || 0
 
           cycles = @store.recent_cycles(items.map(&:id), limit: 5)
 
           puts ''
           puts "  #{sk} (#{total} items)"
-          puts "  ✅ #{done}  🔄 #{running}  ⬜ #{pending}  ❌ #{failed}  ⏭ #{skipped}"
+          # Sans le compteur noop, la somme affichee ne vaut plus `total` et
+          # l'ecart n'est signale nulle part.
+          puts "  ✅ #{done}  ➖ #{noop}  🔄 #{running}  ⬜ #{pending}  ❌ #{failed}  ⏭ #{skipped}"
 
           if cycles.any?
             puts ''

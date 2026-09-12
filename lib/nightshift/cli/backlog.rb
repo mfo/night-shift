@@ -66,14 +66,19 @@ module Nightshift
 
         icons = { BacklogStatus::Pending => '⬜', BacklogStatus::Running => '🔄',
                   BacklogStatus::PrOpen => '🔵', BacklogStatus::Done => '✅',
-                  BacklogStatus::Failed => '❌', BacklogStatus::Skipped => '⏭' }
+                  BacklogStatus::Failed => '❌', BacklogStatus::Skipped => '⏭',
+                  BacklogStatus::NoOp => '➖' }
 
         prio_labels = { 5 => 'highest', 4 => 'high', 3 => 'medium', 2 => 'low', 1 => 'lowest', 0 => 'later' }
 
         say ''
         by_status = backlog_items.group_by(&:status)
+        # La boucle d'affichage itere cet ordre, pas les statuts presents : un
+        # statut absent d'ici n'est jamais liste, alors que le pied de page le
+        # compte. On verrait « 18 items: 18 noop » et aucune ligne.
         status_order = [BacklogStatus::Running, BacklogStatus::PrOpen, BacklogStatus::Pending,
-                        BacklogStatus::Failed, BacklogStatus::Done, BacklogStatus::Skipped]
+                        BacklogStatus::Failed, BacklogStatus::Done, BacklogStatus::NoOp,
+                        BacklogStatus::Skipped]
 
         status_order.each do |status|
           group = by_status[status]
