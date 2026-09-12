@@ -18,9 +18,12 @@ module Nightshift
 
     DEFAULT_BACKEND = Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 1).freeze
 
-    attr_reader :repo_path, :skills, :backends
+    attr_reader :repo_path, :skills, :backends, :repos
 
     REQUIRED_BINARIES = %w[gh].freeze
+
+    # Ce que `real_changes` filtrait en dur avant que le repo soit une entite.
+    DEFAULT_CONTENT_ALLOW = %w[app spec config lib].freeze
 
     sig { params(repo_path: String).void }
     def initialize(repo_path:)
@@ -32,7 +35,18 @@ module Nightshift
       @backends = parse_backends(raw[:backends] || {})
       @default_backend_name = (raw[:default_backend] || @backends.keys.first)&.to_s
       @skills = parse_skills(raw[:skills] || {})
+      @repos = parse_repos(raw[:repos])
+      validate_repos!
     end
+
+    # Le repo sur lequel un skill travaille. Defaut `app`, soit le repo hote.
+    sig { params(skill_name: String).returns(Core::Repo) }
+    def repo_for(skill_name)
+      @repos.fetch(@skills.dig(skill_name, :repo)&.to_s || 'app')
+    end
+
+    sig { params(skill_name: String).returns(String) }
+    def repo_path_for(skill_name) = repo_for(skill_name).path
 
     sig { returns(T::Array[String]) }
     def skill_names = (BacklogSources::REGISTRY.keys + @skills.keys).uniq
@@ -50,6 +64,75 @@ module Nightshift
     def runner = default_backend.harness
 
     private
+
+    # Sans section `repos:`, on reconstruit le comportement d'avant : un seul
+    # repo, celui passe a `--repo`, avec l'allowlist qui etait cablee dans
+    # `real_changes`. Un `.nightshift.yml` existant continue donc de marcher —
+    # sans ce repli, `content_paths` serait vide et *tous* les diffs des cinq
+    # skills existants seraient classes `no_diff`.
+    def parse_repos(raw)
+      return { 'app' => default_app_repo } if raw.nil? || raw.empty?
+
+      raw.transform_keys(&:to_s).each_with_object({}) do |(name, cfg), h|
+        cfg = (cfg || {}).transform_keys(&:to_sym)
+        content = (cfg[:content_paths] || {}).transform_keys(&:to_sym)
+        worktree = (cfg[:worktree] || {}).transform_keys(&:to_sym)
+        claude = (worktree[:claude] || {}).transform_keys(&:to_sym)
+
+        h[name] = Core::Repo.new(
+          name: name,
+          path: File.expand_path(cfg[:path]&.to_s || @repo_path, @repo_path),
+          slug: cfg[:slug]&.to_s,
+          main_branch: cfg[:main_branch]&.to_s || 'main',
+          content_allow: string_list(content[:allow]),
+          content_deny: string_list(content[:deny]),
+          worktree_skills: string_list(claude[:skills]),
+          worktree_agents: string_list(claude[:agents])
+        )
+      end
+    end
+
+    def default_app_repo
+      Core::Repo.new(name: 'app', path: @repo_path,
+                     content_allow: DEFAULT_CONTENT_ALLOW.dup)
+    end
+
+    # `skills: all` vaut `nil`, soit « tout embarquer ».
+    def string_list(value)
+      return nil if value.nil? || value.to_s == 'all'
+
+      Array(value).map(&:to_s)
+    end
+
+    # Chaque degradation silencieuse ci-dessous a un cout dispro : un repo mal
+    # nomme fait commiter un skill dans le mauvais depot, un `content_paths`
+    # vide classe tous les diffs en `no_diff`. On echoue au demarrage, avec le
+    # nom du repo fautif, plutot qu'a 3h du matin dans un worktree.
+    def validate_repos!
+      abort 'nightshift: repos: doit declarer un repo `app`' unless @repos.key?('app')
+
+      @repos.each_value do |repo|
+        abort "nightshift: [repo=#{repo.name}] chemin introuvable: #{repo.path}" unless Dir.exist?(repo.path)
+
+        if repo.content_allow && repo.content_deny
+          abort "nightshift: [repo=#{repo.name}] content_paths: allow et deny sont exclusifs"
+        end
+        if repo.content_allow.nil? && repo.content_deny.nil?
+          abort "nightshift: [repo=#{repo.name}] content_paths: declare `allow` ou `deny`"
+        end
+        if (repo.content_allow || repo.content_deny).empty?
+          abort "nightshift: [repo=#{repo.name}] content_paths vide — tous les diffs seraient ignores"
+        end
+      end
+
+      @skills.each do |skill, cfg|
+        name = cfg[:repo]&.to_s
+        next if name.nil? || @repos.key?(name)
+
+        abort "nightshift: skill '#{skill}' vise le repo inconnu '#{name}' " \
+              "(declares: #{@repos.keys.join(', ')})"
+      end
+    end
 
     def default_backend
       @backends[@default_backend_name] || DEFAULT_BACKEND

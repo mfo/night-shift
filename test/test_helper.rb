@@ -24,6 +24,13 @@ Nightshift.config = Nightshift::Config.allocate.tap do |c|
     'n1-query-fix' => {},
     'reprioritize' => { meta: true }
   })
+  # Sans `@repos`, `repo_for` leverait des que le harness l'appellera.
+  c.instance_variable_set(:@repos, {
+    'app' => Nightshift::Core::Repo.new(
+      name: 'app', path: '/tmp/test-repo',
+      content_allow: Nightshift::Config::DEFAULT_CONTENT_ALLOW.dup
+    )
+  })
 end
 
 Nightshift.instance_variable_set(:@db, TEST_DB)
