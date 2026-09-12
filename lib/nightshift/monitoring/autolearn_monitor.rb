@@ -50,7 +50,11 @@ module Nightshift
             cycles.each do |c|
               t = Time.at(c[:created_at]).strftime('%H:%M')
               puts "    #{t} attempt=#{c[:attempt]} verdict=#{c[:verdict]} outcome=#{c[:outcome] || '-'}"
-              puts "         cause: #{c[:root_cause]}" if c[:root_cause]
+              # Vue de synthese : une ligne par cycle. La justification d'un
+              # no-op etant multi-ligne, on n'en prend que la ligne de resume
+              # que son contrat impose en tete — sinon `autolearn status`
+              # deverserait cinq documents markdown par skill.
+              puts "         cause: #{c[:root_cause].lines.first.chomp}" if c[:root_cause]
             end
           end
 
