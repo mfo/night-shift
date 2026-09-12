@@ -39,7 +39,7 @@ module Nightshift
         abort "nightshift: skill '#{skill}' has no backlog source (known: #{BacklogSources::REGISTRY.keys.join(', ')})" unless source
 
         items = source.items
-        plan = store.reconcile_backlog(skill, items, dry_run: true)
+        plan = store.reconcile_backlog(skill, items, dry_run: true, prune: source.prunable?)
         stats = plan[:stats]
 
         if stats[:added].zero? && stats[:updated].zero? && stats[:pruned].zero?
@@ -56,7 +56,7 @@ module Nightshift
           return unless yes?('  Apply? [y/N]')
         end
 
-        store.reconcile_backlog(skill, items)
+        store.reconcile_backlog(skill, items, prune: source.prunable?)
         say_status :apply, "#{skill} backlog reconciled", :green
       end
 

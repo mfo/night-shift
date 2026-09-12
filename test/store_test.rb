@@ -637,6 +637,29 @@ class StoreTest < Minitest::Test
     assert_equal 'resolved_upstream', old[:failure_reason]
   end
 
+  # Une source journal ne peut pas prouver qu'un item absent du scan a ete
+  # resolu : elle ne lit qu'une fenetre du flux. `prune: false` la protege.
+  def test_reconcile_backlog_skips_pruning_when_disabled
+    @store.add_backlog('doc-release-sync', '2026-08-28-01')
+    @store.add_backlog('doc-release-sync', '2026-09-08-01')
+
+    result = @store.reconcile_backlog('doc-release-sync', [
+      { item: '2026-09-08-01', priority: 0 }
+    ], prune: false)
+
+    assert_equal 0, result[:pruned]
+    absent = @db[:backlog_items].where(item: '2026-08-28-01').first
+    assert_equal 'pending', absent[:status],
+                 'un item hors fenetre doit rester pending, pas etre resolu'
+  end
+
+  # Le defaut reste le pruning : les cinq sources derivees ne changent pas.
+  def test_reconcile_backlog_prunes_by_default
+    @store.add_backlog('haml-migration', 'old.haml')
+    result = @store.reconcile_backlog('haml-migration', [])
+    assert_equal 1, result[:pruned]
+  end
+
   def test_reconcile_backlog_never_prunes_running
     @store.add_backlog('haml-migration', 'active.haml')
     bi = @store.claim_next('haml-migration')
