@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require_relative 'test_helper'
+require 'open3'
+require 'minitest/mock'
 
 # `Worktree` defaultait ses neuf methodes sur le repo hote, et quinze appelants
 # les invoquaient sans argument. Une branche vivant ailleurs etait donc
@@ -57,6 +59,23 @@ class RepoResolutionTest < Minitest::Test
 
     assert_equal '/tmp/partiel', partial.repos.fetch('app').path
     assert_equal '/tmp/partiel', partial.repo_path_for('un-skill-inconnu')
+  end
+
+  # `cleanup` et `path_for_branch` resolvent desormais le repo depuis la
+  # branche. C'est ce qui repare `nightshift worktree close` sur une branche
+  # vivant hors du repo hote : avant, il marquait l'item `Failed(ManualClose)`
+  # puis nettoyait le mauvais depot — le worktree et la branche survivaient, et
+  # `worktree reset` bouclait ensuite sur « branche deja existante ».
+  def test_cleanup_targets_the_repo_of_the_branch
+    seen = []
+
+    Open3.stub(:capture2, ->(*args, **_) { seen << args; ['', nil] }) do
+      Nightshift::Integrations::Worktree.cleanup('auto/doc-release-sync/2026-09-08-01')
+    end
+
+    repos_consulted = seen.select { |a| a.include?('-C') }.map { |a| a[a.index('-C') + 1] }
+    assert_includes repos_consulted, '/tmp/doc-repo'
+    refute_includes repos_consulted, '/tmp/host-repo'
   end
 
   private

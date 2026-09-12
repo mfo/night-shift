@@ -196,7 +196,6 @@ module Nightshift
 
     sig { void }
     def pick_next_items
-      repo_path = Nightshift.repo_path
 
       # Count actually-running items per backend (PrOpen doesn't consume compute)
       active_by_backend = Hash.new(0)
@@ -213,6 +212,8 @@ module Nightshift
         backend = Nightshift.backend_for(skill_name)
         next if active_by_backend[backend.harness] >= backend.concurrency
 
+        source = BacklogSources.for(skill_name, Nightshift.repo_path_for(skill_name))
+        repo_path = Nightshift.repo_path_for(skill_name)
         skill_config = Nightshift.skills[skill_name] || {}
         batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
 
@@ -221,6 +222,8 @@ module Nightshift
           next if items.empty?
 
           valid, stale = items.partition do |bi|
+            next true unless source&.file_backed?
+
             system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{bi.item}", err: File::NULL)
           end
           stale.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound) }
@@ -232,7 +235,11 @@ module Nightshift
           backlog_item = @store.claim_next(skill_name)
           next unless backlog_item
 
-          unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
+          # Un item de source journal n'est pas un chemin de fichier : un tag
+          # de release n'est pas un blob, et la garde le classerait
+          # FileNotFound sans qu'il ait tourne.
+          if source&.file_backed? &&
+             !system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
             @store.update_backlog_status(backlog_item, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound)
             next
           end
