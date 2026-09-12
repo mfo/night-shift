@@ -64,7 +64,7 @@ module Nightshift
         end
 
         # Worktrees to cleanup — only show merged/deployed PRs that still have a worktree
-        worktree_branches = Integrations::Worktree.branches
+        worktree_branches = Integrations::Worktree.all_branches
         cleanup_prs = prs.select do |pr|
           [PRState::Deployed, PRState::Merged].include?(pr.state) && worktree_branches.include?(pr.branch)
         end

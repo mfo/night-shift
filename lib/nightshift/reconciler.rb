@@ -323,7 +323,7 @@ module Nightshift
 
     sig { returns(T::Set[String]) }
     def list_worktree_branches
-      Integrations::Worktree.branches
+      Integrations::Worktree.all_branches
     end
 
     sig { params(path: String, skill_name: T.nilable(String)).returns(String) }

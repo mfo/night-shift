@@ -16,6 +16,16 @@ module Nightshift
       extend T::Sig
       module_function
 
+      # Union sur tous les repos declares. Sans elle, `health_check` ne voit
+      # pas les branches vivant hors du repo hote et les classe zombie a chaque
+      # tick — l'item repasse en Pending pendant que son run est en vol.
+      sig { returns(T::Set[String]) }
+      def all_branches
+        Nightshift.repos.each_value.reduce(Set.new) do |acc, repo|
+          acc | branches(repo.path)
+        end
+      end
+
       sig { params(repo_path: String).returns(T::Set[String]) }
       def branches(repo_path = Nightshift.repo_path)
         out, = Open3.capture2('git', '-C', repo_path, 'worktree', 'list')
@@ -39,8 +49,9 @@ module Nightshift
         end
       end
 
-      sig { params(branch: String, repo_path: String).returns(T.nilable(String)) }
-      def path_for_branch(branch, repo_path = Nightshift.repo_path)
+      sig { params(branch: String, repo_path: T.nilable(String)).returns(T.nilable(String)) }
+      def path_for_branch(branch, repo_path = nil)
+        repo_path ||= Nightshift.repo_path_for_branch(branch)
         out, = Open3.capture2('git', '-C', repo_path, 'worktree', 'list')
         out.each_line do |line|
           return line.split.first if line.include?("[#{branch}]")
@@ -167,8 +178,9 @@ module Nightshift
         end
       end
 
-      sig { params(branch: String, repo_path: String).void }
-      def cleanup(branch, repo_path: Nightshift.repo_path)
+      sig { params(branch: String, repo_path: T.nilable(String)).void }
+      def cleanup(branch, repo_path = nil)
+        repo_path ||= Nightshift.repo_path_for_branch(branch)
         wt_path = path_for_branch(branch, repo_path)
         main = main_path(repo_path)
 

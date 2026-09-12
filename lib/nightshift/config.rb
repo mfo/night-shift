@@ -18,7 +18,7 @@ module Nightshift
 
     DEFAULT_BACKEND = Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 1).freeze
 
-    attr_reader :repo_path, :skills, :backends, :repos
+    attr_reader :repo_path, :skills, :backends
 
     REQUIRED_BINARIES = %w[gh].freeze
 
@@ -39,10 +39,18 @@ module Nightshift
       validate_repos!
     end
 
+    # Toujours au moins le repo hote. Un Config construit par morceaux — ce que
+    # font les stubs de test — n'a pas forcement traverse `parse_repos` ; rendre
+    # cette methode totale evite que chaque appelant ait a s'en soucier.
+    sig { returns(T::Hash[String, Core::Repo]) }
+    def repos
+      @repos ||= { 'app' => default_app_repo }
+    end
+
     # Le repo sur lequel un skill travaille. Defaut `app`, soit le repo hote.
     sig { params(skill_name: String).returns(Core::Repo) }
     def repo_for(skill_name)
-      @repos.fetch(@skills.dig(skill_name, :repo)&.to_s || 'app')
+      repos.fetch((@skills || {}).dig(skill_name, :repo)&.to_s || 'app', repos.fetch('app'))
     end
 
     sig { params(skill_name: String).returns(String) }

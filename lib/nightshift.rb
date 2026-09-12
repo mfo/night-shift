@@ -14,6 +14,10 @@ module Nightshift
 
   BINSTUB = File.expand_path('../bin/nightshift-rb', __dir__).freeze
 
+  # `auto/<skill>/<slug>` : le nom d'une branche de skill porte le repo auquel
+  # elle appartient.
+  AUTO_BRANCH = %r{\Aauto/([^/]+)/}.freeze
+
   class << self
     attr_accessor :config
 
@@ -25,6 +29,26 @@ module Nightshift
 
     def backend_for(skill_name) = config.backend_for(skill_name)
     def runner_for(skill_name) = backend_for(skill_name).harness
+
+    def repos = config.repos
+    def repo_for(skill_name) = config.repo_for(skill_name)
+    def repo_path_for(skill_name) = config.repo_path_for(skill_name)
+
+    # Les branches de skill sont nommees `auto/<skill>/<slug>` — elles portent
+    # donc l'information du repo auquel elles appartiennent. Sans cette
+    # resolution, chacun des quinze appelants de `Worktree` devrait faire
+    # remonter un `repo_path` qu'il ne connait pas : la plupart n'ont qu'une
+    # branche en main.
+    #
+    # Toute autre branche (`fix/...`, `main`) appartient au repo hote.
+    def repo_for_branch(branch)
+      match = branch.to_s.match(AUTO_BRANCH)
+      return config.repos.fetch('app') unless match
+
+      config.repo_for(match[1])
+    end
+
+    def repo_path_for_branch(branch) = repo_for_branch(branch).path
   end
 
   def self.db
