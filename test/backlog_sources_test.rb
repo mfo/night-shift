@@ -73,6 +73,27 @@ class BacklogSourcesBaseTest < Minitest::Test
     source = Nightshift::BacklogSources::Base.new('/tmp')
     assert_raises(NotImplementedError) { source.scan }
   end
+
+  # Les trois predicats de nature valent `true` par defaut : une source qui ne
+  # dit rien est derivee d'un scan du repo, comme les cinq historiques.
+  def test_nature_predicates_default_to_derived
+    source = Nightshift::BacklogSources::Base.new('/tmp')
+    assert source.file_backed?
+    assert source.prunable?
+    assert source.reprioritizable?
+  end
+
+  # La contrainte de cadrage du chantier DocReleaseSync : aucune des cinq
+  # sources existantes ne change de comportement. Ce test echoue si l'une
+  # d'elles surcharge un predicat par inadvertance.
+  def test_existing_sources_keep_derived_defaults
+    Nightshift::BacklogSources::REGISTRY.each do |skill, class_name|
+      source = Nightshift::BacklogSources.const_get(class_name).new('/tmp')
+      assert source.file_backed?,     "#{skill} ne devrait pas dependre d'un journal"
+      assert source.prunable?,        "#{skill} doit rester prunable"
+      assert source.reprioritizable?, "#{skill} doit rester reprioritisable"
+    end
+  end
 end
 
 # --- HamlMigration ---
