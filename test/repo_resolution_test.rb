@@ -68,14 +68,33 @@ class RepoResolutionTest < Minitest::Test
   # `worktree reset` bouclait ensuite sur « branche deja existante ».
   def test_cleanup_targets_the_repo_of_the_branch
     seen = []
+    # `all_databases` interroge le statut de sortie : un stub qui rend nil
+    # ferait echouer la lecture plutot que le test.
+    ok = Struct.new(:success?).new(true)
 
-    Open3.stub(:capture2, ->(*args, **_) { seen << args; ['', nil] }) do
+    Open3.stub(:capture2, ->(*args, **_) { seen << args; ['', ok] }) do
       Nightshift::Integrations::Worktree.cleanup('auto/doc-release-sync/2026-09-08-01')
     end
 
     repos_consulted = seen.select { |a| a.include?('-C') }.map { |a| a[a.index('-C') + 1] }
     assert_includes repos_consulted, '/tmp/doc-repo'
     refute_includes repos_consulted, '/tmp/host-repo'
+  end
+
+  # Les deux pieges du predicat, dans les deux sens. Une allowlist naive en
+  # `start_with?` laisserait passer `apparence.rb` sur le prefixe `app` ; une
+  # construction en `^(a|b)/` ferait disparaitre `SUMMARY.md`, precisement le
+  # fichier qu'une PR de doc doit pouvoir modifier seule.
+  def test_content_predicate_handles_root_files_and_prefixes
+    app = Nightshift.repo_for('haml-migration')
+    assert app.content?('lib/nightshift.rb')
+    refute app.content?('libre/service.rb'), 'prefixe sans separateur'
+    refute app.content?('README.md')
+
+    doc = Nightshift.repo_for('doc-release-sync')
+    assert doc.content?('SUMMARY.md'), 'un fichier racine doit compter'
+    assert doc.content?('api-graphql/README.md')
+    refute doc.content?('.gitbook/assets/capture.png')
   end
 
   private
