@@ -43,7 +43,7 @@ Reconciler.reconcile(prs)
 
 **Serialisation** : `enum.serialize` → String (DB/log), `EnumClass.deserialize(str)` → Enum. La frontière est le Store.
 **Gotcha** : `T::Enum#to_s` retourne `#<ClassName::Member>`, PAS la valeur. Toujours utiliser `.serialize` pour interpolation et DB.
-**Skills** : auto-découverts via `BacklogSources::REGISTRY` (mapping skill→scanner). Le `.nightshift.yml` du repo cible ne déclare que les overrides runtime (port, server, batch_size, backend). Accès config via `Nightshift.skills[name]` (Hash String→Hash, peut être `{}` si pas d'override).
+**Skills** : auto-découverts via `BacklogSources::REGISTRY` (mapping skill→scanner). Le `.nightshift.yml` du repo cible ne déclare que les overrides runtime (port, server, batch_size, backend) et le `schedule` (plage horaire qui bascule le backend par défaut, résolue à chaque lancement d'item via `Config#backend_for`). Accès config via `Nightshift.skills[name]` (Hash String→Hash, peut être `{}` si pas d'override).
 
 ### Contrats typés (T::Struct)
 
@@ -65,6 +65,7 @@ Chaque groupe de commandes est dans son fichier (`lib/nightshift/cli/<groupe>.rb
 ```
 CLI < Thor                              # cli.rb — squelette
   ├── attach                            # Point d'entrée (crée/rattache session tmux)
+  ├── backend                           # Backend actif (plage horaire) + prochaine bascule
   ├── watch, skill_run                  # Interne (lancés dans les panes tmux)
   ├── pr (subcommand)                   # cli/pr.rb
   │     ├── merge, brief, diagnose, autofix

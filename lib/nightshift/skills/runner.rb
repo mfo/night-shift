@@ -26,10 +26,11 @@ module Nightshift
           item: String,
           worktree_path: String,
           context: T.nilable(String),
-          batch_index: T.nilable(Integer)
+          batch_index: T.nilable(Integer),
+          harness: T.nilable(String)
         ).returns(RunnerResult)
       end
-      def run(skill_name, item:, worktree_path:, context: nil, batch_index: nil)
+      def run(skill_name, item:, worktree_path:, context: nil, batch_index: nil, harness: nil)
         prompt = "/#{skill_name} #{item}"
 
         # Write context file if provided (consumed by the skill prompt)
@@ -43,7 +44,12 @@ module Nightshift
         log_suffix = batch_index ? "-#{batch_index}" : ''
         log_path = File.join(logdir, "claude-#{skill_name}#{log_suffix}.log")
 
-        Log.info "── SKILL #{skill_name} — #{item} ──────────────────────"
+        # Le harness vient du claim (slot deja budgete). A defaut (item claim avant
+        # la migration 012), on retombe sur le backend configure — exactement le
+        # meme repli que le comptage de concurrence du Reconciler, sinon le binaire
+        # lance et le slot debite ne designent pas le meme harness.
+        binary = harness || Nightshift.configured_backend(skill_name).harness
+        Log.info "── SKILL #{skill_name} — #{item} [#{binary}] ──────────────────"
 
         # Snapshot commit count before run (for batch: detect NEW commits only)
         commits_before, = Open3.capture2('git', 'rev-list', '--count', 'main..HEAD',
@@ -51,7 +57,6 @@ module Nightshift
         commits_before = commits_before.strip.to_i
 
         allowed = extract_allowed_tools(skill_name, worktree_path)
-        binary = Nightshift.runner_for(skill_name)
         cmd = [binary, '-p', prompt,
                '--permission-mode', 'acceptEdits',
                '--output-format', 'stream-json',

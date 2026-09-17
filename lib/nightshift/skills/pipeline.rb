@@ -62,7 +62,8 @@ module Nightshift
           FileUtils.rm_f(desc_path)
 
           result = Runner.run(skill, item: backlog_item.item, worktree_path: worktree_path,
-                                     context: backlog_item.context, batch_index: idx)
+                                     context: backlog_item.context, batch_index: idx,
+                                     harness: backlog_item.harness)
 
           if result.success
             if File.exist?(desc_path)

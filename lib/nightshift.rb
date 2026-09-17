@@ -20,11 +20,17 @@ module Nightshift
     def repo_path = config.repo_path
     def skill_names = config.skill_names
     def skills = config.skills
-    def runner = config.runner
+    def runner(now: Time.now) = config.runner(now: now)
     def binstub_cmd = "#{BINSTUB} --repo #{repo_path}"
 
-    def backend_for(skill_name) = config.backend_for(skill_name)
-    def runner_for(skill_name) = backend_for(skill_name).harness
+    def backend_for(skill_name, now: Time.now) = config.backend_for(skill_name, now: now)
+    def runner_for(skill_name, now: Time.now) = backend_for(skill_name, now: now).harness
+
+    # Plage horaire : quel backend est actif maintenant, et quand ça bascule
+    def active_backend(now: Time.now) = config.active_backend(now: now)
+    def configured_backend(skill_name) = config.configured_backend(skill_name)
+    def active_window(now: Time.now) = config.active_window(now: now)
+    def next_switch_at(now: Time.now) = config.next_switch_at(now: now)
   end
 
   def self.db

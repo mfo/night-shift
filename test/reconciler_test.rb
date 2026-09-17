@@ -583,6 +583,98 @@ class ReconcilerTest < Minitest::Test
     Nightshift.config = original_config
   end
 
+  # Regression : la bascule de plage horaire ne doit pas "liberer" le slot d'un
+  # item encore en cours. L'item tourne sur claude (reserve la nuit) pendant que
+  # la fenetre est retombee sur local — un skill pinne frontier doit rester bloque.
+  def test_concurrency_counts_the_harness_reserved_at_claim_time
+    original_config = Nightshift.config
+    config = Nightshift::Config.allocate.tap do |c|
+      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
+      c.instance_variable_set(:@backends, {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1),
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 1)
+      })
+      c.instance_variable_set(:@default_backend_name, 'local')
+      c.instance_variable_set(:@skills, {
+        'test-optimization' => {},
+        'haml-migration' => { backend: 'frontier' }
+      })
+    end
+    Nightshift.config = config
+
+    # Item claim pendant la fenetre de nuit : slot claude reserve, toujours en cours.
+    @store.add_backlog('test-optimization', 'a_spec.rb')
+    bi = @store.claim_next('test-optimization', harness: 'claude')
+
+    assert_equal 'claude', bi.harness
+
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::Running, branch: 'auto/test-optimization/a')
+
+    # Skill pinne sur frontier (cap 1) : le slot claude est pris, rien ne doit partir.
+    @store.add_backlog('haml-migration', 'b.haml')
+
+    branches = Set.new(%w[auto/test-optimization/a])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+    reconciler.define_singleton_method(:zombie_process?) { |_| false }
+    reconciler.reconcile_skills([])
+
+    item = @db[:backlog_items].where(skill: 'haml-migration').first
+
+    assert_equal 'pending', item[:status]
+  ensure
+    Nightshift.config = original_config
+  end
+
+  # Ligne claim avant la migration 012 : pas de harness enregistre. Le fallback
+  # ne doit pas re-resoudre la plage horaire, sinon un item local en cours
+  # "libere" son slot des que la fenetre de nuit s'ouvre.
+  def test_concurrency_fallback_for_pre_migration_rows_ignores_the_schedule
+    original_config = Nightshift.config
+    now = Time.now
+    current = (now.hour * 60) + now.min
+    window = Nightshift::Core::BackendWindow.new(
+      backend: 'frontier', from_min: (current - 1) % 1440, to_min: (current + 60) % 1440
+    )
+    config = Nightshift::Config.allocate.tap do |c|
+      c.instance_variable_set(:@repo_path, '/tmp/test-repo')
+      c.instance_variable_set(:@backends, {
+        'local' => Nightshift::Core::LLMBackend.new(name: 'local', harness: 'claude-ds4', concurrency: 1),
+        'frontier' => Nightshift::Core::LLMBackend.new(name: 'frontier', harness: 'claude', concurrency: 4)
+      })
+      c.instance_variable_set(:@default_backend_name, 'local')
+      c.instance_variable_set(:@schedule, [window])
+      c.instance_variable_set(:@skills, {
+        'test-optimization' => {},
+        'haml-migration' => { backend: 'local' }
+      })
+    end
+    Nightshift.config = config
+
+    # Item d'avant la migration : running, harness NULL.
+    @store.add_backlog('test-optimization', 'a_spec.rb')
+    bi = @store.claim_next('test-optimization')
+
+    assert_nil bi.harness
+
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::Running, branch: 'auto/test-optimization/a')
+
+    # Skill pinne local (cap 1) : le serveur de modele local est deja occupe.
+    @store.add_backlog('haml-migration', 'b.haml')
+
+    branches = Set.new(%w[auto/test-optimization/a])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+    reconciler.define_singleton_method(:zombie_process?) { |_| false }
+    reconciler.reconcile_skills([])
+
+    item = @db[:backlog_items].where(skill: 'haml-migration').first
+
+    assert_equal 'pending', item[:status]
+  ensure
+    Nightshift.config = original_config
+  end
+
   def test_concurrency_allows_different_backends
     original_config = Nightshift.config
     config = Nightshift::Config.allocate.tap do |c|
