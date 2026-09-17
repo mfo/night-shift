@@ -58,6 +58,15 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 
 ---
 
+## Étape 0 : Plan de Commits (OBLIGATOIRE AVANT TOUT CODE)
+
+1. Chercher dans la spec/plan une section "Plan de commits" ou "Commits"
+2. Si absente, proposer un découpage : `DB → model+specs → controller+specs → views → cleanup`
+3. **Valider le plan avec le user AVANT de coder**
+4. **Exécuter séquentiellement** en vérifiant tests verts à chaque commit
+
+---
+
 ## Étape 0-bis : Worktree (OBLIGATOIRE)
 
 **L'implémentation ne se fait jamais dans le répertoire de travail principal.** Un worktree isole la
@@ -204,15 +213,6 @@ gh stack merge --yes
 
 Opération atomique et tout-ou-rien : si une PR ne peut pas être mergée, aucune ne l'est. Si la base a une
 merge queue, la pile y est ajoutée et merge quand la queue la traite — pas de contournement à prévoir.
-
----
-
-## Étape 0 : Plan de Commits (OBLIGATOIRE AVANT TOUT CODE)
-
-1. Chercher dans la spec/plan une section "Plan de commits" ou "Commits"
-2. Si absente, proposer un découpage : `DB → model+specs → controller+specs → views → cleanup`
-3. **Valider le plan avec le user AVANT de coder**
-4. **Exécuter séquentiellement** en vérifiant tests verts à chaque commit
 
 ---
 
