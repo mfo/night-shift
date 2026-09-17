@@ -13,6 +13,10 @@ allowed-tools:
   - Bash(git commit:*)
   - Bash(git diff:*)
   - Bash(git log:*)
+  - Bash(git show:*)
+  - Bash(git rev-parse:*)
+  - Bash(git merge-base:*)
+  - Bash(git blame:*)
   - Bash(git status)
   - Bash(git push:*)
   - Bash(bin/rails runner:*)
@@ -22,6 +26,7 @@ allowed-tools:
   - Skill(dev-auto-login)
   - Skill(screenshot-gist)
   - Skill(create-pr)
+  - Skill(code-review)
   - Agent
 ---
 
@@ -65,6 +70,8 @@ Pour les tâches avec ≤ 5 fichiers et un plan évident :
 3. Rubocop clean à la fin
 
 Pas besoin de : checkpoint mi-phase, métriques détaillées, phases numérotées 1-7.
+
+**La boucle `/code-review` s'applique quand même** — c'est le dernier geste avant le handoff, quel que soit le format de la tâche.
 
 ---
 
@@ -232,6 +239,95 @@ Il retourne un JSON structuré :
 
 ---
 
+## Boucle `/code-review` (dernier geste du Stage 2)
+
+Quand tous les commits du plan sont passés, la suite verte **et la validation visuelle
+terminée** — donc juste avant le handoff vers `/feature-review`.
+
+C'est le dernier geste **du Stage 2** : plus rien dans ce stage ne doit modifier le code après
+cette boucle, sinon elle valide un état qui n'est plus celui qu'on transmet. (Le Stage 3 a le
+droit de modifier le code : c'est sa raison d'être, et il re-review ce qu'il change.)
+
+```
+bundle exec rspec  → doit être VERT avant d'entrer dans la boucle
+git diff main...HEAD --stat  → doit être NON VIDE, sinon la boucle n'a rien à
+                               reviewer (branche déjà poussée : `@{upstream}...HEAD`
+                               est vide et le repli `main...HEAD` ne se déclenche
+                               pas, il est conditionné à l'absence d'upstream)
+tour = 1
+faux_positifs = {}        # findings réfutés, avec leur preuve
+
+tant que tour <= 5 :
+
+    1. /code-review high          ← niveau explicite, PAS de cible
+
+    2. critiques = TOUS les findings, SAUF :
+         - ceux que tu identifies comme du NETTOYAGE : le finding décrit une
+           amélioration de forme (duplication, lisibilité, niveau d'abstraction,
+           convention, perf marginale) et son `failure_scenario` ne décrit aucun
+           comportement faux. Quand `category` est présente, elle t'aide :
+           simplification / efficiency / reuse / altitude / conventions / test-coverage
+           sont du nettoyage. Quand elle est absente, tu juges sur le contenu.
+         - ceux déjà présents dans faux_positifs
+
+    3. si critiques est vide → SORTIE, on passe le relais
+
+    4. si tour == 5 → STOP sans corriger. Sortie `escalated` :
+       écrire les critiques restants dans `review_loop.remaining` du JSON de
+       sortie, et ne PAS cocher le handoff Stage 3. C'est un état livrable
+       (le Stage 3 les reprendra), pas un échec.
+
+    5. pour chaque critique : soit le corriger, soit l'ajouter à faux_positifs
+       en le repérant par son `summary` (PAS par `fichier:ligne` : les fixes
+       décalent les numéros de ligne d'un tour à l'autre), avec la preuve qui le réfute
+       → bundle exec rspec (vert, coverage toujours ≥ 80% et jamais en baisse)
+       → bundle exec rubocop (0 offense sur les fichiers touchés)
+       → git commit --no-gpg-sign -m "fix(review): <sujet>"
+       → si un fix touche une vue / un composant / du CSS :
+         relancer la validation visuelle avant de reboucler. Si elle atteint
+         son propre cap de 3 itérations, la boucle s'arrête aussi : sortie
+         `escalated` (critiques non traités → `review_loop.remaining`), et on
+         remonte les deux au user d'un coup, pas l'un après l'autre.
+
+    6. tour += 1
+```
+
+Le cap porte sur le **nombre de passes de review**, pas sur le nombre de corrections : au
+5e tour on ne corrige plus, on remonte. Ça garantit que toute correction est repassée au moins
+une fois par le reviewer avant la sortie.
+
+**Toujours passer le niveau, jamais de cible.** Sans niveau, `/code-review` réutilise celui tapé
+en dernier dans la session — la profondeur du contrôle dépendrait d'un état extérieur au skill.
+En revanche l'argument positionnel est une **cible de remplacement** (`<pr#> | <branche> |
+<chemin>`) : passer `main` ferait reviewer la branche de base, c'est-à-dire du code déjà mergé.
+Sans cible, le skill résout le périmètre sur `@{upstream}...HEAD`, avec repli sur
+`main...HEAD` puis `HEAD~1` — le cas sans upstream du Stage 2 est déjà couvert.
+
+**Pourquoi un filtre par exclusion et non par inclusion.** Dans le schéma `ReportFindings`, seuls
+`file`, `summary` et `failure_scenario` sont obligatoires : `category` et `verdict` sont
+optionnels. Le schéma n'a **pas** de champ de sévérité, même si certains prompts internes en
+demandent une en prose — dans les deux cas, ne pas construire le filtre dessus.
+
+Plus généralement : **ne pas indexer la boucle sur des champs que l'outil ne garantit pas.** Les
+seuls champs toujours présents sont `file`, `summary` et `failure_scenario`. C'est sur eux qu'on
+juge ; `category` et `verdict` ne sont que des indices quand ils sont là.
+
+Selon le modèle et le niveau d'effort, `/code-review` n'utilise pas le même prompt interne, et
+certains ne demandent pas de renseigner `category` du tout : sur ces runs, **aucun** finding
+n'est catégorisé et la liste d'exclusion ci-dessus ne s'applique à rien. C'est voulu — le défaut
+est *critique*, donc un finding non catégorisé fait boucler. Un filtre par inclusion laisserait
+au contraire sortir la boucle « propre » avec de vrais bugs dedans.
+
+**Faux positif.** Ne jamais clore un finding en douce parce qu'on le juge faux : l'inscrire dans
+`faux_positifs` avec la raison et la référence `fichier:ligne` qui le réfute, et le lister dans
+le rapport de fin. C'est ce qui l'empêche de faire reboucler au tour suivant tout en le laissant
+visible par le user.
+
+**Jamais `--fix`** : non déterministe, le tour N+1 peut défaire le tour N. On corrige soi-même,
+pour relancer les tests entre chaque fix.
+
+---
+
 ## Checklist Fin Stage 2
 
 - [ ] Tous commits exécutés selon plan (comparer plan vs. réels)
@@ -241,13 +337,15 @@ Il retourne un JSON structuré :
 - [ ] Breaking changes en blocs (merge safe)
 - [ ] Feature implémentée complètement (acceptance criteria validées)
 - [ ] Validation visuelle effectuée (si applicable)
+- [ ] Boucle `/code-review high` sortie `clean` (0 critique) — **en dernier**. Sortie `escalated` : ne pas cocher, transmettre `review_loop.remaining` au Stage 3
 - [ ] Prêt pour Stage 3 (Review & Cleanup) ?
 
 ---
 
 ## Handoff Stage 3
 
-Quand la checklist ci-dessus est complète :
+Quand la checklist ci-dessus est complète — ou complète à l'exception de la boucle
+`/code-review`, sortie `escalated` (les critiques de `review_loop.remaining` partent au Stage 3) :
 1. **Lancer `/feature-review`** (review-3-amigos) avec le diff de la branche
 2. Si une **Issue Source** est dans la spec → la passer pour activer le **mode adversarial**
 3. Après review validée → **lancer `/create-pr`** avec les screenshots capturés
@@ -270,6 +368,14 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "commits_executed": 12,
   "tests_pass": true,
   "rubocop_clean": true,
+  "review_loop": {
+    "passes": 3,
+    "exit": "clean | escalated",
+    "false_positives": [
+      { "summary": "summary du finding réfuté", "refuted_by": "fichier:ligne", "reason": "…" }
+    ],
+    "remaining": []
+  },
   "visual_validation": {
     "baseline_path": "specs/assets/YYYY-MM-DD-nom/",
     "captures_path": "specs/assets/YYYY-MM-DD-nom/captures/",
@@ -280,6 +386,7 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
 }
 ```
 
+- `review_loop.exit` : `clean` = aucun finding critique à la dernière passe. `escalated` = cap de 5 passes atteint **ou** blocage de la validation visuelle, avec des critiques ouverts, listés dans `remaining` et repris par le Stage 3.
 - `visual_validation.baseline_path` : repris du JSON de feature-plan. Contient les maquettes UX de référence.
 - `visual_validation.captures_path` : screenshots capturés pendant l'implémentation, nommés pour correspondre aux scénarios de la spec.
 - `visual_validation.comparison` : résultat de la comparaison visuelle baseline vs captures.
