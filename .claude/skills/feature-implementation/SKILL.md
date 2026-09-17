@@ -95,14 +95,16 @@ le workflow reste celui d'avant : une branche, `create-pr` à la fin.
 
 ### ⚠️ Prérequis bloquant : garde d'idempotence sur `post-checkout`
 
-`hooks/worktree/post-checkout` vit dans `.git/hooks/` du repo commun : il se déclenche à **chaque**
-checkout de branche dans un worktree. Or `gh stack checkout / up / down / top / bottom / trunk / switch`
+`hooks/worktree/post-checkout` est installé dans `<worktree>/.githooks/post-checkout` (`git config
+core.hooksPath .githooks`, voir `hooks/worktree/install.sh`) : il se déclenche à **chaque**
+checkout de branche dans ce worktree. Or `gh stack checkout / up / down / top / bottom / trunk / switch`
 *sont* des checkouts. Sans garde, chaque saut de couche relance `bundle install`, `bun install`, réécrase
 `.claude/` et fait `truncate -s 0` sur `log/*.log` — y compris sous le serveur dev qui tourne pour Playwright.
 Un `gh stack rebase --upstack` sur 5 couches le fait 5 fois.
 
-**Vérifier avant de démarrer une pile.** Si la garde n'est pas en place : soit la poser (provisioning
-lourd uniquement si `.env.test.local` est absent), soit rester en mono-couche.
+**Vérifier avant de démarrer une pile.** Si la garde n'est pas en place : soit la poser dans la source
+`hooks/worktree/post-checkout` puis réinstaller (`hooks/worktree/install.sh <worktree>`) — provisioning
+lourd uniquement si `.env.test.local` est absent — soit rester en mono-couche.
 
 ### Création
 
