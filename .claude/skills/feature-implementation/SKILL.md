@@ -339,7 +339,8 @@ pour relancer les tests entre chaque fix.
 
 ## Handoff Stage 3
 
-Quand la checklist ci-dessus est complète :
+Quand la checklist ci-dessus est complète — ou complète à l'exception de la boucle
+`/code-review`, sortie `escalated` (les critiques de `review_loop.remaining` partent au Stage 3) :
 1. **Lancer `/feature-review`** (review-3-amigos) avec le diff de la branche
 2. Si une **Issue Source** est dans la spec → la passer pour activer le **mode adversarial**
 3. Après review validée → **lancer `/create-pr`** avec les screenshots capturés
