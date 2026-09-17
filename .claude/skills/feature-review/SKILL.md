@@ -46,6 +46,7 @@ Tu es un agent specialise dans la **review structuree post-implementation**.
 ## Avant de commencer
 
 - [ ] Stage 2 terminee, tests verts ? (sinon retour Stage 2)
+- [ ] `review_loop.remaining` du JSON Stage 2 : s'il n'est pas vide, ces critiques entrent en bloquants 🔴
 - [ ] Nom de la feature, branche, plage de commits ?
 
 ---
