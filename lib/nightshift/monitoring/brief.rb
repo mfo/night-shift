@@ -64,7 +64,7 @@ module Nightshift
         end
 
         # Worktrees to cleanup — only show merged/deployed PRs that still have a worktree
-        worktree_branches = Integrations::Worktree.branches
+        worktree_branches = Integrations::Worktree.all_branches
         cleanup_prs = prs.select do |pr|
           [PRState::Deployed, PRState::Merged].include?(pr.state) && worktree_branches.include?(pr.branch)
         end
@@ -124,20 +124,33 @@ module Nightshift
           items.group_by(&:skill).each do |skill, skill_items|
             total = skill_items.size
             done = skill_items.count { |i| i.status == BacklogStatus::Done }
-            pct = total.positive? ? (done * 100.0 / total).round : 0
+            noop = skill_items.count { |i| i.status == BacklogStatus::NoOp }
+
+            # La barre mesure l'avancement du backlog, donc `done + noop` : un
+            # item examine est traite, qu'il ait produit une PR ou non. Laisser
+            # les noop hors du numerateur afficherait 0 % en permanence pour un
+            # skill sain, indiscernable d'un flux bloque ; les fondre dans
+            # `done` rendrait le vert trompeur. D'ou deux caracteres de
+            # remplissage et un decompte qui separe les deux.
+            treated = done + noop
+            pct = total.positive? ? (treated * 100.0 / total).round : 0
             bar_width = 20
             filled = (pct * bar_width / 100.0).round
-            bar = "#{'█' * filled}#{'░' * (bar_width - filled)}"
+            done_filled = treated.positive? ? (filled * done / treated.to_f).round : 0
+            bar = "#{'█' * done_filled}#{'▓' * (filled - done_filled)}#{'░' * (bar_width - filled)}"
+
             running = skill_items.count { |i| i.status == BacklogStatus::Running }
             pr_open = skill_items.count { |i| i.status == BacklogStatus::PrOpen }
             failed = skill_items.count { |i| [BacklogStatus::Failed, BacklogStatus::Skipped].include?(i.status) }
             pending = skill_items.count { |i| i.status == BacklogStatus::Pending }
             detail = []
+            detail << "#{noop}➖" if noop.positive?
             detail << "#{running}🔄" if running.positive?
             detail << "#{pr_open}🔵" if pr_open.positive?
             detail << "#{failed}❌" if failed.positive?
             detail << "#{pending}⬜" if pending.positive?
-            puts "    #{skill.ljust(20)} #{bar} #{pct}%  (#{done}/#{total})  #{detail.join(' ')}"
+            progress = noop.positive? ? "#{done}✅+#{noop}➖/#{total}" : "#{done}/#{total}"
+            puts "    #{skill.ljust(20)} #{bar} #{pct}%  (#{progress})  #{detail.join(' ')}"
           end
         end
 

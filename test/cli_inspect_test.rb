@@ -80,6 +80,45 @@ class CLIInspectTest < Minitest::Test
     assert_equal 1, error.status
   end
 
+  # La justification d'un no-op est un document structure, et `inspect` est la
+  # surface qui sert a l'auditer : la tronquer a 100 caracteres viderait de son
+  # sens le seul controle qu'on ait sur les decisions de skip.
+  def test_inspect_shows_full_root_cause_for_noop
+    justification = <<~TXT
+      ➖ noop — 2 candidats examines, 0 impact doc
+      ## Candidats examines
+      - #13777 — jeton d'API → none/verified : la page decrit deja l'expiration
+      - #13760 — demarches publiques → none/no-evidence : aucune page ne mentionne le sujet
+      ## Pages doc consultees
+      - api-graphql/jeton-dauthentification/README.md
+    TXT
+
+    item_id = add_item('doc-release-sync', '2026-09-08-01', status: 'noop')
+    add_cycle(item_id, attempt: 1, verdict: 'success',
+                       outcome: 'noop', root_cause: justification)
+
+    output = with_cli_store do
+      capture_io { Nightshift::CLI.start(['autolearn', 'inspect', item_id.to_s]) }.first
+    end
+
+    assert_includes output, 'none/verified'
+    assert_includes output, 'api-graphql/jeton-dauthentification/README.md',
+                    'la derniere ligne doit survivre : sans elle, la justification est tronquee'
+  end
+
+  # Un verdict du Judge tient en une phrase : la troncature historique reste.
+  def test_inspect_truncates_long_root_cause_for_non_noop
+    item_id = add_item('haml-migration', 'foo.haml', status: 'failed')
+    add_cycle(item_id, attempt: 1, verdict: 'skill_defect',
+                       root_cause: 'x' * 150)
+
+    output = with_cli_store do
+      capture_io { Nightshift::CLI.start(['autolearn', 'inspect', item_id.to_s]) }.first
+    end
+
+    refute_includes output, 'x' * 101
+  end
+
   private
 
   def add_item(skill, item, status: 'pending', **extras)
@@ -99,6 +138,7 @@ class CLIInspectTest < Minitest::Test
       root_cause: extras[:root_cause], confidence: extras[:confidence],
       suggested_patch: extras[:suggested_patch],
       skill_patch_sha: extras[:skill_patch_sha],
+      outcome: extras[:outcome],
       created_at: Time.now.to_i
     )
   end

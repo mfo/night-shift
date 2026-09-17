@@ -196,7 +196,6 @@ module Nightshift
 
     sig { void }
     def pick_next_items
-      repo_path = Nightshift.repo_path
 
       # Count actually-running items per backend (PrOpen doesn't consume compute)
       active_by_backend = Hash.new(0)
@@ -213,6 +212,8 @@ module Nightshift
         backend = Nightshift.backend_for(skill_name)
         next if active_by_backend[backend.harness] >= backend.concurrency
 
+        source = BacklogSources.for(skill_name, Nightshift.repo_path_for(skill_name))
+        repo_path = Nightshift.repo_path_for(skill_name)
         skill_config = Nightshift.skills[skill_name] || {}
         batch_size = (skill_config[:batch_size] || 1).to_i.clamp(1, 20)
 
@@ -221,6 +222,8 @@ module Nightshift
           next if items.empty?
 
           valid, stale = items.partition do |bi|
+            next true unless source&.file_backed?
+
             system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{bi.item}", err: File::NULL)
           end
           stale.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound) }
@@ -232,7 +235,11 @@ module Nightshift
           backlog_item = @store.claim_next(skill_name)
           next unless backlog_item
 
-          unless system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
+          # Un item de source journal n'est pas un chemin de fichier : un tag
+          # de release n'est pas un blob, et la garde le classerait
+          # FileNotFound sans qu'il ait tourne.
+          if source&.file_backed? &&
+             !system('git', '-C', repo_path, 'cat-file', '-e', "HEAD:#{backlog_item.item}", err: File::NULL)
             @store.update_backlog_status(backlog_item, BacklogStatus::Skipped, failure_reason: FailureReason::FileNotFound)
             next
           end
@@ -247,6 +254,8 @@ module Nightshift
     def launch_skill(skill_name, backlog_item)
       require 'shellwords'
       repo_path = Nightshift.repo_path
+      repo = Nightshift.repo_for(skill_name)
+      repo_path = repo.path
       slug = short_slug(backlog_item.item, skill_name: skill_name)
       branch = "auto/#{skill_name}/#{slug}"
       wt_dir = "auto-#{skill_name}-#{slug}"
@@ -254,10 +263,15 @@ module Nightshift
 
       Integrations::Worktree.cleanup(branch)
 
-      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
+      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, repo.main_branch, '-b', branch)
         @store.update_backlog_status(backlog_item, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError)
         return
       end
+
+      # Sans ce provisioning, `/<skill>` est une commande inconnue dans le
+      # worktree : 0 tour, 0 commit, no_diff, Judge. C'est le mode d'echec le
+      # plus repete de l'historique kaizen.
+      Integrations::Worktree.setup(wt_path, repo)
       @store.update_backlog_status(backlog_item, BacklogStatus::Running, branch: branch)
 
       server_cmd, env_prefix = setup_server(skill_name, wt_path)
@@ -276,7 +290,8 @@ module Nightshift
     sig { params(skill_name: String, backlog_items: T::Array[Core::BacklogItem]).void }
     def launch_batch(skill_name, backlog_items)
       require 'shellwords'
-      repo_path = Nightshift.repo_path
+      repo = Nightshift.repo_for(skill_name)
+      repo_path = repo.path
       batch_id = backlog_items.first.batch_id
       branch = "auto/#{skill_name}/batch-#{batch_id[0, 8]}"
       wt_dir = "auto-#{skill_name}-batch-#{batch_id[0, 8]}"
@@ -284,10 +299,12 @@ module Nightshift
 
       Integrations::Worktree.cleanup(branch)
 
-      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, 'main', '-b', branch)
+      unless system('git', '-C', repo_path, 'worktree', 'add', wt_path, repo.main_branch, '-b', branch)
         backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Failed, failure_reason: FailureReason::WorktreeError) }
         return
       end
+
+      Integrations::Worktree.setup(wt_path, repo)
       backlog_items.each { |bi| @store.update_backlog_status(bi, BacklogStatus::Running, branch: branch) }
 
       server_cmd, env_prefix = setup_server(skill_name, wt_path)
@@ -323,7 +340,7 @@ module Nightshift
 
     sig { returns(T::Set[String]) }
     def list_worktree_branches
-      Integrations::Worktree.branches
+      Integrations::Worktree.all_branches
     end
 
     sig { params(path: String, skill_name: T.nilable(String)).returns(String) }

@@ -24,9 +24,37 @@ Nightshift.config = Nightshift::Config.allocate.tap do |c|
     'n1-query-fix' => {},
     'reprioritize' => { meta: true }
   })
+  # Sans `@repos`, `repo_for` leverait des que le harness l'appellera.
+  c.instance_variable_set(:@repos, {
+    'app' => Nightshift::Core::Repo.new(
+      name: 'app', path: '/tmp/test-repo',
+      content_allow: Nightshift::Config::DEFAULT_CONTENT_ALLOW.dup
+    )
+  })
 end
 
 Nightshift.instance_variable_set(:@db, TEST_DB)
+
+# La migration 011 pose une FK `backlog_items.pr_number` -> `prs.number`.
+# Tout test qui rattache un item a une PR doit donc creer la ligne `prs`
+# correspondante, exactement comme le fait Pipeline#push_and_create_pr en prod.
+module PRFixture
+  def seed_pr(number, branch: nil, **attrs)
+    pr = Nightshift::Core::PR.new(
+      number: number,
+      branch: branch || "fix/bug-#{number}",
+      github_state: 'OPEN',
+      ci: 'red',
+      **attrs
+    )
+    # Chaque classe de test monte sa propre base dans `setup` ; on ecrit donc
+    # via le store du test, jamais via TEST_DB.
+    @store.upsert(pr)
+    number
+  end
+end
+
+Minitest::Test.include(PRFixture)
 
 # Force-load all classes upfront so Sorbet sig blocks don't trigger
 # Zeitwerk autoloads mid-test (which causes T::Struct redefinition errors).

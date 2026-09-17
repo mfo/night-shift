@@ -60,7 +60,7 @@ module Nightshift
                              'none'
                            end
             say "    ##{c.id}  attempt=#{c.attempt}  #{c.verdict}  confidence=#{conf}  patch=#{patch_status}"
-            say "         cause: #{c.root_cause[0, 100]}" if c.root_cause
+            say_root_cause(c)
             say "         outcome: #{c.outcome}" if c.outcome
           end
         end
@@ -68,6 +68,21 @@ module Nightshift
       end
 
       private
+
+      # Un verdict du Judge tient en une phrase, d'ou la troncature historique.
+      # La justification d'un no-op est un document structure — candidats
+      # examines, raison de rejet, pages consultees — et c'est `inspect` qui
+      # sert a l'auditer. La couper a 100 caracteres viderait de son sens le
+      # seul controle dont on dispose sur les decisions de skip.
+      def say_root_cause(cycle)
+        return unless cycle.root_cause
+
+        if cycle.outcome == 'noop'
+          cycle.root_cause.each_line { |line| say "         #{line.chomp}" }
+        else
+          say "         cause: #{cycle.root_cause[0, 100]}"
+        end
+      end
 
       def store = CLI.store
     end

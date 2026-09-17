@@ -184,6 +184,7 @@ class StoreTest < Minitest::Test
   def test_active_for_skill_pr_open
     @store.add_backlog('haml-migration', 'foo.haml')
     backlog_item = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(backlog_item, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
     assert @store.active_for_skill?('haml-migration')
   end
@@ -636,6 +637,72 @@ class StoreTest < Minitest::Test
     assert_equal 'resolved_upstream', old[:failure_reason]
   end
 
+  # --- Statut NoOp ---
+  #
+  # `NoOp` doit se comporter comme un etat terminal qui n'a rien produit. Ces
+  # quatre invariants sont ce qui l'empeche de contaminer le reste du harness ;
+  # les oublier produit des bugs muets, pas des erreurs.
+
+  def test_noop_does_not_block_the_skill
+    @store.add_backlog('doc-release-sync', '2026-09-08-01')
+    bi = @store.claim_next('doc-release-sync')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::NoOp)
+
+    refute @store.active_for_skill?('doc-release-sync'),
+           'un item NoOp est terminal : il ne doit pas occuper le skill'
+  end
+
+  def test_noop_is_not_counted_as_done
+    @store.add_backlog('doc-release-sync', '2026-09-08-01')
+    bi = @store.claim_next('doc-release-sync')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::NoOp)
+
+    done = @db[:backlog_items].where(skill: 'doc-release-sync', status: 'done').count
+    assert_equal 0, done,
+                 'sinon le compteur de maybe_reprioritize et la barre du brief mentent'
+  end
+
+  def test_noop_survives_pruning
+    @store.add_backlog('doc-release-sync', '2026-09-08-01')
+    bi = @store.claim_next('doc-release-sync')
+    @store.update_backlog_status(bi, Nightshift::BacklogStatus::NoOp)
+
+    @store.reconcile_backlog('doc-release-sync', [])
+
+    row = @db[:backlog_items].where(item: '2026-09-08-01').first
+    assert_equal 'noop', row[:status],
+                 'le prune ne vise que les pending : une decision prise ne se rejoue pas'
+  end
+
+  def test_noop_round_trips_through_serialization
+    assert_equal 'noop', Nightshift::BacklogStatus::NoOp.serialize
+    assert_equal Nightshift::BacklogStatus::NoOp,
+                 Nightshift::BacklogStatus.deserialize('noop')
+  end
+
+  # Une source journal ne peut pas prouver qu'un item absent du scan a ete
+  # resolu : elle ne lit qu'une fenetre du flux. `prune: false` la protege.
+  def test_reconcile_backlog_skips_pruning_when_disabled
+    @store.add_backlog('doc-release-sync', '2026-08-28-01')
+    @store.add_backlog('doc-release-sync', '2026-09-08-01')
+
+    result = @store.reconcile_backlog('doc-release-sync', [
+      { item: '2026-09-08-01', priority: 0 }
+    ], prune: false)
+
+    assert_equal 0, result[:pruned]
+    absent = @db[:backlog_items].where(item: '2026-08-28-01').first
+    assert_equal 'pending', absent[:status],
+                 'un item hors fenetre doit rester pending, pas etre resolu'
+  end
+
+  # Le defaut reste le pruning : les cinq sources derivees ne changent pas.
+  def test_reconcile_backlog_prunes_by_default
+    @store.add_backlog('haml-migration', 'old.haml')
+    result = @store.reconcile_backlog('haml-migration', [])
+    assert_equal 1, result[:pruned]
+  end
+
   def test_reconcile_backlog_never_prunes_running
     @store.add_backlog('haml-migration', 'active.haml')
     bi = @store.claim_next('haml-migration')
@@ -651,6 +718,7 @@ class StoreTest < Minitest::Test
   def test_reconcile_backlog_never_prunes_pr_open
     @store.add_backlog('haml-migration', 'pr.haml')
     bi = @store.claim_next('haml-migration')
+    seed_pr(42)
     @store.update_backlog_status(bi, Nightshift::BacklogStatus::PrOpen, pr_number: 42)
 
     result = @store.reconcile_backlog('haml-migration', [])
@@ -834,9 +902,4 @@ class StoreTest < Minitest::Test
 
   private
 
-  def seed_pr(number)
-    pr = Nightshift::Core::PR.new(number: number, branch: "fix/bug-#{number}",
-                                  github_state: 'OPEN', ci: 'red')
-    @store.upsert(pr)
-  end
 end
