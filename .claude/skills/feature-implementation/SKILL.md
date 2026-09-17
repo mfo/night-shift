@@ -154,18 +154,9 @@ gh pr edit <n> --title "<titre au format équipe>" --body-file pr-description-<n
 gh pr ready <n>
 ```
 
-**Carte de pile dans chaque body.** La feature GitHub est en *public preview* : rien ne garantit que
-chaque reviewer voie l'UI native de pile. Chaque description porte donc, en clair :
-
-```
-Couche 2/4 — base : #1234
-Pile : #1234 ← #1235 (celle-ci) ← #1236 ← #1237
-```
-
-**Wording d'une couche intermédiaire.** « db: add column nullable » n'a pas de problème utilisateur
-isolable. Convention : `# Probleme` = une ligne de contexte feature **identique sur toutes les couches**
-(avec le lien vers la spec et vers la PR du bas) + le besoin propre à la couche ; `# Solution` =
-strictement ce que fait **cette** couche.
+**Contenu des bodies.** Lancer `Skill(pr-description)` une fois par couche, avec la base de la couche.
+Carte de pile et wording d'une couche intermédiaire sont définis dans `pr-description` §« Sur une pile »
+— ne pas les redéfinir ici.
 
 ### Corriger une couche basse
 
