@@ -117,15 +117,18 @@ gh stack init --base main feat/<slug>-1-db feat/<slug>-2-api feat/<slug>-3-ui
 
 ```bash
 gh stack checkout feat/<slug>-1-db
-bin/rails db:migrate            # OBLIGATOIRE après chaque saut de couche, voir ci-dessous
+RAILS_ENV=test bin/rails db:test:prepare   # OBLIGATOIRE après chaque saut de couche, voir ci-dessous
 #   … commits du plan pour cette couche, tests verts + rubocop à chaque commit
 gh stack push --remote origin
 gh stack view --short           # où j'en suis
 ```
 
-⚠️ **`db:migrate` après chaque `checkout` / `up` / `down`.** Le hook ne fait `db:schema:load` que si la
-base n'existe pas, et ne migre jamais. Redescendre vers la couche DB laisse la base **en avance** sur le
-`schema.rb` checké out : « tests verts » devient un faux positif.
+⚠️ **`db:test:prepare` après chaque `checkout` / `up` / `down`.** Le hook ne fait `db:schema:load` que
+si la base n'existe pas, et ne migre jamais. Redescendre vers la couche DB laisse la base **en avance**
+sur le `schema.rb` checké out : « tests verts » devient un faux positif. `db:migrate` ne corrige pas ce
+cas — il ne roule que vers l'avant — et sans `RAILS_ENV=test` il vise la base de développement, partagée
+entre worktrees via le `.env` symlinké (`hooks/worktree/post-checkout`). `db:test:prepare` recharge le
+`schema.rb` courant dans la base de test du worktree.
 
 ### Publication — en deux temps, jamais en un seul
 
