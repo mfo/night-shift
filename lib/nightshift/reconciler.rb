@@ -197,6 +197,10 @@ module Nightshift
     sig { void }
     def pick_next_items
       repo_path = Nightshift.repo_path
+      # Une seule lecture de l'horloge par tick : sinon un tick a cheval sur une
+      # borne repartit ses lancements sur deux backends differents, alors que le
+      # budget active_by_backend, lui, est fige avant la boucle.
+      now = Time.now
 
       # Count actually-running items per backend (PrOpen doesn't consume compute).
       # On compte le harness reserve au claim, pas celui que la plage horaire
@@ -215,7 +219,7 @@ module Nightshift
       BacklogSources::REGISTRY.each_key do |skill_name|
         next if @store.active_for_skill?(skill_name)
 
-        backend = Nightshift.backend_for(skill_name)
+        backend = Nightshift.backend_for(skill_name, now: now)
         next if active_by_backend[backend.harness] >= backend.concurrency
 
         skill_config = Nightshift.skills[skill_name] || {}
