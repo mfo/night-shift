@@ -280,7 +280,7 @@ tant que tour <= 5 :
     5. pour chaque critique : soit le corriger, soit l'ajouter à faux_positifs
        en le repérant par son `summary` (PAS par `fichier:ligne` : les fixes
        décalent les numéros de ligne d'un tour à l'autre), avec la preuve qui le réfute
-       → bundle exec rspec (vert)
+       → bundle exec rspec (vert, coverage toujours ≥ 80% et jamais en baisse)
        → bundle exec rubocop (0 offense sur les fichiers touchés)
        → git commit --no-gpg-sign -m "fix(review): <sujet>"
        → si un fix touche une vue / un composant / du CSS :
