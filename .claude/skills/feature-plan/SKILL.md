@@ -166,9 +166,9 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "commits_count": 12,
   "breaking_changes": [{"commits": "4-6", "description": "..."}],
   "plan_path": "specs/YYYY-MM-DD-nom-implementation-plan.md",
+  "worktree": "feat/nom-feature",
   "stack": {
     "trunk": "main",
-    "worktree": "feat/nom-feature",
     "layers": [
       {"branch": "feat/nom-feature-1-db", "base": "main", "title": "Tech: ...", "commits": "1-3", "reviewable": "..."},
       {"branch": "feat/nom-feature-2-api", "base": "feat/nom-feature-1-db", "title": "Amelioration: ETQ ...", "commits": "4-7", "reviewable": "..."}
