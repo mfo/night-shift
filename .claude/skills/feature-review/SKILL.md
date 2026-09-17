@@ -160,12 +160,14 @@ Apres tous fixes appliques :
 
 ### Sur une pile
 
-`git absorb` cible par defaut les commits depuis la merge-base avec l'upstream. Lance depuis la
-couche 3, il tentera d'absorber dans des commits des couches 1-2 qui ne sont pas dans la branche
-courante.
+Sans `--base`, `git absorb` remonte au plus `absorb.maxStack` commits (10 par defaut) et **refuse** de
+toucher aux commits atteignables depuis une autre branche : sur une pile, un fix qui appartient a une
+couche basse ne s'absorbe pas et ne produit qu'un `WARN Will not fix up commits reachable by other
+branches`. Borner explicitement a la base de la couche rend ce comportement previsible.
 
 - [ ] Absorber **couche par couche**, borne par la base de la couche : `git absorb --base <base-couche>`
-- [ ] Puis propager : `gh stack rebase --upstack --remote origin`
+- [ ] Propager en local : `gh stack rebase --upstack --remote origin` (rebase seul, ne pousse rien)
+- [ ] Publier : `gh stack push --remote origin` — sans ca les PR restent sur les commits d'avant les fixes
 - [ ] Si une couche deja `ready` est reecrite : commenter sur les PR du dessus ce qui a bouge
       (le force-push passe leurs commentaires en outdated et peut faire sauter les approbations)
 
