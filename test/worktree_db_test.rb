@@ -10,6 +10,7 @@ require 'minitest/mock'
 #
 class WorktreeDbTest < Minitest::Test
   WT = Nightshift::Integrations::Worktree
+  E  = Nightshift::Core::WorktreeEntry
 
   def test_db_name_strips_repo_prefix_and_dashes
     assert_equal 'tps_test_poc_haml', WT.db_name_for('/dev/demarches-simplifiees.fr-poc-haml')
@@ -79,6 +80,20 @@ class WorktreeDbTest < Minitest::Test
     assert_equal %w[tps_test_dead tps_test_dead3], orphans
   end
 
+  # A detached worktree renders as "(detached HEAD)" in `git worktree list`, so
+  # the [branch] regex dropped it and its live databases looked orphaned.
+  def test_a_detached_worktree_still_reserves_its_databases
+    dbs = %w[tps_test_review_13705 tps_test_review_137052 tps_test_dead]
+    entries = [E.new(path: '/dev/demarches-simplifiees.fr', branch: 'main'),
+               E.new(path: '/dev/review-13705', detached: true, head: 'ba2b9d2962')]
+
+    orphans = WT.stub(:all_databases, dbs) do
+      WT.stub(:entries, entries) { WT.orphan_databases }
+    end
+
+    assert_equal %w[tps_test_dead], orphans
+  end
+
   def test_cleanup_drops_the_whole_family
     dropped = nil
     dbs = %w[tps_test_gone tps_test_gone2 tps_test_gone_extra]
@@ -115,8 +130,11 @@ class WorktreeDbTest < Minitest::Test
   private
 
   def with_stubs(databases, worktrees, &block)
+    entries = [E.new(path: '/dev/demarches-simplifiees.fr', branch: 'main')] +
+              worktrees.map { |path, branch| E.new(path: path, branch: branch) }
+
     WT.stub(:all_databases, databases) do
-      WT.stub(:list, worktrees, &block)
+      WT.stub(:entries, entries, &block)
     end
   end
 end

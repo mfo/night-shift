@@ -186,10 +186,15 @@ module Nightshift
       sig { params(repo_path: String, except: T.nilable(String)).returns(T::Array[Regexp]) }
       def reserved_db_families(repo_path = Nightshift.repo_path, except: nil)
         families = [db_family(DB_PREFIX)]
-        list(repo_path).each do |wt_path, _branch|
-          next if except && File.expand_path(wt_path) == File.expand_path(except)
+        # `entries`, not `list`: git renders a detached worktree as
+        # "(detached HEAD)", which `list`'s [branch] regex never matches. Such a
+        # worktree would reserve nothing, and `doctor --fix --only dbs` would
+        # drop its live test databases. The database name only ever depends on
+        # the path, so the branch is not needed here at all.
+        entries(repo_path).each do |entry|
+          next if except && File.expand_path(entry.path) == File.expand_path(except)
 
-          families << db_family(db_name_for(wt_path))
+          families << db_family(db_name_for(entry.path))
         end
         families
       end
