@@ -188,6 +188,9 @@ class InventoryTest < Minitest::Test
     item = report.worktrees.first
     assert_equal Nightshift::CleanupAction::PruneAdmin, item.cleanup
     assert item.missing_dir
+    # `git worktree prune` removes an admin record, never a directory: gating it
+    # on "git state unknown" is what silently killed the whole admin category.
+    assert item.safe_to_clean?, 'a vanished directory must not block its own prune'
   end
 
   # --- origin -----------------------------------------------------------------

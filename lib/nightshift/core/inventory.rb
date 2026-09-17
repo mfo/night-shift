@@ -192,7 +192,11 @@ module Nightshift
             locked: entry.locked,
             detached: entry.detached,
             missing_dir: missing,
-            unknown_state: missing,
+            # Deliberately NOT unknown_state: the directory is gone, so there is
+            # no git state to be unsure about, and `git worktree prune` deletes
+            # nothing on disk — it drops an admin record for a directory that
+            # already vanished. Marking it unknown made safe_to_clean? false for
+            # every item of the `admin` category, i.e. the category never fired.
             cleanup: action,
             reason: reason
           )
