@@ -51,7 +51,7 @@ module Nightshift
     end
 
     sig { params(now: Time).returns(String) }
-    def runner(now: Time.now) = default_backend(now: now).harness
+    def runner(now: Time.now) = active_backend(now: now).harness
 
     # Le guard nil couvre les stubs de test construits via Config.allocate ;
     # le constructeur, lui, renseigne toujours @schedule.
@@ -103,8 +103,6 @@ module Nightshift
         bounds.map { |b| Time.new(day.year, day.month, day.day, b / 60, b % 60) }
       end.select { |t| t > now }
     end
-
-    def default_backend(now: Time.now) = active_backend(now: now)
 
     def parse_schedule(raw)
       abort "nightshift: schedule doit etre une liste de fenetres, pas #{raw.class.name.downcase}" unless raw.is_a?(Array)
