@@ -15,13 +15,23 @@ allowed-tools:
   - Bash(git log:*)
   - Bash(git status)
   - Bash(git push:*)
+  - Bash(git checkout:*)
+  - Bash(git worktree:*)
+  - Bash(nightshift worktree:*)
   - Bash(bin/rails runner:*)
+  - Bash(bin/rails db:*)
   - Bash(bundle exec rails runner:*)
+  - Bash(bundle exec rails db:*)
+  - Bash(gh stack:*)
+  - Bash(gh pr edit:*)
+  - Bash(gh pr ready:*)
+  - Bash(gh pr view:*)
   - Bash(.claude/skills/feature-spec/find-procedure.sh:*)
   - Bash(ls:*)
   - Skill(dev-auto-login)
   - Skill(screenshot-gist)
   - Skill(create-pr)
+  - Skill(pr-description)
   - Agent
 ---
 
@@ -54,6 +64,155 @@ Tu es un agent spécialisé dans l'**exécution de plans d'implémentation** com
 2. Si absente, proposer un découpage : `DB → model+specs → controller+specs → views → cleanup`
 3. **Valider le plan avec le user AVANT de coder**
 4. **Exécuter séquentiellement** en vérifiant tests verts à chaque commit
+
+---
+
+## Étape 0-bis : Worktree (OBLIGATOIRE)
+
+**L'implémentation ne se fait jamais dans le répertoire de travail principal.** Un worktree isole la
+branche, sa base de données de test et son serveur dev — c'est ce qui permet de laisser une feature
+en plan sans bloquer le reste.
+
+```bash
+nightshift worktree open feat/<slug>      # worktree + fenêtre tmux + DB de test
+# fallback si nightshift n'est pas disponible :
+git worktree add ../<repo>-<slug> -b feat/<slug>
+```
+
+Puis **travailler dans ce répertoire** pour tout le reste du skill.
+
+**À la fermeture — dans cet ordre :**
+
+```bash
+git checkout feat/<slug>   # la branche portée par le worktree : sans elle,
+                           # `worktree close` ne retrouve pas le répertoire
+nightshift worktree close feat/<slug>
+```
+
+⚠️ `worktree close` résout le worktree en cherchant `[branche]` dans `git worktree list`, qui n'affiche
+que la branche **courante**. Fermer alors qu'une autre couche de la pile est checkée out ne trouve rien :
+ni suppression du worktree, ni `drop_databases` — le répertoire et ses bases `tps_test_<slug>1..8` fuient.
+Revenir sur `feat/<slug>` d'abord. En cas d'oubli : `nightshift worktree reap --force` récupère les
+bases (sans `--force` c'est un dry-run qui se contente de les lister), pas le worktree.
+
+---
+
+## Étape 0-ter : La Pile (si le plan a 2+ couches)
+
+Le plan (Stage 1) porte un champ `stack.layers[]`. **Une seule couche → sauter cette étape entière**,
+le workflow reste celui d'avant : une branche, `create-pr` à la fin.
+
+### ⚠️ Prérequis bloquant : garde d'idempotence sur `post-checkout`
+
+`hooks/worktree/post-checkout` est installé dans `<worktree>/.githooks/post-checkout` (`git config
+core.hooksPath .githooks`, voir `hooks/worktree/install.sh`) : il se déclenche à **chaque**
+checkout de branche dans ce worktree. Or `gh stack checkout / up / down / top / bottom / trunk / switch`
+*sont* des checkouts. Sans garde, chaque saut de couche relance `bundle install`, `bun install`, réécrase
+`.claude/` et fait `truncate -s 0` sur `log/*.log` — y compris sous le serveur dev qui tourne pour Playwright.
+Un `gh stack rebase --upstack` sur 5 couches le fait 5 fois.
+
+**Vérifier avant de démarrer une pile.** Si la garde n'est pas en place : soit la poser dans la source
+`hooks/worktree/post-checkout` puis réinstaller (`hooks/worktree/install.sh <worktree>`) — provisioning
+lourd uniquement si `.env.test.local` est absent — soit rester en mono-couche.
+
+### Création
+
+```bash
+git branch --list 'feat/<slug>-*'     # garde : git refuse une branche déjà checkée out ailleurs
+gh stack init --base main feat/<slug>-1-db feat/<slug>-2-api feat/<slug>-3-ui
+```
+
+`gh stack init` adopte les branches existantes et crée les manquantes, dans l'ordre du plan.
+
+### Boucle par couche
+
+```bash
+gh stack checkout feat/<slug>-1-db
+RAILS_ENV=test bin/rails db:test:prepare   # OBLIGATOIRE après chaque saut de couche, voir ci-dessous
+#   … commits du plan pour cette couche, tests verts + rubocop à chaque commit
+gh stack push --remote origin
+gh stack view --short           # où j'en suis
+```
+
+⚠️ **`db:test:prepare` après chaque `checkout` / `up` / `down`.** Le hook ne fait `db:schema:load` que
+si la base n'existe pas, et ne migre jamais. Redescendre vers la couche DB laisse la base **en avance**
+sur le `schema.rb` checké out : « tests verts » devient un faux positif. `db:migrate` ne corrige pas ce
+cas — il ne roule que vers l'avant — et sans `RAILS_ENV=test` il vise la base de développement, partagée
+entre worktrees via le `.env` symlinké (`hooks/worktree/post-checkout`). `db:test:prepare` recharge le
+`schema.rb` courant dans la base de test du worktree.
+
+### Publication — en deux temps, jamais en un seul
+
+`gh stack submit --auto` génère des **titres machine**. Or `create-pr` impose
+`Nature: ETQ persona, …` + budget `# Probleme` / `# Solution`, et `review-ds` **classe les PR par préfixe
+de titre** : sans `Nature:`, sa gate communication tombe en silence. `--auto` sert donc uniquement à créer
+des coquilles draft, jamais à publier.
+
+```bash
+# 1. coquilles draft, non interactif
+gh stack submit --auto --remote origin
+
+# 2. wording par couche — le contenu, lui, est écrit
+#    pr-description avec la base de la couche, pas main
+gh pr edit <n> --title "<titre au format équipe>" --body-file pr-description-<n>-<mot>.md
+
+# 3. validation user sur les N titres + descriptions  ← point de contrôle humain, ne pas sauter
+
+# 4. ready couche par couche (jamais `submit --open`, qui passe toute la pile d'un coup
+#    et annule le verdict par couche de Stage 3)
+gh pr ready <n>
+```
+
+**Contenu des bodies.** Lancer `Skill(pr-description)` une fois par couche, avec la base de la couche.
+Carte de pile et wording d'une couche intermédiaire sont définis dans `pr-description` §« Sur une pile »
+— ne pas les redéfinir ici.
+
+### Corriger une couche basse
+
+```bash
+gh stack down                          # jusqu'à la couche propriétaire
+#   … le fix, tests verts
+gh stack rebase --upstack --remote origin
+gh stack push --remote origin          # `rebase` est local : sans ce push, les PR restent inchangées
+```
+
+Vaut aussi pour la boucle visuelle : un `fix(visual)` sur un partial livré en couche 1 se commite **en
+couche 1**, pas sur la couche courante. Le checkpoint du plan porte sa couche propriétaire (`checkpoints[].layer`).
+
+⚠️ **Geler les couches basses.** Le `gh stack push` qui suit un `rebase --upstack` force-push les
+couches du dessus : sur GitHub
+les commentaires passent *outdated*, les fils se replient, et si « dismiss stale reviews » est actif sur le
+repo, **les approbations sautent**. Une fois une couche haute passée en `ready`, les couches basses sont
+gelées : grouper les corrections, et poster un commentaire sur les PR impactées disant ce qui a bougé.
+
+⚠️ **`rerere` n'est pas un ami silencieux.** `rerere.enabled` est vrai dans la config git globale (ce n'est
+pas `gh stack` qui l'active). En cascade `--upstack`, une résolution enregistrée sur une couche est
+réappliquée automatiquement aux suivantes, y compris quand le contexte a changé. Après un conflit :
+relire `git diff --staged` **avant** `gh stack rebase --continue`.
+
+### Cycle de vie
+
+| Événement | Commande |
+|---|---|
+| `main` a avancé | `gh stack sync --remote origin` |
+| Une couche est mergée | `gh stack sync --remote origin --prune` |
+| Divergence local / GitHub | `gh stack sync` — **teste le code retour** : en terminal non interactif, une divergence **avorte sans pousser** |
+| Abandon de la pile | `gh stack unstack` puis supprimer les branches distantes |
+| La pile devient ingérable | *Collapse* : `gh stack unstack --local`, aplatir sur une branche unique, `create-pr` classique |
+
+`delete_branch_on_merge` est actif sur le repo cible : la base de la couche N+1 **disparaît sur origin**
+dès que N est mergée. D'où le `sync` après chaque merge.
+
+### Ship
+
+La pile part **en un coup**, quand toutes les couches sont approuvées :
+
+```bash
+gh stack merge --yes
+```
+
+Opération atomique et tout-ou-rien : si une PR ne peut pas être mergée, aucune ne l'est. Si la base a une
+merge queue, la pile y est ajoutée et merge quand la queue la traite — pas de contournement à prévoir.
 
 ---
 
@@ -234,6 +393,8 @@ Il retourne un JSON structuré :
 
 ## Checklist Fin Stage 2
 
+- [ ] Si pile : toutes les couches poussées, wording au format équipe, validé par le user, `ready`
+- [ ] Si pile : `gh stack view --short` cohérent avec `stack.layers[]` du plan
 - [ ] Tous commits exécutés selon plan (comparer plan vs. réels)
 - [ ] Suite complète tests passe (0 failures)
 - [ ] Rubocop clean (0 offenses)
@@ -248,9 +409,14 @@ Il retourne un JSON structuré :
 ## Handoff Stage 3
 
 Quand la checklist ci-dessus est complète :
-1. **Lancer `/feature-review`** (review-3-amigos) avec le diff de la branche
+1. **Lancer `/feature-review`** (review-3-amigos) — sur le diff de la branche, ou **couche par couche**
+   (`git diff <base-couche>...<branch>`) si le plan a une pile
 2. Si une **Issue Source** est dans la spec → la passer pour activer le **mode adversarial**
-3. Après review validée → **lancer `/create-pr`** avec les screenshots capturés
+3. Après review validée :
+   - **mono-couche** → `/create-pr` avec les screenshots capturés
+   - **pile** → les PR existent déjà (Étape 0-ter) ; ne pas relancer `create-pr`, mettre à jour les
+     descriptions avec `gh pr edit` si la review les a changées
+4. Ship quand toutes les couches sont approuvées : `gh stack merge --yes`
 
 ---
 
@@ -276,9 +442,22 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
     "screenshots": ["https://gist.github.com/..."],
     "comparison": "pass | fail | partial"
   },
-  "branch": "feature/nom-feature"
+  "worktree": "feat/nom-feature",
+  "branch": "feat/nom-feature-3-ui",
+  "stack": {
+    "trunk": "main",
+    "layers": [
+      {"branch": "feat/nom-feature-1-db", "base": "main", "pr": 1234, "state": "ready"},
+      {"branch": "feat/nom-feature-2-api", "base": "feat/nom-feature-1-db", "pr": 1235, "state": "draft"}
+    ]
+  }
 }
 ```
+
+- `stack.layers[]` : repris du plan (Stage 1) et **enrichi** du numéro de PR et de l'état de chaque couche.
+  Stage 3 en a besoin pour calculer les diffs `<base-couche>...<branch>` et rendre un verdict par couche.
+  Absent (ou une seule entrée) = pas de pile, Stage 3 reprend le diff global.
+- `branch` : la couche courante (sommet de la pile), pas le worktree. `worktree` porte le répertoire de travail.
 
 - `visual_validation.baseline_path` : repris du JSON de feature-plan. Contient les maquettes UX de référence.
 - `visual_validation.captures_path` : screenshots capturés pendant l'implémentation, nommés pour correspondre aux scénarios de la spec.

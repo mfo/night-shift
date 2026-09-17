@@ -8,17 +8,32 @@ allowed-tools:
   - Bash(git diff:*)
   - Bash(git log:*)
   - Bash(git status)
-  - Write(pr-description.md)
+  - Write(pr-description*.md)
 ---
 
 # PR Description
 
 Tu generes un fichier `pr-description.md` a la racine du worktree, pret a etre utilise par `gh pr create`.
 
+## Base et nom de fichier
+
+Par defaut la base est `main` et le fichier est `pr-description.md`.
+
+**Sur une pile (stacked PRs)**, un seul worktree porte toutes les couches : un fichier unique et une
+base `main` sont faux pour toutes les couches sauf la premiere — la couche 3 se decrirait avec le
+contenu cumule de 1+2+3.
+
+| | Mono-couche | Couche `<n>` d'une pile |
+|---|---|---|
+| Base | `main` | `<base-couche>` (la branche de la couche du dessous) |
+| Fichier | `pr-description.md` | `pr-description-<n>-<mot>.md` |
+
+Toutes les commandes ci-dessous utilisent **la base**, pas `main` en dur.
+
 ## Etape 1 : Analyser les changements
 
-1. Identifier la branche courante et la branche cible (main)
-2. Lire tous les commits entre main et HEAD (`git log main..HEAD`, `git diff main...HEAD`)
+1. Identifier la branche courante et la branche cible (la **base** : `main`, ou la couche du dessous)
+2. Lire tous les commits entre la base et HEAD (`git log <base>..HEAD`, `git diff <base>...HEAD`)
 3. Comprendre la nature et le scope des changements
 
 ## Etape 2 : Determiner la nature et le titre
@@ -113,7 +128,8 @@ Si la PR depend d'une PR non encore mergee, prefixer le titre avec `WIP - depend
 
 ## Etape 4 : Ecrire le fichier
 
-Ecrire `pr-description.md` a la racine du worktree avec :
+Ecrire le fichier (`pr-description.md`, ou `pr-description-<n>-<mot>.md` sur une pile) a la racine du
+worktree avec :
 
 ```markdown
 ---
@@ -128,3 +144,20 @@ title: "Nature: ETQ persona, description"
 
 ...
 ```
+
+### Sur une pile : carte + wording de couche
+
+Ajouter en tete de body une **carte de pile en clair**. La feature GitHub est en *public preview* :
+rien ne garantit que chaque reviewer voie l'UI native de pile.
+
+```
+Couche 2/4 — base : #1234
+Pile : #1234 ← #1235 (celle-ci) ← #1236 ← #1237
+```
+
+Une couche intermediaire n'a pas de probleme utilisateur isolable (« db: add column nullable » n'en a
+aucun). Convention :
+
+- **`# Probleme`** : une ligne de contexte feature **identique sur toutes les couches** (avec le lien
+  vers la spec et vers la PR du bas), puis le besoin propre a la couche.
+- **`# Solution`** : strictement ce que fait **cette** couche. Pas le cumul.

@@ -16,6 +16,8 @@ allowed-tools:
   - Bash(git status)
   - Bash(git absorb:*)
   - Bash(git rebase:*)
+  - Bash(gh stack:*)
+  - Bash(gh pr edit:*)
   - Agent
   - Skill(review-3-amigos)
 ---
@@ -47,6 +49,7 @@ Tu es un agent specialise dans la **review structuree post-implementation**.
 
 - [ ] Stage 2 terminee, tests verts ? (sinon retour Stage 2)
 - [ ] Nom de la feature, branche, plage de commits ?
+- [ ] Le JSON de Stage 2 porte-t-il un `stack.layers[]` a 2+ entrees ? → **review par couche** (ci-dessous)
 
 ---
 
@@ -59,7 +62,18 @@ Tu es un agent specialise dans la **review structuree post-implementation**.
 
 ### Lancer Review 3 Amigos
 
-Lance `/review-3-amigos` avec le diff complet (`git diff [base-branch]...HEAD`) et `checklist.md`.
+Lance `/review-3-amigos` avec le diff et `checklist.md`.
+
+**Quel diff ?**
+
+| Cas | Diff |
+|---|---|
+| Mono-couche | `git diff [base-branch]...HEAD` — le diff complet |
+| Pile (`stack.layers[]` a 2+ entrees) | **une passe par couche** : `git diff <base-couche>...<branch>` |
+
+Sur une pile, prendre le diff global ferait relire N fois le meme cumul et rendrait un verdict
+unique la ou le reviewer, lui, approuve couche par couche. Le verdict « mergeable » se rend
+**par couche**, et la pile n'est shippee que quand toutes les couches sont vertes.
 
 **Fallback si echec :** review manuelle PM (scope, edge cases) + UX (flows, erreurs) + Dev (perf, secu, maintenabilite).
 
@@ -143,6 +157,19 @@ Apres tous fixes appliques :
 - [ ] `git add -p` (par hunk)
 - [ ] `git absorb` (integre fixes dans commits existants)
 - [ ] Si fragments : `git rebase --autosquash`
+
+### Sur une pile
+
+Sans `--base`, `git absorb` remonte au plus `absorb.maxStack` commits (10 par defaut) et **refuse** de
+toucher aux commits atteignables depuis une autre branche : sur une pile, un fix qui appartient a une
+couche basse ne s'absorbe pas et ne produit qu'un `WARN Will not fix up commits reachable by other
+branches`. Borner explicitement a la base de la couche rend ce comportement previsible.
+
+- [ ] Absorber **couche par couche**, borne par la base de la couche : `git absorb --base <base-couche>`
+- [ ] Propager en local : `gh stack rebase --upstack --remote origin` (rebase seul, ne pousse rien)
+- [ ] Publier : `gh stack push --remote origin` — sans ca les PR restent sur les commits d'avant les fixes
+- [ ] Si une couche deja `ready` est reecrite : commenter sur les PR du dessus ce qui a bouge
+      (le force-push passe leurs commentaires en outdated et peut faire sauter les approbations)
 
 **Checkpoint :** historique clean, commits logiques et atomiques
 

@@ -14,7 +14,9 @@
 1. **Tests verts à chaque commit** — exception : breaking change documenté avec `TESTS BROKEN` + plage fix
 2. **1 commit = 1 concept** — max 5 fichiers/commit (idéal 1-3), max 20 commits total
 3. **Ordre logique (7 phases)** : DB → Infrastructure → Features → UI → Tests → Cleanup → UX
+   — c'est un **ordre de dépendance**, pas un gabarit de découpage en couches
 4. **Breaking changes en blocs** : change signature → fix call-sites → merge en bloc
+5. **1 couche = le plus petit incrément explicable seul, avec ses tests**
 
 ---
 
@@ -23,18 +25,36 @@
 | Métrique | Valeur |
 |----------|--------|
 | **Commits total** | N (< 20) |
+| **Couches (PRs)** | N (2-5, ou 1 = pas de pile) |
 | **Phases** | 7 |
 | **Fichiers impactés** | ~X |
 | **Breaking changes** | N (commits X-Y) |
 
 ### Tableau Récapitulatif
 
-| # | Phase | Titre | Breaking | Fichiers |
-|---|-------|-------|----------|----------|
-| 1 | DB | ... | Non | 1 |
-| ... | ... | ... | ... | ... |
+| # | Phase | Couche | Titre | Breaking | Fichiers |
+|---|-------|--------|-------|----------|----------|
+| 1 | DB | 1 | ... | Non | 1 |
+| ... | ... | ... | ... | ... | ... |
 
 **Commits breaking :** X-Y (merge en bloc)
+
+---
+
+## Découpage en Couches (stacked PRs)
+
+Une **couche** = une branche = une PR. Le reviewer relit et approuve chaque couche
+indépendamment ; la pile entière est mergée d'un coup (`gh stack merge`).
+
+| Couche | Branche | Base | Commits | Ce que le reviewer peut vérifier ici |
+|--------|---------|------|---------|--------------------------------------|
+| 1 | `feat/<slug>-1-<mot>` | `main` | 1-3 | [une phrase, à l'indicatif] |
+| 2 | `feat/<slug>-2-<mot>` | `feat/<slug>-1-<mot>` | 4-7 | ... |
+
+**Trunk :** `main` · **Worktree :** `feat/<slug>`
+
+> Si la dernière colonne ne se remplit pas pour une couche, cette couche n'existe pas :
+> la fusionner avec la suivante. Une seule couche → pas de pile, `create-pr` classique.
 
 ---
 
