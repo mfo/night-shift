@@ -1,7 +1,7 @@
 ---
 name: i18n-hardcoded
 description: "Extract hardcoded French strings to i18n YAML. Use when user says 'extract i18n', 'translate hardcoded', or provides a .rb/.erb file with French text."
-allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bin/rails runner:*), Bash(curl:*), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md)
+allowed-tools: Agent, Bash(git status:*), Bash(git add:*), Bash(git restore --staged:*), Bash(git commit:*), Bash(git diff:*), Bash(git log:*), Bash(grep:*), Bash(bundle exec rspec:*), Bash(bundle exec rubocop:*), Bash(bundle exec rake lint:apostrophe:fix), Bash(bin/rails runner:*), Bash(curl:*), Bash(echo:*), Bash(stat:*), Bash(touch:*), Bash(.claude/skills/screenshot-gist/create-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/create-gist.sh:*), Bash(.claude/skills/screenshot-gist/push-gist.sh:*), Bash(bash .claude/skills/screenshot-gist/push-gist.sh:*), Bash(cp:*), Bash(ls:*), Edit(app/*), Edit(spec/*), Edit(config/*), Write(app/*), Write(spec/*), Write(config/*), Write(pr-description.md)
 ---
 
 # Extraction i18n : textes francais hardcodes
@@ -39,7 +39,7 @@ Si l'agent retourne `{"status": "playwright_unavailable"}` → ecrire `pr-descri
 ```bash
 grep auto_sign_in_dev_user config/initializers/dev_auto_login.rb
 ```
-Si absent → appliquer le skill `/dev-auto-login`.
+Si absent → appliquer le skill `/dev-auto-login`. Ce skill ignore l'initializer via `.git/info/exclude` : il ne doit **jamais** modifier le `.gitignore` versionné, qui partirait dans le commit i18n.
 
 **3. Playwright** — tester via visual-verify :
 ```
@@ -269,7 +269,13 @@ git add <specs_modifiees>  # si applicable
 git commit -m "i18n(<scope>): extract hardcoded strings from <NomFichier>"
 ```
 
-Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN + specs modifiees.
+Un seul commit par fichier traite. Inclure le fichier source + YAML FR + YAML EN + specs modifiees — **et rien d'autre**.
+
+Avant de committer, verifier qu'aucune modif hors scope n'est stagee :
+```bash
+git status --short
+```
+Ne jamais stager `.gitignore`, `bun.lock`, ni un fichier de setup dev. Si l'un d'eux est stage, le retirer avec `git restore --staged <fichier>`.
 
 ### Etape 8 : Screenshot APRES + comparaison
 

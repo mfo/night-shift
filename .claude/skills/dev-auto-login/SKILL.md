@@ -1,7 +1,7 @@
 ---
 name: dev-auto-login
 description: "Setup dev auto-login and ViewComponent reload. Use for localhost authentication setup."
-allowed-tools: Bash(grep:*), Bash(touch:*), Edit(config/*), Write(config/*)
+allowed-tools: Bash(grep:*), Bash(touch:*), Bash(git check-ignore:*), Bash(git rev-parse:*), Bash(echo:*), Edit(config/*), Write(config/*)
 ---
 
 # Auto-login dev
@@ -12,7 +12,16 @@ allowed-tools: Bash(grep:*), Bash(touch:*), Edit(config/*), Write(config/*)
 
 ## Setup
 
-**1. Vérifier que le fichier est git-ignoré** dans le repo cible (`.gitignore` doit contenir `config/initializers/dev_auto_login.rb`). Si ce n'est pas le cas → prévenir l'utilisateur et ajouter l'entrée AVANT de créer le fichier.
+**1. Vérifier que le fichier est ignoré** dans le repo cible, AVANT de le créer :
+```bash
+git check-ignore -v config/initializers/dev_auto_login.rb
+```
+Si la commande ne retourne rien, ajouter l'entrée à **`.git/info/exclude`** — ignore local, jamais versionné, partagé par tous les worktrees du dépôt :
+```bash
+echo 'config/initializers/dev_auto_login.rb' >> "$(git rev-parse --git-common-dir)/info/exclude"
+```
+
+⚠️ **Ne JAMAIS toucher au `.gitignore` versionné pour ça.** Cette ligne se retrouve dans le commit de la feature et pollue la PR (constaté sur #13964 : un commit i18n embarquait `+/config/initializers/dev_auto_login.rb`). Si l'entrée a déjà été ajoutée au `.gitignore` par une exécution précédente, la retirer avant de committer.
 
 **2. Vérifier si le fichier existe déjà :**
 ```bash

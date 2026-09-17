@@ -54,7 +54,7 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 
 Utiliser le skill [`/dev-auto-login`](../dev-auto-login/SKILL.md) qui crée `config/initializers/dev_auto_login.rb` (git-ignoré, rouvre ApplicationController pour l'auto-login + invalidation cache ViewComponent).
 
-⚠️ **CRITIQUE** : ce fichier doit être dans le `.gitignore` du repo cible : `config/initializers/dev_auto_login.rb`
+⚠️ **CRITIQUE** : ce fichier doit être ignoré via **`.git/info/exclude`** (ignore local), jamais via le `.gitignore` versionné — sinon la ligne `+/config/initializers/dev_auto_login.rb` atterrit dans le commit de migration. `/dev-auto-login` s'en charge. Avant de committer, vérifier que `git status` ne montre pas `.gitignore` modifié.
 
 ---
 
