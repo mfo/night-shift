@@ -281,8 +281,9 @@ tant que tour <= 5 :
        → git commit --no-gpg-sign -m "fix(review): <sujet>"
        → si un fix touche une vue / un composant / du CSS :
          relancer la validation visuelle avant de reboucler. Si elle atteint
-         son propre cap de 3 itérations, la boucle s'arrête aussi : on remonte
-         les deux au user d'un coup, pas l'un après l'autre.
+         son propre cap de 3 itérations, la boucle s'arrête aussi : sortie
+         `escalated` (critiques non traités → `review_loop.remaining`), et on
+         remonte les deux au user d'un coup, pas l'un après l'autre.
 
     6. tour += 1
 ```
@@ -379,7 +380,7 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
 }
 ```
 
-- `review_loop.exit` : `clean` = aucun finding critique à la dernière passe. `escalated` = cap de 5 passes atteint avec des critiques ouverts, listés dans `remaining` et repris par le Stage 3.
+- `review_loop.exit` : `clean` = aucun finding critique à la dernière passe. `escalated` = cap de 5 passes atteint **ou** blocage de la validation visuelle, avec des critiques ouverts, listés dans `remaining` et repris par le Stage 3.
 - `visual_validation.baseline_path` : repris du JSON de feature-plan. Contient les maquettes UX de référence.
 - `visual_validation.captures_path` : screenshots capturés pendant l'implémentation, nommés pour correspondre aux scénarios de la spec.
 - `visual_validation.comparison` : résultat de la comparaison visuelle baseline vs captures.
