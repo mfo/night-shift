@@ -75,14 +75,16 @@ Puis **travailler dans ce répertoire** pour tout le reste du skill.
 **À la fermeture — dans cet ordre :**
 
 ```bash
-gh stack trunk          # UNIQUEMENT si une pile est en cours, voir Étape 0-ter
+git checkout feat/<slug>   # la branche portée par le worktree : sans elle,
+                           # `worktree close` ne retrouve pas le répertoire
 nightshift worktree close feat/<slug>
 ```
 
 ⚠️ `worktree close` résout le worktree en cherchant `[branche]` dans `git worktree list`, qui n'affiche
 que la branche **courante**. Fermer alors qu'une autre couche de la pile est checkée out ne trouve rien :
 ni suppression du worktree, ni `drop_databases` — le répertoire et ses bases `tps_test_<slug>1..8` fuient.
-Revenir au trunk d'abord. En cas d'oubli : `nightshift worktree reap` récupère les bases, pas le worktree.
+Revenir sur `feat/<slug>` d'abord. En cas d'oubli : `nightshift worktree reap --force` récupère les
+bases (sans `--force` c'est un dry-run qui se contente de les lister), pas le worktree.
 
 ---
 
