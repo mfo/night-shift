@@ -371,7 +371,9 @@ Terminer le skill par un bloc JSON dans un code fence. Le harness valide la pré
   "review_loop": {
     "passes": 3,
     "exit": "clean | escalated",
-    "false_positives": ["summary du finding réfuté"],
+    "false_positives": [
+      { "summary": "summary du finding réfuté", "refuted_by": "fichier:ligne", "reason": "…" }
+    ],
     "remaining": []
   },
   "visual_validation": {
