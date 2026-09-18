@@ -95,8 +95,12 @@ nightshift worktree close feat/<slug>
 ⚠️ `worktree close` résout le worktree en cherchant `[branche]` dans `git worktree list`, qui n'affiche
 que la branche **courante**. Fermer alors qu'une autre couche de la pile est checkée out ne trouve rien :
 ni suppression du worktree, ni `drop_databases` — le répertoire et ses bases `tps_test_<slug>1..8` fuient.
-Revenir sur `feat/<slug>` d'abord. En cas d'oubli : `nightshift worktree reap --force` récupère les
-bases (sans `--force` c'est un dry-run qui se contente de les lister), pas le worktree.
+Revenir sur `feat/<slug>` d'abord. En cas d'oubli, `close` a quand même supprimé la branche
+`feat/<slug>` — son `git branch -D` final n'est pas conditionné à la résolution du worktree — donc le
+retry n'est plus possible. Retirer le worktree à la main (`git worktree remove <path> --force`)
+**avant** `nightshift worktree reap --force` : tant qu'il reste listé, sa famille `tps_test_<slug>*`
+reste réservée et `reap` ne voit aucun orphelin. Sans `--force`, `reap` est un dry-run qui se contente
+de lister les bases ; dans tous les cas il ne récupère pas le worktree.
 
 ---
 
