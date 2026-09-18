@@ -54,8 +54,10 @@ module Nightshift
           items.select { |i| i.open_pr? && i.kind != WorkItemKind::StaleBranch }
         end
 
+        # A PR anchored in the main working tree carries a path; it has a
+        # checkout, just not a worktree of its own.
         sig { returns(T::Array[WorkItem]) }
-        def prs_without_worktree = of(WorkItemKind::Pr)
+        def prs_without_worktree = of(WorkItemKind::Pr).select { |i| i.path.nil? }
 
         sig { returns(T::Array[WorkItem]) }
         def worktrees_without_pr = worktrees.select { |i| i.pr_number.nil? }
@@ -97,8 +99,7 @@ module Nightshift
 
         base ||= Integrations::Git.default_base(repo_path)
         entries = Integrations::Worktree.entries(repo_path)
-        main = entries.first
-        worktrees = main ? entries.drop(1) : entries
+        worktrees = entries.drop(1) # entries.first is the main working tree
 
         history ||= fetch_history(repo_path) if live && !fetch_failed
         # History fills the gaps; the richly fetched PRs win wherever both know
@@ -108,7 +109,7 @@ module Nightshift
 
         items = []
         items.concat(worktree_items(worktrees, repo_path, by_branch, auto_branches))
-        items.concat(pr_items(prs, worktrees, repo_path, auto_branches))
+        items.concat(pr_items(prs, entries, repo_path, auto_branches))
         items.concat(ghost_items(repo_path))
         # The test databases are named after the primary repo's worktrees. Asking
         # a secondary repo which ones are orphaned would declare every database
@@ -217,26 +218,38 @@ module Nightshift
       end
 
       # The PRs the reconciler never saw: open on GitHub, no worktree here.
+      #
+      # `entries`, main working tree included. A PR on the branch the main
+      # checkout holds IS anchored — `git worktree add` refuses a branch already
+      # checked out, so "ouvre un worktree" would be an instruction that fails.
+      # It stays a Pr item (nothing else would report it: worktree_items only
+      # ever sees the secondary worktrees) but carries the path it lives at, and
+      # that is what stops `status` from printing the bogus command. The case is
+      # routine for the secondary repos this PR adds: they usually have no
+      # worktrees at all, so every PR of theirs goes through here.
       sig do
-        params(prs: T::Array[Core::PR], worktrees: T::Array[WorktreeEntry],
+        params(prs: T::Array[Core::PR], entries: T::Array[WorktreeEntry],
                repo_path: String, auto_branches: T::Set[String]).returns(T::Array[WorkItem])
       end
-      def pr_items(prs, worktrees, repo_path, auto_branches)
-        covered = Set.new(worktrees.filter_map(&:branch))
+      def pr_items(prs, entries, repo_path, auto_branches)
+        main = entries.first
+        covered = Set.new(entries.drop(1).filter_map(&:branch))
 
         prs.select { |pr| pr.github_state == 'OPEN' && pr.branch && !covered.include?(pr.branch) }
            .sort_by { |pr| -pr.number.to_i }
            .map do |pr|
+          on_main = !main.nil? && main.branch == pr.branch
           WorkItem.new(
             kind: WorkItemKind::Pr,
             label: pr.branch.to_s,
             origin: origin_of(nil, pr.branch, auto_branches),
             repo: repo_path,
+            path: on_main ? T.must(main).path : nil,
             branch: pr.branch,
             pr_number: pr.number,
             pr_state: pr.state,
             github_state: pr.github_state,
-            reason: 'pas de worktree local'
+            reason: on_main ? 'checkoutée dans le dépôt principal' : 'pas de worktree local'
           )
         end
       end

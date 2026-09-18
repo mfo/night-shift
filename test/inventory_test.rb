@@ -150,6 +150,17 @@ class InventoryTest < Minitest::Test
     assert_empty report.worktrees
   end
 
+  # Routine for a secondary repo, which usually has no worktree at all: the PR
+  # is checked out in the main tree, and `git worktree add` would refuse it.
+  def test_pr_on_the_main_checkout_branch_is_anchored_not_floating
+    report = scan(entries: [entry('demarches-simplifiees.fr', branch: 'feat/x')],
+                  prs: [pr(42, 'feat/x')])
+
+    assert_empty report.prs_without_worktree, 'it has a checkout, just not a worktree'
+    assert_equal [42], report.open_prs.map(&:pr_number), 'and it must stay visible'
+    assert report.open_prs.first.path, 'anchored on the main working tree'
+  end
+
   # --- cleanup verdicts -------------------------------------------------------
 
   def test_worktree_of_a_merged_pr_is_closable
