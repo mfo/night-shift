@@ -109,9 +109,10 @@ Lancer `/review-3-amigos` avec le plan + `checklist.md`.
 ### Étape 3 : Validation & Présentation
 
 Présenter au user :
-1. **Tableau récapitulatif** (# / Phase / Titre / Breaking / Fichiers)
-2. **Résumé par phase**
-3. **Breaking changes** (plage commits, merge en bloc)
+1. **Tableau récapitulatif** (# / Phase / Couche / Titre / Breaking / Fichiers)
+2. **Découpage en couches** (Couche / Branche / Base / Commits / « ce que le reviewer peut vérifier ici »)
+3. **Résumé par phase**
+4. **Breaking changes** (plage commits, merge en bloc)
 
 ---
 
