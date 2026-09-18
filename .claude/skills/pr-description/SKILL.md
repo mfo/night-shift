@@ -78,6 +78,10 @@ follows: <url PR precedente>
 
 Si la PR depend d'une PR non encore mergee, prefixer le titre avec `WIP - depends_on#XXXX –`.
 
+**Jamais sur une pile.** Le lien natif entre PR remplace cette convention — la carte de pile (Etape 4)
+tient ce role — et le prefixe `WIP -` casserait le prefixe `Nature:` sur lequel `review-ds` classe les
+PR. Sur une pile : ni header `depends_on:`/`follows:`, ni prefixe de titre.
+
 ### Structure obligatoire
 
 ```markdown
