@@ -129,7 +129,7 @@ module Nightshift
         parts << "#{detached.size}🔌" if detached.any?
 
         puts "  #{open_prs.size} PRs ouvertes  #{parts.join(' ')}"
-        debt_line(store)
+        debt_line(store, prs)
 
         # Backlog progress per skill
         items = store.all_backlog
@@ -174,9 +174,15 @@ module Nightshift
 
       # One line of cleanup debt, cheap enough for the morning brief: no `du`,
       # no per-worktree git call. The doctor does the expensive part.
-      sig { params(store: Core::Store).void }
-      def debt_line(store)
-        report = Core::Inventory.scan(store: store, deep: false)
+      #
+      # `prs` is handed in on purpose. Without it `scan` takes its live branch
+      # and spends five `gh` round trips (repo view, the PR GraphQL query, a
+      # second repo view, `gh pr list --limit 400`) re-fetching the very PRs
+      # `generate` read from SQLite at the top of this method — and falls back
+      # on that same cache when `gh` is slow or rate-limited.
+      sig { params(store: Core::Store, prs: T::Array[Core::PR]).void }
+      def debt_line(store, prs)
+        report = Core::Inventory.scan(store: store, prs: prs, deep: false)
         count = report.cleanables.size
         return if count.zero?
 
