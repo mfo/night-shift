@@ -99,7 +99,7 @@ module Nightshift
       )
 
       Integrations::Worktree.list.each do |wt_path, branch|
-        next unless nightshift_owned?(wt_path, branch, busy_branches)
+        next unless nightshift_owned?(wt_path, branch)
         next if busy_branches.include?(branch)
         next if open_pr_branches.include?(branch)
         next unless zombie_process?(wt_path)
@@ -114,12 +114,9 @@ module Nightshift
     # a skill can rename its branch mid-run — auto/test-optimization/batch-86a146d5
     # became perf/expert-spec in auto-test-optimization-batch-623d3f73 — and an
     # `auto/` branch-prefix filter then loses track of the worktree forever.
-    sig { params(wt_path: String, branch: T.nilable(String), busy_branches: T::Set[String]).returns(T::Boolean) }
-    def nightshift_owned?(wt_path, branch, busy_branches)
-      return true if File.basename(wt_path).start_with?('auto-')
-      return true if branch.to_s.start_with?('auto/')
-
-      busy_branches.include?(branch)
+    sig { params(wt_path: String, branch: T.nilable(String)).returns(T::Boolean) }
+    def nightshift_owned?(wt_path, branch)
+      File.basename(wt_path).start_with?('auto-') || branch.to_s.start_with?('auto/')
     end
 
     sig { params(backlog_item: Core::BacklogItem).void }
