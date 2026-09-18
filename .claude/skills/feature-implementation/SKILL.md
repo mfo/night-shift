@@ -276,8 +276,9 @@ tant que tour <= 5 :
 
     4. si tour == 5 → STOP sans corriger. Sortie `escalated` :
        écrire les critiques restants dans `review_loop.remaining` du JSON de
-       sortie, et ne PAS cocher le handoff Stage 3. C'est un état livrable
-       (le Stage 3 les reprendra), pas un échec.
+       sortie, laisser la case « Boucle /code-review … clean » décochée, et
+       faire QUAND MÊME le handoff Stage 3 (le gate l'admet explicitement).
+       C'est un état livrable (le Stage 3 reprendra `remaining`), pas un échec.
 
     5. pour chaque critique : soit le corriger, soit l'ajouter à faux_positifs
        en le repérant par son `summary` (PAS par `fichier:ligne` : les fixes
