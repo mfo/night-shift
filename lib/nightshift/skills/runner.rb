@@ -44,11 +44,9 @@ module Nightshift
         log_suffix = batch_index ? "-#{batch_index}" : ''
         log_path = File.join(logdir, "claude-#{skill_name}#{log_suffix}.log")
 
-        # Le harness vient du claim (slot deja budgete). A defaut (item claim avant
-        # la migration 012), on retombe sur le backend configure — exactement le
-        # meme repli que le comptage de concurrence du Reconciler, sinon le binaire
-        # lance et le slot debite ne designent pas le meme harness.
-        binary = harness || Nightshift.configured_backend(skill_name).harness
+        # Le harness vient du claim (slot deja budgete) ; le repli est partage
+        # avec le comptage de concurrence du Reconciler.
+        binary = Nightshift.claimed_harness(skill_name, harness)
         Log.info "── SKILL #{skill_name} — #{item} [#{binary}] ──────────────────"
 
         # Snapshot commit count before run (for batch: detect NEW commits only)

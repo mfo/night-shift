@@ -31,6 +31,14 @@ module Nightshift
     def configured_backend(skill_name) = config.configured_backend(skill_name)
     def active_window(now: Time.now) = config.active_window(now: now)
     def next_switch_at(now: Time.now) = config.next_switch_at(now: now)
+
+    # Harness reellement occupe par un item : celui reserve au claim, ou a defaut
+    # le backend configure (item claim avant la migration 012 — pas de harness
+    # enregistre, et il a forcement tourne sur le pin ou le default puisque le
+    # schedule n'existait pas). Re-resoudre la plage horaire ici rejouerait la
+    # regression qu'on corrige : le binaire lance et le slot debite sortent
+    # tous les deux d'ici, sinon ils designent des harness differents.
+    def claimed_harness(skill_name, harness) = harness || configured_backend(skill_name).harness
   end
 
   def self.db
