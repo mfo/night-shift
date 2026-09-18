@@ -336,7 +336,7 @@ pour relancer les tests entre chaque fix.
 - [ ] Tous commits exécutés selon plan (comparer plan vs. réels)
 - [ ] Suite complète tests passe (0 failures)
 - [ ] Rubocop clean (0 offenses)
-- [ ] Coverage ≥ 80%
+- [ ] Coverage ≥ 80% et jamais en baisse
 - [ ] Breaking changes en blocs (merge safe)
 - [ ] Feature implémentée complètement (acceptance criteria validées)
 - [ ] Validation visuelle effectuée (si applicable)
