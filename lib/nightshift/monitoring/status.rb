@@ -73,11 +73,16 @@ module Nightshift
         parts << "#{missing} PR(s) sans worktree" if missing.positive?
         closable = report.for_action(CleanupAction::CloseWorktree).size
         parts << "#{closable} worktree(s) à fermer" if closable.positive?
+        blocked = report.blocked.size
+        parts << "#{blocked} bloqué(s)" if blocked.positive?
 
         io.puts "  #{report.worktrees.size} worktrees · #{report.open_prs.size} PRs ouvertes"
         io.puts "  #{parts.join(' · ')}" if parts.any?
 
-        debt = report.cleanables.size
+        # Only what doctor would actually act on: it runs on
+        # `cleanables.select(&:safe_to_clean?)`, so counting the blocked ones
+        # here sends the user to a command that answers "rien à nettoyer".
+        debt = report.cleanables.count(&:safe_to_clean?)
         return unless debt.positive?
 
         suffix = report.deep ? " (#{Nightshift.human_size(report.reclaimable_bytes)})" : ''
