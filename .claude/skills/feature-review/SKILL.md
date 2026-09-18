@@ -18,6 +18,7 @@ allowed-tools:
   - Bash(git rebase:*)
   - Bash(gh stack:*)
   - Bash(gh pr edit:*)
+  - Bash(gh pr comment:*)
   - Agent
   - Skill(review-3-amigos)
 ---
