@@ -30,6 +30,7 @@ allowed-tools:
   - Bash(gh pr ready:*)
   - Bash(gh pr comment:*)
   - Bash(.claude/skills/feature-spec/find-procedure.sh:*)
+  - Bash(cp:*)
   - Bash(ls:*)
   - Skill(dev-auto-login)
   - Skill(screenshot-gist)
