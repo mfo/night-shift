@@ -16,12 +16,14 @@ module Nightshift
       extend T::Sig
       module_function
 
-      # Uncommitted changes, tracked files only. Untracked files are ignored on
-      # purpose: a worktree is full of build artefacts and they are not work.
+      # Uncommitted content, untracked files included. `--porcelain` already
+      # hides everything .gitignore covers, so build artefacts never show up
+      # here; what is left is work that exists as no git object anywhere, and
+      # `Worktree.cleanup` removes a worktree with `--force` then `rm -rf`.
       sig { params(path: String).returns(T.nilable(T::Boolean)) }
       def dirty?(path)
         out, _, status = Open3.capture3('git', '-C', path, 'status', '--porcelain',
-                                        '--untracked-files=no')
+                                        '--untracked-files=normal')
         return nil unless status.success?
 
         !out.strip.empty?

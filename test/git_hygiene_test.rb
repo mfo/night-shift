@@ -46,11 +46,23 @@ class GitHygieneTest < Minitest::Test
     assert GIT.dirty?(@repo)
   end
 
-  def test_untracked_files_alone_do_not_count_as_dirty
-    # A worktree is full of build artefacts. Those are not work.
-    File.write(File.join(@repo, 'tmp.log'), "noise\n")
+  def test_untracked_files_alone_count_as_dirty
+    # An untracked file exists as no git object anywhere: removing the worktree
+    # removes it for good, and `doctor --fix -y` asks nobody.
+    File.write(File.join(@repo, 'after.png'), "binary\n")
 
-    refute GIT.dirty?(@repo)
+    assert GIT.dirty?(@repo), 'untracked work must block a destructive cleanup'
+  end
+
+  def test_gitignored_artefacts_still_do_not_count_as_dirty
+    File.write(File.join(@repo, '.gitignore'), "*.log\ntmp/\n")
+    git!('add', '.gitignore')
+    git!('commit', '-m', 'ignore artefacts', '--no-gpg-sign')
+    File.write(File.join(@repo, 'noise.log'), "noise\n")
+    FileUtils.mkdir_p(File.join(@repo, 'tmp'))
+    File.write(File.join(@repo, 'tmp', 'cache.bin'), "x\n")
+
+    refute GIT.dirty?(@repo), '--porcelain hides what .gitignore covers'
   end
 
   def test_dirty_returns_nil_outside_a_repository
