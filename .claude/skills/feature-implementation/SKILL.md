@@ -250,10 +250,12 @@ droit de modifier le code : c'est sa raison d'être, et il re-review ce qu'il ch
 
 ```
 bundle exec rspec  → doit être VERT avant d'entrer dans la boucle
-git diff main...HEAD --stat  → doit être NON VIDE, sinon la boucle n'a rien à
-                               reviewer (branche déjà poussée : `@{upstream}...HEAD`
-                               est vide et le repli `main...HEAD` ne se déclenche
-                               pas, il est conditionné à l'absence d'upstream)
+périmètre = `@{upstream}...HEAD` si `git rev-parse --abbrev-ref @{upstream}`
+            réussit, sinon `main...HEAD`   ← le ref que /code-review résout
+git diff <périmètre> --stat  → doit être NON VIDE. S'il est vide alors que
+    `main...HEAD` ne l'est pas, la branche est déjà poussée : /code-review
+    reviewerait un diff vide et sortirait `clean` à tort. STOP et remonter
+    au user (ne pas cocher la case de la boucle).
 tour = 1
 faux_positifs = {}        # findings réfutés, avec leur preuve
 
