@@ -384,14 +384,17 @@ class ReconcilerTest < Minitest::Test
     reconciler.define_singleton_method(:zombie_process?) { |_| true }
 
     original_cleanup = Nightshift::Integrations::Worktree.method(:cleanup)
+    original_list = Nightshift::Integrations::Worktree.method(:list)
     cleaned = false
     Nightshift::Integrations::Worktree.define_singleton_method(:cleanup) { |_b, **_| cleaned = true }
     Nightshift::Integrations::Worktree.define_singleton_method(:path_for_branch) { |_b, *_| '/tmp/fake' }
+    Nightshift::Integrations::Worktree.define_singleton_method(:list) { |*_| [['/tmp/fake', branch]] }
 
     begin
       reconciler.reconcile([])
     ensure
       Nightshift::Integrations::Worktree.define_singleton_method(:cleanup, original_cleanup)
+      Nightshift::Integrations::Worktree.define_singleton_method(:list, original_list)
     end
 
     assert cleaned, 'should cleanup orphan worktree with no open PR'
@@ -429,10 +432,9 @@ class ReconcilerTest < Minitest::Test
     assert_equal 'pr_open', updated[:status]
   end
 
-  # --- Worktree-centric filter tests ---
+  # --- PRs without a local worktree ---
 
-  def test_worktree_centric_filter_ignores_prs_without_worktree
-    # PR exists but branch is NOT in worktree_branches
+  def test_pr_without_worktree_is_tracked_but_gets_no_renderer_action
     branches = Set.new(%w[fix/a])
     reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
                                             worktree_branches: branches)
@@ -441,9 +443,31 @@ class ReconcilerTest < Minitest::Test
     pr_out = Nightshift::Core::PR.new(number: 2, branch: 'fix/no-worktree', github_state: 'OPEN', ci: 'red')
     reconciler.reconcile([pr_in, pr_out])
 
-    # Only pr_in should be updated
+    # The window only exists for the anchored PR, so only it gets rendered —
+    # and a red PR with no worktree must not trigger autofix into nowhere.
     assert_equal [[:update_window, 1]], @renderer.calls
-    assert_nil @store.get_state(2)
+
+    # But it is no longer invisible: the state machine now knows about it.
+    assert_equal Nightshift::PRState::CiRed, @store.get_state(2)
+  end
+
+  def test_pr_without_worktree_records_its_transitions
+    branches = Set.new(%w[fix/a])
+    reconciler = Nightshift::Reconciler.new(store: @store, renderer: @renderer,
+                                            worktree_branches: branches)
+
+    pr = Nightshift::Core::PR.new(number: 7, branch: 'fix/elsewhere',
+                                  github_state: 'OPEN', ci: 'green')
+    reconciler.reconcile([pr])
+
+    pr.ci = 'red'
+    reconciler.reconcile([pr])
+
+    transitions = @db[:transitions].where(pr_number: 7).all
+    assert_equal 1, transitions.size
+    assert_equal 'ci_green', transitions.first[:from_state]
+    assert_equal 'ci_red', transitions.first[:to_state]
+    refute @renderer.calls.any? { |c| c[0] == :autofix }, 'no window to autofix in'
   end
 
   # --- Backlog lifecycle full cycle ---

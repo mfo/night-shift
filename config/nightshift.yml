@@ -33,3 +33,10 @@ skills:
     port: 3220
     vite_port: 3221
     batch_size: 5
+
+# Repos secondaires. `nightshift status` les affiche pour que les PRs ouvertes
+# ailleurs cessent d'être invisibles. Lecture seule : les skills, le backlog et
+# `nightshift doctor` restent sur le repo principal (celui passé à --repo), et
+# les bases de test ne sont sondées que pour lui.
+# repos:
+#   - ~/dev/night-shift

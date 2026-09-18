@@ -104,6 +104,23 @@ module Nightshift
           puts "    #{name}"
         end
 
+        # The session is built from worktrees, so an open PR with nothing
+        # checked out locally gets no window at all. Naming them here is the
+        # difference between "I have 6 PRs" and the 9 actually open.
+        #
+        # `branches`, not the `worktrees` list above: that one drops the main
+        # working tree, and a PR on the branch the main checkout holds IS
+        # anchored — `git worktree add` refuses a branch already checked out.
+        checked_out = Integrations::Worktree.branches(repo_path)
+        detached = prs.select { |pr| pr.github_state == 'OPEN' && !checked_out.include?(pr.branch) }
+        if detached.any?
+          puts ''
+          puts "  ◎ #{detached.size} PR(s) ouverte(s) sans worktree"
+          detached.sort_by { |pr| -pr.number.to_i }.each do |pr|
+            puts "    #{pr.badge}  ##{pr.number}  #{pr.slug}"
+          end
+        end
+
         status_parts = ''
         status_parts += " #{n_approved}✅" if n_approved.positive?
         status_parts += " #{n_green}🟢" if n_green.positive?

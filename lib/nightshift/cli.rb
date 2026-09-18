@@ -45,6 +45,41 @@ module Nightshift
 
     # --- Internal (called inside panes by attach/reconciler) ---
 
+    desc 'status', "Vue globale de l'encours : PRs, worktrees, et ce qui n'est pas suivi"
+    option :deep, type: :boolean, default: false, desc: 'Mesure aussi le disque et l\'état git (plus lent)'
+    def status
+      primary = Nightshift.repo_path
+      Nightshift.repos.each_with_index do |repo, index|
+        report = Core::Inventory.scan(
+          repo_path: repo,
+          store: repo == primary ? store : nil,
+          deep: options[:deep],
+          probe_databases: repo == primary
+        )
+        puts '' if index.positive?
+        Monitoring::Status.render(report)
+      end
+    end
+
+    desc 'doctor', 'Dette de nettoyage : worktrees, dossiers fantômes, bases, branches'
+    option :fix, type: :boolean, default: false, desc: 'Applique le nettoyage (dry-run sinon)'
+    option :only, type: :string, desc: "Une seule catégorie : #{Monitoring::Doctor::CATEGORIES.map(&:key).join(', ')}"
+    option :yes, type: :boolean, default: false, aliases: '-y', desc: 'Ne pas demander confirmation'
+    def doctor
+      only = options[:only]
+      if only && Monitoring::Doctor.categories(only).empty?
+        abort "nightshift: catégorie inconnue '#{only}' (#{Monitoring::Doctor::CATEGORIES.map(&:key).join(', ')})"
+      end
+
+      report = Core::Inventory.scan(store: store, deep: true)
+      Monitoring::Doctor.render(report, only: only)
+      return unless options[:fix]
+
+      confirm = options[:yes] ? nil : ->(_category, items) { yes?("    supprimer ces #{items.size} élément(s) ? [y/N]") }
+      tally = Monitoring::Doctor.apply(report, only: only, confirm: confirm)
+      say_status :doctor, "#{tally.values.sum} élément(s) nettoyé(s)", :green
+    end
+
     desc 'watch', 'Refresh and watch PRs periodically (internal, runs in pane)', hide: true
     def watch
       interval = ENV.fetch('NIGHTSHIFT_WATCH_INTERVAL').to_i

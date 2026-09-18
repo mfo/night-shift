@@ -18,7 +18,7 @@ module Nightshift
 
     DEFAULT_BACKEND = Core::LLMBackend.new(name: 'default', harness: 'claude', concurrency: 1).freeze
 
-    attr_reader :repo_path, :skills, :backends
+    attr_reader :repo_path, :skills, :backends, :extra_repos
 
     REQUIRED_BINARIES = %w[gh].freeze
 
@@ -32,6 +32,7 @@ module Nightshift
       @backends = parse_backends(raw[:backends] || {})
       @default_backend_name = (raw[:default_backend] || @backends.keys.first)&.to_s
       @skills = parse_skills(raw[:skills] || {})
+      @extra_repos = Array(raw[:repos]).map { |path| File.expand_path(path.to_s.sub(/\A~/, Dir.home)) }
     end
 
     sig { returns(T::Array[String]) }
@@ -39,6 +40,12 @@ module Nightshift
 
     sig { returns(String) }
     def db_path = File.join(@repo_path, '.nightshift', 'nightshift.db')
+
+    # The primary repo first, then whatever `repos:` lists. Only the primary one
+    # runs skills and owns the backlog; the extras exist so that `status` can
+    # show PRs opened elsewhere instead of pretending they do not exist.
+    sig { returns(T::Array[String]) }
+    def repos = [@repo_path] + (@extra_repos || [])
 
     sig { params(skill_name: String).returns(Core::LLMBackend) }
     def backend_for(skill_name)

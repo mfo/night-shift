@@ -16,9 +16,9 @@ module Nightshift
       extend T::Sig
       module_function
 
-      sig { returns(T::Array[Core::PR]) }
-      def fetch_prs
-        repo = gh_repo
+      sig { params(repo_path: String).returns(T::Array[Core::PR]) }
+      def fetch_prs(repo_path = Nightshift.repo_path)
+        repo = gh_repo(repo_path)
         gh_user = ENV.fetch('NIGHTSHIFT_USER')
 
         raw_prs = fetch_prs_graphql(repo, gh_user)
@@ -27,6 +27,31 @@ module Nightshift
         raw_prs.map do |data|
           data[:deployed] = deployed_numbers.include?(data[:number])
           Core::PR.new(**data)
+        end
+      end
+
+      # Lightweight branch -> PR history, one call, several hundred PRs deep.
+      #
+      # fetch_prs only returns the 100 most recently updated PRs, which is the
+      # right window for the reconciler and far too narrow for the inventory: a
+      # worktree left over from a PR merged three months ago would look like a
+      # worktree that never had a PR, and therefore like something to keep.
+      sig { params(repo_path: String, limit: Integer).returns(T::Array[Core::PR]) }
+      def fetch_pr_history(repo_path = Nightshift.repo_path, limit: 400)
+        repo = gh_repo(repo_path)
+        gh_user = ENV.fetch('NIGHTSHIFT_USER')
+
+        output = capture('gh', 'pr', 'list', '-R', repo, '--author', gh_user,
+                         '--state', 'all', '--limit', limit.to_s,
+                         '--json', 'number,headRefName,state,updatedAt')
+
+        JSON.parse(output, symbolize_names: true).map do |node|
+          Core::PR.new(
+            number: node[:number], branch: node[:headRefName],
+            github_state: node[:state], ci: 'none', review_decision: '',
+            review_count: 0, comment_count: 0, auto_merge: false,
+            deployed: false, reviewer: '', updated_at: node[:updatedAt]
+          )
         end
       end
 
@@ -156,9 +181,8 @@ module Nightshift
         end
       end
 
-      sig { returns(String) }
-      def gh_repo
-        repo_path = Nightshift.repo_path
+      sig { params(repo_path: String).returns(String) }
+      def gh_repo(repo_path = Nightshift.repo_path)
         capture('gh', 'repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner',
                 chdir: repo_path).strip
       end
