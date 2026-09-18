@@ -107,7 +107,12 @@ module Nightshift
         # The session is built from worktrees, so an open PR with nothing
         # checked out locally gets no window at all. Naming them here is the
         # difference between "I have 6 PRs" and the 9 actually open.
-        detached = prs.select { |pr| pr.github_state == 'OPEN' && !pr_by_branch_covered?(worktrees, pr) }
+        #
+        # `branches`, not the `worktrees` list above: that one drops the main
+        # working tree, and a PR on the branch the main checkout holds IS
+        # anchored — `git worktree add` refuses a branch already checked out.
+        checked_out = Integrations::Worktree.branches(repo_path)
+        detached = prs.select { |pr| pr.github_state == 'OPEN' && !checked_out.include?(pr.branch) }
         if detached.any?
           puts ''
           puts "  ◎ #{detached.size} PR(s) ouverte(s) sans worktree"
@@ -139,11 +144,6 @@ module Nightshift
         end
 
         renderer.attach_or_switch
-      end
-
-      sig { params(worktrees: T::Array[[String, String]], pr: Core::PR).returns(T::Boolean) }
-      def pr_by_branch_covered?(worktrees, pr)
-        worktrees.any? { |_path, branch| branch == pr.branch }
       end
 
       def reattach(renderer, _session)
