@@ -2,6 +2,8 @@
 
 require_relative 'test_helper'
 require 'minitest/mock'
+require 'tmpdir'
+require 'fileutils'
 
 #
 # Naming of the per-worktree test databases, and the blast radius of the drop
@@ -11,6 +13,22 @@ require 'minitest/mock'
 class WorktreeDbTest < Minitest::Test
   WT = Nightshift::Integrations::Worktree
   E  = Nightshift::Core::WorktreeEntry
+
+  def setup
+    @root = Dir.mktmpdir('nightshift-dbs')
+  end
+
+  def teardown
+    FileUtils.remove_entry(@root) if @root && Dir.exist?(@root)
+  end
+
+  # Only a worktree that still exists on disk reserves its databases, so the
+  # stubbed entries have to point at real directories.
+  def wt(name)
+    path = File.join(@root, name)
+    FileUtils.mkdir_p(path)
+    path
+  end
 
   def test_db_name_strips_repo_prefix_and_dashes
     assert_equal 'tps_test_poc_haml', WT.db_name_for('/dev/demarches-simplifiees.fr-poc-haml')
@@ -36,8 +54,9 @@ class WorktreeDbTest < Minitest::Test
       tps_test_foobar tps_test_foobar2 tps_test_foo_bar
     ]
 
-    names = with_stubs(dbs, [['/dev/demarches-simplifiees.fr-foo', 'foo']]) do
-      WT.databases_for('/dev/demarches-simplifiees.fr-foo')
+    foo = wt('demarches-simplifiees.fr-foo')
+    names = with_stubs(dbs, [[foo, 'foo']]) do
+      WT.databases_for(foo)
     end
 
     assert_equal %w[tps_test_foo tps_test_foo2 tps_test_foo3 tps_test_foo8], names
@@ -47,13 +66,14 @@ class WorktreeDbTest < Minitest::Test
     # Worktree `1340` and worktree `13403` overlap: tps_test_13403 is a legit
     # sister name for the former but the main database of the latter.
     dbs = %w[tps_test_1340 tps_test_13402 tps_test_13403]
+    target = wt('demarches-simplifiees.fr-1340')
     worktrees = [
-      ['/dev/demarches-simplifiees.fr-1340', 'w1'],
-      ['/dev/demarches-simplifiees.fr-13403', 'w2']
+      [target, 'w1'],
+      [wt('demarches-simplifiees.fr-13403'), 'w2']
     ]
 
     names = with_stubs(dbs, worktrees) do
-      WT.databases_for('/dev/demarches-simplifiees.fr-1340')
+      WT.databases_for(target)
     end
 
     assert_equal %w[tps_test_1340 tps_test_13402], names
@@ -73,7 +93,7 @@ class WorktreeDbTest < Minitest::Test
       tps_development tps_tests
     ]
 
-    orphans = with_stubs(dbs, [['/dev/demarches-simplifiees.fr-alive', 'alive']]) do
+    orphans = with_stubs(dbs, [[wt('demarches-simplifiees.fr-alive'), 'alive']]) do
       WT.orphan_databases
     end
 
@@ -84,8 +104,8 @@ class WorktreeDbTest < Minitest::Test
   # the [branch] regex dropped it and its live databases looked orphaned.
   def test_a_detached_worktree_still_reserves_its_databases
     dbs = %w[tps_test_review_13705 tps_test_review_137052 tps_test_dead]
-    entries = [E.new(path: '/dev/demarches-simplifiees.fr', branch: 'main'),
-               E.new(path: '/dev/review-13705', detached: true, head: 'ba2b9d2962')]
+    entries = [E.new(path: wt('demarches-simplifiees.fr'), branch: 'main'),
+               E.new(path: wt('review-13705'), detached: true, head: 'ba2b9d2962')]
 
     orphans = WT.stub(:all_databases, dbs) do
       WT.stub(:entries, entries) { WT.orphan_databases }
@@ -94,13 +114,30 @@ class WorktreeDbTest < Minitest::Test
     assert_equal %w[tps_test_dead], orphans
   end
 
+  # `entries` is lossless on purpose, so a worktree whose directory was removed
+  # by hand is still listed. It must stop reserving its databases there and
+  # then — that family is precisely what orphan_databases exists to reclaim.
+  def test_a_worktree_whose_directory_is_gone_reserves_nothing
+    dbs = %w[tps_test_alive tps_test_vanished]
+    entries = [E.new(path: wt('demarches-simplifiees.fr'), branch: 'main'),
+               E.new(path: wt('demarches-simplifiees.fr-alive'), branch: 'alive'),
+               E.new(path: File.join(@root, 'demarches-simplifiees.fr-vanished'), branch: 'vanished')]
+
+    orphans = WT.stub(:all_databases, dbs) do
+      WT.stub(:entries, entries) { WT.orphan_databases }
+    end
+
+    assert_equal %w[tps_test_vanished], orphans
+  end
+
   def test_cleanup_drops_the_whole_family
     dropped = nil
     dbs = %w[tps_test_gone tps_test_gone2 tps_test_gone_extra]
+    gone = wt('demarches-simplifiees.fr-gone')
 
-    with_stubs(dbs, [['/dev/demarches-simplifiees.fr-gone', 'gone']]) do
-      WT.stub(:path_for_branch, '/dev/demarches-simplifiees.fr-gone') do
-        WT.stub(:main_path, '/dev/demarches-simplifiees.fr') do
+    with_stubs(dbs, [[gone, 'gone']]) do
+      WT.stub(:path_for_branch, gone) do
+        WT.stub(:main_path, wt('demarches-simplifiees.fr')) do
           WT.stub(:system, true) do
             WT.stub(:drop_databases, ->(names) { dropped = names }) do
               WT.cleanup('gone')
@@ -130,7 +167,7 @@ class WorktreeDbTest < Minitest::Test
   private
 
   def with_stubs(databases, worktrees, &block)
-    entries = [E.new(path: '/dev/demarches-simplifiees.fr', branch: 'main')] +
+    entries = [E.new(path: wt('demarches-simplifiees.fr'), branch: 'main')] +
               worktrees.map { |path, branch| E.new(path: path, branch: branch) }
 
     WT.stub(:all_databases, databases) do

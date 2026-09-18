@@ -191,7 +191,13 @@ module Nightshift
         # worktree would reserve nothing, and `doctor --fix --only dbs` would
         # drop its live test databases. The database name only ever depends on
         # the path, so the branch is not needed here at all.
-        entries(repo_path).each do |entry|
+        #
+        # `select(&:exists?)` keeps the liveness `list` got from File.directory?:
+        # `entries` is lossless on purpose, and a worktree whose directory was
+        # removed by hand cannot have a test run using its databases. Without
+        # it, it reserves its family forever — the very leak orphan_databases
+        # below says it exists to reclaim.
+        entries(repo_path).select(&:exists?).each do |entry|
           next if except && File.expand_path(entry.path) == File.expand_path(except)
 
           families << db_family(db_name_for(entry.path))
