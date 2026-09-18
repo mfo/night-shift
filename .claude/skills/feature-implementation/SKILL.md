@@ -188,8 +188,9 @@ gh stack push --remote origin          # `rebase` est local : sans ce push, les 
 Vaut aussi pour la boucle visuelle : un `fix(visual)` sur un partial livré en couche 1 se commite **en
 couche 1**, pas sur la couche courante. Le checkpoint du plan porte sa couche propriétaire (`checkpoints[].layer`).
 
-⚠️ **Geler les couches basses.** Le `gh stack push` qui suit un `rebase --upstack` force-push les
-couches du dessus : sur GitHub
+⚠️ **Geler les couches basses.** Tout ce qui republie la pile force-push les couches du dessus : le
+`gh stack push` qui suit un `rebase --upstack`, mais aussi `gh stack sync` (étape 5 : *pushes all
+branches atomically, using `--force-with-lease --atomic`*), prescrit plus bas au § Cycle de vie. Sur GitHub
 les commentaires passent *outdated*, les fils se replient, et si « dismiss stale reviews » est actif sur le
 repo, **les approbations sautent**. Une fois une couche haute passée en `ready`, les couches basses sont
 gelées : grouper les corrections, et poster un commentaire sur les PR impactées disant ce qui a bougé.
