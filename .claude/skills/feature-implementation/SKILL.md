@@ -119,8 +119,10 @@ checkout de branche dans ce worktree. Or `gh stack checkout / up / down / top / 
 Un `gh stack rebase --upstack` sur 5 couches le fait 5 fois.
 
 **Vérifier avant de démarrer une pile.** Si la garde n'est pas en place : soit la poser dans la source
-`hooks/worktree/post-checkout` puis réinstaller (`hooks/worktree/install.sh <worktree>`) — provisioning
-lourd uniquement si `.env.test.local` est absent — soit rester en mono-couche.
+`hooks/worktree/post-checkout` puis la recopier à la main (`cp hooks/worktree/post-checkout
+<worktree>/.githooks/`) — `install.sh` **refuse un worktree**, dont le `.git` est un fichier et pas un
+répertoire — soit rester en mono-couche. Attention : le prochain checkout relancera `bundle install` et
+`bun install` quoi qu'il arrive ; seul le `db:schema:load` est conditionné à l'absence de la base.
 
 ### Création
 
